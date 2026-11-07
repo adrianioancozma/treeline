@@ -287,7 +287,7 @@ body.resizing .splitter::after { background: var(--accent); }
 .focus-chip { padding-right: 4px; background: var(--accent-soft); border-color: var(--accent); }
 .focus-chip .icon-btn { width: 20px; height: 20px; }
 .crow.wip .subject { font-style: italic; color: var(--muted); }
-.graph { display: block; overflow: visible; }
+.graph { display: block; overflow: hidden; }
 .subject { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ref { display: inline-block; flex-shrink: 0; padding: 0 7px; border-radius: 9px; font-size: 11px; line-height: 17px; font-weight: 600; border: 1px solid transparent; }
 .ref.head { background: var(--accent); color: #fff; }
