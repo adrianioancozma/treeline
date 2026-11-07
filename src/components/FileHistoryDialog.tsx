@@ -142,14 +142,18 @@ export function FileHistoryDialog({ req, onClose }: { req: FileHistoryRequest; o
               const uncommitted = UNCOMMITTED.test(b.sha);
               return (
                 <div key={b.line} role="row" className={`blame-row${same ? " same" : ""}`}>
-                  <button
-                    className="blame-who"
-                    disabled={uncommitted}
-                    title={uncommitted ? "Not committed yet" : `${b.summary}\n${fullDate(b.time)}\n${b.sha}`}
-                    onClick={() => openFromBlame(b.sha)}
-                  >
-                    {same ? "" : uncommitted ? "Not committed yet" : `${b.author} · ${relativeTime(b.time)} · ${b.sha.slice(0, 7)}`}
-                  </button>
+                  {same ? (
+                    <span className="blame-who" aria-hidden="true" />
+                  ) : (
+                    <button
+                      className="blame-who"
+                      disabled={uncommitted}
+                      title={uncommitted ? "Not committed yet" : `${b.summary}\n${fullDate(b.time)}\n${b.sha}`}
+                      onClick={() => openFromBlame(b.sha)}
+                    >
+                      {uncommitted ? "Not committed yet" : `${b.author} · ${relativeTime(b.time)} · ${b.sha.slice(0, 7)}`}
+                    </button>
+                  )}
                   <span className="blame-no">{b.line}</span>
                   <code className="blame-text">{b.text || " "}</code>
                 </div>
