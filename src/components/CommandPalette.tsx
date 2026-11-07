@@ -29,6 +29,20 @@ function Palette({ onClone }: { onClone: () => void }) {
       { id: "open", label: "Open repository…", hint: "Ctrl+O", run: () => void pickAndOpenRepo(s.openRepo, (m) => s.notify("error", m)) },
       { id: "clone", label: "Clone repository…", run: onClone },
       { id: "tab", label: "New tab", hint: "Ctrl+T", run: s.newTab },
+      {
+        id: "reset-layout",
+        label: "Reset pane sizes",
+        run: () => {
+          try {
+            Object.keys(localStorage)
+              .filter((k) => k.startsWith("split:"))
+              .forEach((k) => localStorage.removeItem(k));
+          } catch {
+            /* storage unavailable: nothing was remembered anyway */
+          }
+          location.reload();
+        },
+      },
       { id: "theme-dark", label: "Theme: dark", run: () => s.setTheme("dark") },
       { id: "theme-light", label: "Theme: light", run: () => s.setTheme("light") },
       { id: "theme-system", label: "Theme: follow system", run: () => s.setTheme("system") },

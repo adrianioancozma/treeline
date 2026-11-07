@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-function readSize(key: string, fallback: number): number {
+/** Reads a saved pane size, clamped to the allowed range so a stale or corrupt value cannot break the layout. */
+function readSize(key: string, fallback: number, min: number, max: number): number {
   try {
     const v = Number(localStorage.getItem(key));
-    return Number.isFinite(v) && v > 0 ? v : fallback;
+    return Number.isFinite(v) && v > 0 ? Math.min(max, Math.max(min, v)) : fallback;
   } catch {
     return fallback;
   }
@@ -14,7 +15,7 @@ function readSize(key: string, fallback: number): number {
  * `axis` "x" measures from the container's left edge, "y" from its top edge.
  */
 export function useSplit(key: string, initial: number, min: number, max: number, axis: "x" | "y") {
-  const [size, setSize] = useState(() => readSize(`split:${key}`, initial));
+  const [size, setSize] = useState(() => readSize(`split:${key}`, initial, min, max));
   const sizeRef = useRef(size);
   sizeRef.current = size;
 
