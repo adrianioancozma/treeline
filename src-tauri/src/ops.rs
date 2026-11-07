@@ -502,6 +502,165 @@ pub async fn delete_branch(path: String, name: String, force: bool) -> Result<Op
     blocking(move || run_op(&path, ["branch", if force { "-D" } else { "-d" }, &name], &[])).await
 }
 
+// ---------------------------------------------------------------------------
+// Merged branches: which local branches are already part of a target branch
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize, Debug)]
+pub struct MergedBranch {
+    pub name: String,
+    /// Tip commit of the branch.
+    pub sha: String,
+    /// Currently checked out, so it cannot be deleted.
+    pub head: bool,
+    /// The branch tip *is* the target tip: nothing was ever committed on it, so "merged" is trivial.
+    pub at_target: bool,
+    pub author: String,
+    pub time: i64,
+    pub subject: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct BranchHistory {
+    /// The branch's own commits, newest first.
+    pub commits: Vec<Commit>,
+    /// The merge commit that brought the branch into the target; `None` when it was fast-forwarded
+    /// (no merge commit exists) or has no commits of its own.
+    pub merge: Option<Commit>,
+    /// More commits exist than were returned.
+    pub truncated: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub struct BranchDeleteResult {
+    pub name: String,
+    pub ok: bool,
+    pub message: String,
+}
+
+/// Resolves a branch name or commit to its full sha, or explains that it does not exist.
+fn resolve_commit(path: &str, rev: &str) -> Result<String, String> {
+    let missing = || format!("'{rev}' is not a branch or commit in this repository.");
+    if rev.is_empty() || rev.starts_with('-') {
+        return Err(missing());
+    }
+    let spec = format!("{rev}^{{commit}}");
+    run_git(path, [LITERAL, "rev-parse", "--verify", "--quiet", &spec])
+        .map(|s| s.trim().to_string())
+        .map_err(|_| missing())
+}
+
+/// Local branches whose tip is already reachable from `target` (`git branch --merged`), newest first.
+#[tauri::command]
+pub async fn merged_branches(path: String, target: String) -> Result<Vec<MergedBranch>, String> {
+    blocking(move || {
+        let target_sha = resolve_commit(&path, &target)?;
+        let raw = run_git(
+            &path,
+            [
+                LITERAL,
+                "for-each-ref",
+                "--merged",
+                &target_sha,
+                "--sort=-committerdate",
+                "--format=%(refname)%1f%(objectname)%1f%(HEAD)%1f%(authorname)%1f%(committerdate:unix)%1f%(contents:subject)",
+                "refs/heads",
+            ],
+        )?;
+        Ok(raw
+            .lines()
+            .filter_map(|line| {
+                let f: Vec<&str> = line.split('\x1f').collect();
+                if f.len() < 6 {
+                    return None;
+                }
+                let name = f[0].strip_prefix("refs/heads/")?.to_string();
+                if name == target {
+                    return None;
+                }
+                Some(MergedBranch {
+                    at_target: f[1] == target_sha,
+                    sha: f[1].into(),
+                    head: f[2] == "*",
+                    author: f[3].into(),
+                    time: f[4].parse().unwrap_or(0),
+                    subject: f[5].into(),
+                    name,
+                })
+            })
+            .collect())
+    })
+    .await
+}
+
+/// The commits a merged branch contributed, and the merge that brought it into `target`.
+#[tauri::command]
+pub async fn branch_history(path: String, name: String, target: String, limit: u32) -> Result<BranchHistory, String> {
+    blocking(move || {
+        let target_sha = resolve_commit(&path, &target)?;
+        let branch = format!("refs/heads/{name}");
+        let tip = resolve_commit(&path, &branch)?;
+        let log = |extra: Vec<String>| -> Result<Vec<Commit>, String> {
+            let mut args: Vec<String> = vec![LITERAL.into(), "log".into(), "--topo-order".into(), "--no-color".into(), "--decorate=short".into(), LOG_FORMAT.into()];
+            args.extend(extra);
+            Ok(parse_log(&run_git(&path, args)?))
+        };
+
+        // The first merge commit between the branch tip and the target is the one that took it in.
+        let merge_sha = if tip == target_sha {
+            None
+        } else {
+            let range = format!("{tip}..{target_sha}");
+            run_git(&path, [LITERAL, "log", "--ancestry-path", "--merges", "--reverse", "--format=%H", &range])?
+                .lines()
+                .next()
+                .map(str::to_string)
+        };
+        let merge = match &merge_sha {
+            Some(m) => log(vec!["-n1".into(), m.clone()])?.into_iter().next(),
+            None => None,
+        };
+
+        // With a merge commit, the branch's own work is everything its second parent adds over the
+        // first. Without one (fast-forward) the fork point is unknowable, so show the latest commits.
+        let range = match &merge_sha {
+            Some(m) => format!("{m}^1..{tip}"),
+            None => tip.clone(),
+        };
+        let mut commits = log(vec![format!("-n{}", limit + 1), range])?;
+        let truncated = commits.len() > limit as usize;
+        commits.truncate(limit as usize);
+        Ok(BranchHistory { commits, merge, truncated })
+    })
+    .await
+}
+
+/// Deletes local branches that are merged into `target`. Each branch is checked again right before
+/// deleting, so a branch that gained commits since the list was built is kept.
+#[tauri::command]
+pub async fn delete_merged_branches(path: String, target: String, names: Vec<String>) -> Result<Vec<BranchDeleteResult>, String> {
+    blocking(move || {
+        let target_sha = resolve_commit(&path, &target)?;
+        let mut results = Vec::new();
+        for name in names {
+            let full = format!("refs/heads/{name}");
+            let merged = run_git(&path, [LITERAL, "merge-base", "--is-ancestor", &full, &target_sha]).is_ok();
+            let (ok, message) = if merged {
+                // `-D` because plain `-d` compares with the upstream or HEAD, not with `target`.
+                match run_op(&path, ["branch", "-D", &name], &[]) {
+                    Ok(r) => (r.ok, r.output.trim().to_string()),
+                    Err(e) => (false, e),
+                }
+            } else {
+                (false, format!("{name} is not merged into {target} any more, so it was kept."))
+            };
+            results.push(BranchDeleteResult { name, ok, message });
+        }
+        Ok(results)
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn create_tag(
     path: String,

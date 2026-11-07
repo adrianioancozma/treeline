@@ -13,6 +13,7 @@ const PATHS = {
   plus: "M12 5v14M5 12h14",
   x: "M6 6l12 12M18 6L6 18",
   check: "M5 12l5 5L20 7",
+  trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6",
   chevron: "M9 6l6 6-6 6",
   files: "M7 3h7l5 5v13H7zM14 3v5h5",
   history: "M12 7v5l3 2M4 12a8 8 0 108-8 8 8 0 00-6 2.7M4 4v4h4",

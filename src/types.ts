@@ -151,3 +151,30 @@ export interface BlameLine {
   line: number;
   text: string;
 }
+
+/** A local branch that is already part of the target branch. */
+export interface MergedBranch {
+  name: string;
+  sha: string;
+  /** Checked out right now, so it cannot be deleted. */
+  head: boolean;
+  /** Its tip is the target's tip: nothing was ever committed on it. */
+  atTarget: boolean;
+  author: string;
+  time: number;
+  subject: string;
+}
+
+export interface BranchHistory {
+  /** The branch's own commits, newest first. */
+  commits: Commit[];
+  /** The merge commit that took the branch into the target; null when it was fast-forwarded. */
+  merge: Commit | null;
+  truncated: boolean;
+}
+
+export interface BranchDeleteResult {
+  name: string;
+  ok: boolean;
+  message: string;
+}

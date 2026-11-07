@@ -2,12 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import type {
   BlameLine,
+  BranchDeleteResult,
+  BranchHistory,
   Commit,
   CommitDetail,
   ConflictFile,
   FileCommit,
   FileEntry,
   GitInfo,
+  MergedBranch,
   OpResult,
   PersistedState,
   RebaseCommit,
@@ -82,6 +85,11 @@ export const api = {
     invoke<OpResult>("rename_branch", { path, old, new: name }),
   deleteBranch: (path: string, name: string, force: boolean) =>
     invoke<OpResult>("delete_branch", { path, name, force }),
+  mergedBranches: (path: string, target: string) => invoke<MergedBranch[]>("merged_branches", { path, target }),
+  branchHistory: (path: string, name: string, target: string, limit: number) =>
+    invoke<BranchHistory>("branch_history", { path, name, target, limit }),
+  deleteMergedBranches: (path: string, target: string, names: string[]) =>
+    invoke<BranchDeleteResult[]>("delete_merged_branches", { path, target, names }),
   createTag: (path: string, name: string, rev: string | null, message: string | null) =>
     invoke<OpResult>("create_tag", { path, name, rev, message }),
   deleteTag: (path: string, name: string) => invoke<OpResult>("delete_tag", { path, name }),

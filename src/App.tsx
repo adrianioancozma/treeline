@@ -12,6 +12,7 @@ import { StatusBar } from "./components/StatusBar";
 import { CloneDialog } from "./components/CloneDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FileHistoryDialog } from "./components/FileHistoryDialog";
+import { MergedBranchesDialog } from "./components/MergedBranchesDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextMenuHost, FormDialogHost, Toasts } from "./components/Overlays";
 import { RebaseDialogHost } from "./components/RebaseDialog";
@@ -25,6 +26,7 @@ export default function App() {
   const cloning = useUi((s) => s.clone);
   const settingsOpen = useUi((s) => s.settings);
   const fileHistory = useUi((s) => s.fileHistory);
+  const mergedBranches = useUi((s) => s.mergedBranches);
 
   useEffect(() => {
     void useApp.getState().init();
@@ -97,6 +99,7 @@ export default function App() {
       {fileHistory && (
         <FileHistoryDialog key={`${fileHistory.repo}:${fileHistory.file}:${fileHistory.mode}`} req={fileHistory} onClose={() => useUi.setState({ fileHistory: null })} />
       )}
+      {mergedBranches && <MergedBranchesDialog key={mergedBranches.tabId} tabId={mergedBranches.tabId} onClose={() => useUi.setState({ mergedBranches: null })} />}
       {settingsOpen && <SettingsDialog onClose={() => useUi.setState({ settings: false })} />}
     </div>
   );

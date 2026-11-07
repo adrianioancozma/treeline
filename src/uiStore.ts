@@ -44,9 +44,11 @@ interface UiState {
   rebase: { tabId: string; base: string | null; title: string } | null;
   clone: boolean;
   settings: boolean;
+  /** The merged-branches dialog, open for this tab. */
+  mergedBranches: { tabId: string } | null;
 }
 
-export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false }));
+export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false, mergedBranches: null }));
 
 export function openMenu(e: MouseEvent | { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }, items: MenuItem[]) {
   e.preventDefault?.();

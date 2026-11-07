@@ -1,6 +1,6 @@
 import { repoActions } from "../actions";
 import { useApp } from "../store";
-import { openMenu } from "../uiStore";
+import { openMenu, useUi } from "../uiStore";
 import type { Tab } from "../types";
 import { Icon, type IconName } from "./Icon";
 
@@ -95,6 +95,7 @@ export function Toolbar({ tab }: { tab: Tab }) {
         <Btn icon="merge" label="Merge" onClick={() => a.merge()} />
         <Btn icon="stash" label="Stash" onClick={() => a.stash()} />
         <Btn icon="tag" label="Tag" onClick={() => a.newTag()} />
+        <Btn icon="trash" label="Cleanup" title="Find merged branches that are safe to delete" onClick={() => useUi.setState({ mergedBranches: { tabId: tab.id } })} />
         <span className="sep" />
         <Btn icon="terminal" label="Terminal" onClick={() => a.terminal()} />
         <Btn icon="folder" label="Explorer" onClick={() => a.reveal()} />
