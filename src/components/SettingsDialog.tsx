@@ -103,7 +103,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           </p>
         )}
         <h3 className="small">About and updates</h3>
-        <p className="muted small">APMGIT CLIENT{version ? ` version ${version}` : ""}</p>
+        <p className="muted small">Treeline{version ? ` version ${version}` : ""}</p>
         {upd.kind === "available" ? (
           <>
             <p className="small" role="status">

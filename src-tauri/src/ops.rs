@@ -790,7 +790,7 @@ pub async fn rebase_interactive(
         // Keep the todo and reword messages inside the git dir: a paused rebase (conflict, `edit`)
         // runs the remaining `exec` lines later, so these files must outlive this call.
         let git_dir = PathBuf::from(run_git(&path, ["rev-parse", "--absolute-git-dir"])?.trim());
-        let work = git_dir.join("apmgit-rebase");
+        let work = git_dir.join("treeline-rebase");
         let _ = fs::remove_dir_all(&work);
         fs::create_dir_all(&work).map_err(|e| e.to_string())?;
         let mut todo = String::new();

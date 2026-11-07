@@ -14,7 +14,7 @@ mod watcher;
 fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
     let app_menu = Submenu::with_items(
         app,
-        "APMGIT CLIENT",
+        "Treeline",
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
@@ -128,5 +128,5 @@ pub fn run() {
             watcher::unwatch_repo,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running APMGIT CLIENT");
+        .expect("error while running Treeline");
 }

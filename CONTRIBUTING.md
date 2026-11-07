@@ -1,4 +1,4 @@
-# Contributing to APMGIT CLIENT
+# Contributing to Treeline
 
 Thank you for helping! Contributions of every kind are welcome: code, tests, documentation, translations, bug reports,
 ideas, and — right now most of all — **testing on macOS and Linux**, where the app has never been built or run

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests and builds the Linux packages (.deb, .AppImage, .rpm). Run after scripts/setup-linux.sh.
-# IMPORTANT (WSL): run this from a copy on the Linux filesystem (e.g. ~/apmgit-client), NOT from /mnt/c/...
+# IMPORTANT (WSL): run this from a copy on the Linux filesystem (e.g. ~/treeline), NOT from /mnt/c/...
 # - the Windows drive is many times slower and OneDrive folders make it worse.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -8,7 +8,7 @@ export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 case "$(pwd)" in
   /mnt/*) echo "Refusing to build under /mnt (slow, and breaks file watching). Copy the repo into your Linux home first:"
-          echo "  git clone \"$(pwd)\" ~/apmgit-client && cd ~/apmgit-client"
+          echo "  git clone \"$(pwd)\" ~/treeline && cd ~/treeline"
           exit 1;;
 esac
 

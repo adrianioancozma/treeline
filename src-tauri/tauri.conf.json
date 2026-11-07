@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "APMGIT CLIENT",
+  "productName": "Treeline",
   "version": "0.1.0",
-  "identifier": "com.apm.apmgitclient",
+  "identifier": "com.treeline.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "APMGIT CLIENT",
+        "title": "Treeline",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -26,13 +26,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "publisher": "APM",
+    "publisher": "Treeline",
     "category": "DeveloperTool",
     "macOS": {
       "minimumSystemVersion": "12.0"
     },
     "shortDescription": "A fast, provider-independent Git client",
-    "longDescription": "APMGIT CLIENT is a fast desktop Git client with tabs, bookmarks, submodules, history graph, staging by hunk or line, merge and rebase tools. It works with any Git remote.",
+    "longDescription": "Treeline is a fast desktop Git client with tabs, bookmarks, submodules, history graph, staging by hunk or line, merge and rebase tools. It works with any Git remote.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,7 +46,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgzN0QyRDBENzE3MzVBQjYKUldTMlduTnhEUzE5ZzhGbkNkNEhISEVMbDlKZFY4bStOZjlUaDkvSzFodGgvYmpsRzFyR1VaeFgK",
       "endpoints": [
-        "https://github.com/suhailaleryani/apmgit-client/releases/latest/download/latest.json"
+        "https://github.com/suhailaleryani/treeline/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

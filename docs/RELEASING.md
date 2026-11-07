@@ -6,7 +6,7 @@ The app checks for updates against `latest.json` on GitHub Releases (address in 
 ## One-time setup
 
 * The signing key pair was created with `pnpm tauri signer generate`. The **public** key is in `tauri.conf.json`.
-  The **private** key lives only on the release machine (`~/.tauri/apmgit-client.key`) and must **never** be
+  The **private** key lives only on the release machine (`~/.tauri/treeline.key`) and must **never** be
   committed or shared. Back it up: if it is lost, installed copies can never be updated again.
 * Create the GitHub repository named in the endpoint (or change the address in `tauri.conf.json` first).
 
@@ -15,7 +15,7 @@ The app checks for updates against `latest.json` on GitHub Releases (address in 
 1. Raise `version` in `src-tauri/tauri.conf.json`, `package.json` and `src-tauri/Cargo.toml`; commit it.
 2. Build with the key available (PowerShell):
    ```
-   $env:TAURI_SIGNING_PRIVATE_KEY = "$HOME\.tauri\apmgit-client.key"
+   $env:TAURI_SIGNING_PRIVATE_KEY = "$HOME\.tauri\treeline.key"
    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
    pnpm tauri build
    ```

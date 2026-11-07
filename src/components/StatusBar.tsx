@@ -28,7 +28,7 @@ export function StatusBar() {
       </span>
       <span className="muted ellipsis">{tab?.path ?? ""}</span>
       {version && (
-        <span className="muted" title="APMGIT CLIENT version">
+        <span className="muted" title="Treeline version">
           v{version}
         </span>
       )}

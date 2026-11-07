@@ -788,7 +788,7 @@ mod git_path_tests {
     #[test]
     fn windows_fallback_finds_git_when_path_is_empty() {
         const NAME: &str = "git::git_path_tests::windows_fallback_finds_git_when_path_is_empty";
-        if std::env::var_os("APMGIT_PROBE").is_some() {
+        if std::env::var_os("TREELINE_PROBE").is_some() {
             let info = git_info_now();
             assert!(info.version.is_some(), "git not found with empty PATH: {}", info.path);
             return;
@@ -798,7 +798,7 @@ mod git_path_tests {
         }
         let out = Command::new(std::env::current_exe().unwrap())
             .args(["--exact", NAME, "--nocapture"])
-            .env("APMGIT_PROBE", "1")
+            .env("TREELINE_PROBE", "1")
             .env("PATH", "")
             .output()
             .unwrap();

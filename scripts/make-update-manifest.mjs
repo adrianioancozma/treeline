@@ -21,8 +21,8 @@ mkdirSync(out, { recursive: true });
 
 // platform key → [folder, file name as built]
 const candidates = {
-  "windows-x86_64": [join(bundle, "nsis"), `APMGIT CLIENT_${version}_x64-setup.exe`],
-  "linux-x86_64": [join(bundle, "linux"), `APMGIT CLIENT_${version}_amd64.AppImage`],
+  "windows-x86_64": [join(bundle, "nsis"), `Treeline_${version}_x64-setup.exe`],
+  "linux-x86_64": [join(bundle, "linux"), `Treeline_${version}_amd64.AppImage`],
 };
 
 const platforms = {};

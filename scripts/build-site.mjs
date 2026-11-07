@@ -74,15 +74,15 @@ const head = (pageTitle, rel) => `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(pageTitle)} · APMGIT CLIENT</title>
-<meta name="description" content="APMGIT CLIENT documentation: a fast Git client that works with any Git provider.">
+<title>${escapeHtml(pageTitle)} · Treeline</title>
+<meta name="description" content="Treeline documentation: a fast Git client that works with any Git provider.">
 <link rel="icon" href="${rel}assets/icon.png">
 <link rel="stylesheet" href="${rel}assets/site.css">
 <script src="${rel}assets/site.js" defer></script>
 </head>`;
 
 const header = (rel, active) => `<header class="topbar">
-  <a class="brand" href="${rel}index.html"><img src="${rel}assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <a class="brand" href="${rel}index.html"><img src="${rel}assets/icon.png" alt="" width="28" height="28"><span>Treeline</span></a>
   <nav class="top-links" aria-label="Main">
     <a href="${rel}index.html"${active === "home" ? ' aria-current="page"' : ""}>Overview</a>
     <a href="${rel}docs/index.html"${active === "docs" ? ' aria-current="page"' : ""}>Docs</a>
@@ -104,7 +104,7 @@ const sidebar = (currentId) => `<nav class="doc-nav" aria-label="Documentation">
   </ol>
 </nav>`;
 
-const footer = `<footer class="footer"><p>APMGIT CLIENT works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>`;
+const footer = `<footer class="footer"><p>Treeline works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>`;
 
 const page = ({ pageTitle, id, article, prev, next, toc }) => `${head(pageTitle, "../")}
 <body class="docs">

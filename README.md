@@ -1,4 +1,4 @@
-# APMGIT CLIENT
+# Treeline
 
 A fast desktop Git client with a Sourcetree-style interface. It talks to the system `git` CLI, so it works
 with **any Git remote** (self-hosted, GitLab, Gitea, Azure DevOps, a bare repo on a file share …). There are
@@ -117,13 +117,13 @@ Output: `src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg` and `
 * **Distributing it:** an unsigned app is blocked by Gatekeeper ("cannot be opened / is damaged"). For other people's Macs
   you need an Apple Developer account to **sign and notarise** the build
   (see <https://tauri.app/distribute/sign/macos/>). For your own use, right-click the app → **Open** once, or run
-  `xattr -dr com.apple.quarantine "/Applications/APMGIT CLIENT.app"`.
+  `xattr -dr com.apple.quarantine "/Applications/Treeline.app"`.
 
 ### Linux (including WSL2)
 
 ```sh
 bash scripts/setup-linux.sh     # once: apt packages, Rust, pnpm (asks for your sudo password)
-git clone <this repo> ~/apmgit-client && cd ~/apmgit-client   # build on the Linux filesystem, not /mnt/c
+git clone <this repo> ~/treeline && cd ~/treeline   # build on the Linux filesystem, not /mnt/c
 bash scripts/build-linux.sh     # runs all tests, then builds .deb / .AppImage / .rpm
 ```
 

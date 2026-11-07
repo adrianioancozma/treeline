@@ -1,4 +1,4 @@
-# Testing APMGIT CLIENT on macOS and Linux
+# Testing Treeline on macOS and Linux
 
 **Status:** the app has been built and tested **only on Windows 10**. It has **never been compiled or run on macOS or
 Linux**. This checklist is how you can help change that. It takes about 15–20 minutes. Thank you!

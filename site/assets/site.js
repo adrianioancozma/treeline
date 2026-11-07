@@ -1,7 +1,7 @@
 // Theme toggle (remembered, with safe storage access) and the mobile docs navigation.
 (function () {
   var root = document.documentElement;
-  var KEY = "apmgit-site-theme";
+  var KEY = "treeline-site-theme";
   try {
     var saved = localStorage.getItem(KEY);
     if (saved === "light" || saved === "dark") root.setAttribute("data-theme", saved);

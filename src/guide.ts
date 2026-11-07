@@ -26,7 +26,7 @@ export async function openGuide(page: string = GUIDE.home): Promise<void> {
   }
   const win = new WebviewWindow(LABEL, {
     url,
-    title: "Guide — APMGIT CLIENT",
+    title: "Guide — Treeline",
     width: 1100,
     height: 820,
     minWidth: 640,

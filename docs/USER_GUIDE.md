@@ -1,6 +1,6 @@
-# APMGIT CLIENT — User Guide
+# Treeline — User Guide
 
-APMGIT CLIENT is a desktop Git client. It works with **any Git server** (self-hosted, GitLab, Gitea, Azure DevOps, a
+Treeline is a desktop Git client. It works with **any Git server** (self-hosted, GitLab, Gitea, Azure DevOps, a
 shared folder …) because it simply drives the `git` program installed on your computer. It never asks for or stores
 your passwords: sign-in is handled by your normal Git setup (see [Signing in](#signing-in)).
 

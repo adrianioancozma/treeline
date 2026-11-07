@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup of a Debian/Ubuntu machine (including WSL2) for building APMGIT CLIENT.
+# One-time setup of a Debian/Ubuntu machine (including WSL2) for building Treeline.
 # Run it from a terminal on that machine:   bash scripts/setup-linux.sh
 # It asks for your sudo password once (for apt). Everything else is installed in your home folder.
 set -euo pipefail

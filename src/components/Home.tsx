@@ -19,7 +19,7 @@ export function Home() {
         <div className="logo" aria-hidden="true">
           <Icon name="branch" size={30} />
         </div>
-        <h1>APMGIT CLIENT</h1>
+        <h1>Treeline</h1>
         <p className="muted">A fast Git client for any provider. Open a repository to get started.</p>
         <div className="row center">
           <button className="btn primary big" onClick={() => pickAndOpenRepo(openRepo, onError)}>

@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    apmgit_client_lib::run()
+    treeline_lib::run()
 }
