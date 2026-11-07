@@ -4,9 +4,28 @@ A fast desktop Git client with a Sourcetree-style interface. It talks to the sys
 with **any Git remote** (self-hosted, GitLab, Gitea, Azure DevOps, a bare repo on a file share …). There are
 no provider integrations and no sign-in.
 
-Built with **Tauri 2** (Rust) and **React + TypeScript**. Runs on Windows, macOS and Linux.
+Built with **Tauri 2** (Rust) and **React + TypeScript**.
 
-> **New here? Read the [User Guide](docs/USER_GUIDE.md)** — a step-by-step walkthrough of every feature, what each error means and how to fix it.
+![The history view with one branch highlighted](site/assets/history-highlight.png)
+
+> **New here? Read the [User Guide](docs/USER_GUIDE.md)** — a step-by-step walkthrough of every feature, what each error
+> means and how to fix it. It is also built into the app (press `F1`).
+
+> ### ⚠️ Platform status — help wanted
+> | | Status |
+> | --- | --- |
+> | **Windows 10** | ✅ Built, installer produced, and every feature exercised by hand |
+> | **macOS** | ❌ **Not built and not tested.** The code is prepared for it, but it has never been compiled or run on a Mac. |
+> | **Linux** | ❌ **Not built and not tested.** Same: prepared, never compiled or run. |
+>
+> **We need your help to test it on macOS and Linux** — see [Help us test](#help-us-test-on-macos-and-linux). Windows 11 is
+> expected to work but has not been checked either. Until this is verified, treat macOS and Linux as unsupported.
+
+> ### 🙋 Want to help? Anyone is welcome.
+> This is a young project and it needs people. You don't have to be a Git or Rust expert, and every bit counts:
+> **try it on a Mac or Linux machine** (15 minutes, no coding), **report a bug or an idea**, **fix a typo**, **improve the
+> docs**, or **send code**. Start with [Help us test](#help-us-test-on-macos-and-linux) or [CONTRIBUTING.md](CONTRIBUTING.md) —
+> and if you're not sure where to begin, just open an issue and say hello.
 
 ## Features
 
@@ -15,18 +34,22 @@ Built with **Tauri 2** (Rust) and **React + TypeScript**. Runs on Windows, macOS
 | **Tabs** | Many repositories open at once. Only the active tab is refreshed, and changes are picked up by a file watcher (no polling). Tabs are restored on start-up. |
 | **Bookmarks** | Star a repository to keep it one click away on the home tab and in the command palette. |
 | **Clone** | Any URL, live progress, optional submodules. A clone whose only failure is a submodule still opens, with a warning. |
-| **Submodules** | Shown in the sidebar with status, opened in their own tab (double-click), initialised on demand, bulk update. |
+| **Submodules** | Shown in the sidebar with status, opened in their own tab beside the parent (double-click), initialised on demand, bulk update. |
 | **Working copy** | Stage/unstage/discard per file, **per hunk, or per line**. Commit, amend, commit & push. |
-| **History** | Virtualised commit graph (smooth with 10k+ commits), search, all-branches toggle, uncommitted-changes row, commit detail and per-file diff. |
-| **Branches & tags** | Create, check out, rename, delete (local and remote), tag, push tag. |
+| **History** | Virtualised commit graph (smooth with 10k+ commits), search, all-branches toggle, **click a branch to highlight its history**, uncommitted-changes row, commit detail and per-file diff. |
+| **Branches & tags** | Create, check out, rename, delete (local and remote), tag, push tag. Fetch / pull / push a single branch from its right-click menu. |
 | **Remotes** | Fetch, pull (merge / rebase / fast-forward only), push (upstream, tags, force-with-lease) with progress. |
 | **Merge tools** | Merge (`--no-ff`, squash), rebase, **interactive rebase** (pick/reword/edit/squash/fixup/drop, reorder), cherry-pick, revert, reset, stash, and a **conflict resolver** with per-conflict ours/theirs/both and an editable result. |
-| **UX** | Command palette (`Ctrl+K`), context menus, dark/light theme, resizable panes, keyboard shortcuts, and the full user guide built in (`F1`, works offline). |
+| **Errors that help** | Every failure is explained in plain language with numbered fixes and one-click actions (Pull, Stash, Remove lock file …). Risky "force" options are offered last and always confirmed first. |
+| **UX** | Command palette, context menus, dark/light theme, resizable panes, keyboard shortcuts, and the full user guide built in (`F1`, works offline). |
 
 ### Keyboard shortcuts
 
+On macOS use `Cmd` in place of `Ctrl` (except `Ctrl+Tab`).
+
 `Ctrl+K` command palette · `Ctrl+O` open repository · `Ctrl+T` new tab · `Ctrl+W` close tab ·
-`Ctrl+Tab` / `Ctrl+Shift+Tab` next / previous tab · `Ctrl+R` refresh · `Ctrl+Enter` commit.
+`Ctrl+Tab` / `Ctrl+Shift+Tab` next / previous tab · `Ctrl+R` refresh · `Ctrl+Enter` commit ·
+`F1` or `Ctrl`/`Cmd`+`?` user guide.
 
 ## Why it is fast
 
@@ -47,9 +70,9 @@ Built with **Tauri 2** (Rust) and **React + TypeScript**. Runs on Windows, macOS
 ```sh
 pnpm install
 pnpm tauri dev        # run the app with hot reload
-pnpm test             # TypeScript unit tests (diff/patch builder, graph, conflicts, formatting)
+pnpm test             # TypeScript unit tests (diff/patch builder, graph, conflicts, errors, formatting)
 pnpm exec tsc --noEmit
-cd src-tauri && cargo test   # Rust tests, including integration tests against real git
+cd src-tauri && cargo test --lib   # Rust tests, including integration tests against real git
 ```
 
 ## Build installers
@@ -60,17 +83,20 @@ Installers must be built on the target OS (Tauri does not cross-compile desktop 
 pnpm tauri build
 ```
 
-| OS | Extra prerequisites | Output (`src-tauri/target/release/bundle/`) |
-| --- | --- | --- |
-| Windows | Visual Studio Build Tools (C++), WebView2 | `nsis/*.exe`, `msi/*.msi` |
-| macOS | Xcode command line tools | `dmg/*.dmg`, `macos/*.app` |
-| Linux | `libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev` | `deb/*.deb`, `appimage/*.AppImage`, `rpm/*.rpm` |
+| OS | Extra prerequisites | Output (`src-tauri/target/release/bundle/`) | Verified |
+| --- | --- | --- | --- |
+| Windows | Visual Studio Build Tools (C++), WebView2 | `nsis/*.exe`, `msi/*.msi` | ✅ |
+| macOS | Xcode command line tools | `dmg/*.dmg`, `macos/*.app` | ❌ never built |
+| Linux | `libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev` | `deb/*.deb`, `appimage/*.AppImage`, `rpm/*.rpm` | ❌ never built |
 
 Regenerate the icon set from a 1024×1024 PNG with `pnpm tauri icon path/to/icon.png`.
 
 ## macOS and Linux
 
-The same code runs on all three systems, but each installer must be **built on its own OS**.
+> **Not built or tested yet.** The steps below are what we expect to work; please tell us what actually happens
+> ([how to help](#help-us-test-on-macos-and-linux)).
+
+The same code is meant to run on all three systems, but each installer must be **built on its own OS**.
 
 ### macOS (build on a Mac)
 
@@ -84,10 +110,10 @@ pnpm tauri build --target universal-apple-darwin         # one app for Apple Sil
 
 Output: `src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg` and `macos/*.app`. Requires macOS 12 or newer.
 
-* **Git:** the app finds Homebrew's git (`/opt/homebrew/bin`, `/usr/local/bin`) even when launched from Finder, which
-  gives apps only a minimal PATH. Apple's built-in git (from `xcode-select --install`) also works.
-* **Shortcuts:** `Cmd` replaces `Ctrl` everywhere (`Cmd+K`, `Cmd+T`, `Cmd+W` …). `Ctrl+Tab` still switches tabs, and
-  `Cmd+?` (or `F1`) opens the guide. The macOS menu has no "Close Window" item so `Cmd+W` closes the current tab.
+* **Git:** the app adds Homebrew's directories (`/opt/homebrew/bin`, `/usr/local/bin`) to its `PATH`, because an app
+  launched from Finder gets only a minimal one. Apple's built-in git (from `xcode-select --install`) also works.
+* **Shortcuts:** `Cmd` replaces `Ctrl` (`Cmd+K`, `Cmd+T`, `Cmd+W` …). `Ctrl+Tab` still switches tabs, and `Cmd+?` (or `F1`)
+  opens the guide. The macOS menu has no "Close Window" item, so `Cmd+W` should close the current tab.
 * **Distributing it:** an unsigned app is blocked by Gatekeeper ("cannot be opened / is damaged"). For other people's Macs
   you need an Apple Developer account to **sign and notarise** the build
   (see <https://tauri.app/distribute/sign/macos/>). For your own use, right-click the app → **Open** once, or run
@@ -102,7 +128,46 @@ bash scripts/build-linux.sh     # runs all tests, then builds .deb / .AppImage /
 ```
 
 Output: `src-tauri/target/release/bundle/{deb,appimage,rpm}`. On **WSL2 with WSLg** (Windows 10 22H2 / Windows 11) a
-Linux window opens on your Windows desktop: `pnpm tauri dev` or run the built AppImage.
+Linux window should open on your Windows desktop with `pnpm tauri dev` or when running the built AppImage.
+The scripts target Debian/Ubuntu; other distributions need the equivalent packages for Tauri 2
+(see <https://tauri.app/start/prerequisites/#linux>).
+
+## Help us test on macOS and Linux
+
+**The app has never been built or run on macOS or Linux.** We have only a Windows machine, so we cannot tell what works.
+If you have a Mac or a Linux machine, even 15 minutes helps a lot:
+
+1. Build it (steps above) — or tell us if the build itself fails, and paste the error.
+2. Run the short smoke-test checklist in **[docs/CROSS_PLATFORM_TESTING.md](docs/CROSS_PLATFORM_TESTING.md)**.
+3. Report what worked and what didn't, using the template at the end of that file: your OS and version, CPU
+   (Apple Silicon / Intel), `git --version`, how you launched the app (Finder, Dock or terminal matters on macOS),
+   what you did, what you expected, and a screenshot. For an error panel, use **Copy details**.
+
+Failures we most expect on a first run: the build, finding `git` when launched from Finder, `Cmd`-key shortcuts and
+menus on macOS, Linux window and file-watcher behaviour, and packaging. Even "it works" reports are valuable.
+
+## Contributing
+
+**Contributions are very welcome** — code, tests, documentation, translations, bug reports and ideas. See
+**[CONTRIBUTING.md](CONTRIBUTING.md)** for how to set up, the conventions we follow, and where to send changes (open an
+issue or send a patch / merge request wherever this repository is hosted).
+
+Good places to start:
+* **Test and fix macOS and Linux** (above) — the biggest gap today.
+* **Packaging and signing:** macOS notarisation, Windows code signing, a Flatpak or Snap.
+* **Errors:** add explanations for Git errors we don't recognise yet (`src/lib/explain.ts`, with a test).
+* **Features not built yet:** file history and blame views, Git LFS, worktrees, Git-flow helpers, tag/annotation details.
+* **Quality:** accessibility review (keyboard and screen reader), performance on very large repositories, tests.
+
+## Known limitations
+
+* **macOS and Linux have not been built or tested** (see above). Windows 11 has not been checked either.
+* The Windows installers are **not code-signed**, so Windows SmartScreen shows an "unknown publisher" warning.
+* An in-progress `git am` is shown as a "rebase" (and its Abort will not work); stash actions use positional
+  `stash@{n}` references; the interactive-rebase editor command breaks if the repository's git directory path contains a
+  single quote.
+* The app cannot type an SSH key passphrase for you: load passphrase-protected keys into `ssh-agent` first.
+* The app does not bundle Git — it needs a working `git` on your `PATH`.
 
 ## Website, documentation and presentation
 
@@ -122,29 +187,39 @@ node scripts/check-site.mjs  # verify every link, image and #anchor in the site
 
 Edit the guide (not the generated HTML), rebuild, then commit both. The site is also bundled into the app
 (`scripts/sync-guide.mjs` copies it to the git-ignored `public/guide/` before every dev run and build) so **F1** opens it
-offline in its own window. Serve locally with any static server, for example
-`npx serve site`.
+offline in its own window. Serve locally with any static server, for example `npx serve site`.
 
 ## Project layout
 
 ```
-docs/USER_GUIDE.md       end-user guide
-src/                     React UI
-  store.ts               app state (tabs, bookmarks, per-repo data, refresh logic)
-  actions.ts             every user action (fetch, push, merge …) shared by toolbar, menus and palette
-  lib/diff.ts            unified-diff parser and hunk/line patch builder
-  lib/graph.ts           commit-graph lane layout
-  lib/conflict.ts        conflict-marker parser and resolver
-  components/            views and dialogs
+docs/USER_GUIDE.md             end-user guide (source of the docs pages)
+docs/CROSS_PLATFORM_TESTING.md macOS / Linux smoke-test checklist
+CONTRIBUTING.md                how to contribute
+site/                          landing page, slide deck, generated docs
+scripts/                       site build/check, guide bundling, Linux setup/build
+src/                           React UI
+  store.ts                     app state (tabs, bookmarks, per-repo data, refresh logic)
+  actions.ts                   every user action (fetch, push, merge …) shared by toolbar, menus and palette
+  guide.ts                     opens the built-in guide window
+  lib/diff.ts                  unified-diff parser and hunk/line patch builder
+  lib/graph.ts                 commit-graph lane layout and branch reachability
+  lib/conflict.ts              conflict-marker parser and resolver
+  lib/explain.ts               turns git errors into explanations and fixes
+  components/                  views and dialogs
 src-tauri/src/
-  git.rs                 process helpers, status, submodules, clone
-  ops.rs                 staging, commits, history, branches, remotes, merge/rebase, stash, conflicts
-  watcher.rs             file-system watcher for the active repo
-  store.rs               state persistence
+  git.rs                       process helpers, status, submodules, clone
+  ops.rs                       staging, commits, history, branches, remotes, merge/rebase, stash, conflicts
+  watcher.rs                   file-system watcher for the active repo
+  store.rs                     state persistence
 ```
 
 ## Notes
 
 * Credentials come from your normal Git setup (credential helper, SSH agent). The app never prompts for or
   stores passwords itself, and sets `GIT_TERMINAL_PROMPT=0` so a missing credential fails fast instead of hanging.
-* `.git/index.lock` errors are shown as git reports them; remove a stale lock file if a previous git process crashed.
+* `.git/index.lock` errors are explained in the app, which can remove a stale lock file for you.
+
+## License
+
+**Not chosen yet.** Until a licence file is added, the code is not licensed for reuse. Decide on one (for example MIT or
+Apache-2.0) before accepting outside contributions or publishing the repository.
