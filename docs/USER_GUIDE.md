@@ -27,7 +27,8 @@ your passwords: sign-in is handled by your normal Git setup (see [Signing in](#s
 ## 1. Before you start
 
 * **Git must be installed** (version 2.30 or newer) and available on your `PATH`. Check by running `git --version` in a
-  terminal. Download from <https://git-scm.com> if needed.
+  terminal. Windows: download from <https://git-scm.com>. macOS: run `xcode-select --install` in Terminal, or
+  `brew install git`. Linux: `sudo apt install git` (or your distribution's equivalent).
 * **Tell Git who you are** once per computer, otherwise commits are refused:
   ```
   git config --global user.name  "Your Name"
@@ -296,7 +297,7 @@ full output.
 
 | Shortcut | Action |
 | --- | --- |
-| `F1` | Open this user guide |
+| `F1` (or `Ctrl`/`Cmd`+`?`) | Open this user guide |
 | `Ctrl+K` | Command palette |
 | `Ctrl+O` | Open repository |
 | `Ctrl+T` / `Ctrl+W` | New tab / close tab |
@@ -308,7 +309,7 @@ full output.
 | Double-click a branch | Check it out |
 | Double-click a submodule | Open it in a tab beside its parent |
 
-(On macOS use `Cmd` instead of `Ctrl`.)
+(On macOS use `Cmd` instead of `Ctrl`, except `Ctrl+Tab` for switching tabs. On a Mac, `F1` may need the `Fn` key, so `Cmd+?` is the easier way to open the guide.)
 
 ---
 

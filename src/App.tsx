@@ -56,6 +56,11 @@ export default function App() {
         return;
       }
       if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+        e.preventDefault();
+        void openGuide().catch((err) => useApp.getState().notify("error", String(err)));
+        return;
+      }
       const app = useApp.getState();
       const key = e.key.toLowerCase();
       if (key === "t") app.newTab();

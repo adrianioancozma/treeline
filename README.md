@@ -68,6 +68,42 @@ pnpm tauri build
 
 Regenerate the icon set from a 1024×1024 PNG with `pnpm tauri icon path/to/icon.png`.
 
+## macOS and Linux
+
+The same code runs on all three systems, but each installer must be **built on its own OS**.
+
+### macOS (build on a Mac)
+
+```sh
+xcode-select --install                                   # Git + compiler tools
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+pnpm install
+pnpm tauri build --target universal-apple-darwin         # one app for Apple Silicon and Intel
+```
+
+Output: `src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg` and `macos/*.app`. Requires macOS 12 or newer.
+
+* **Git:** the app finds Homebrew's git (`/opt/homebrew/bin`, `/usr/local/bin`) even when launched from Finder, which
+  gives apps only a minimal PATH. Apple's built-in git (from `xcode-select --install`) also works.
+* **Shortcuts:** `Cmd` replaces `Ctrl` everywhere (`Cmd+K`, `Cmd+T`, `Cmd+W` …). `Ctrl+Tab` still switches tabs, and
+  `Cmd+?` (or `F1`) opens the guide. The macOS menu has no "Close Window" item so `Cmd+W` closes the current tab.
+* **Distributing it:** an unsigned app is blocked by Gatekeeper ("cannot be opened / is damaged"). For other people's Macs
+  you need an Apple Developer account to **sign and notarise** the build
+  (see <https://tauri.app/distribute/sign/macos/>). For your own use, right-click the app → **Open** once, or run
+  `xattr -dr com.apple.quarantine "/Applications/APMGIT CLIENT.app"`.
+
+### Linux (including WSL2)
+
+```sh
+bash scripts/setup-linux.sh     # once: apt packages, Rust, pnpm (asks for your sudo password)
+git clone <this repo> ~/apmgit-client && cd ~/apmgit-client   # build on the Linux filesystem, not /mnt/c
+bash scripts/build-linux.sh     # runs all tests, then builds .deb / .AppImage / .rpm
+```
+
+Output: `src-tauri/target/release/bundle/{deb,appimage,rpm}`. On **WSL2 with WSLg** (Windows 10 22H2 / Windows 11) a
+Linux window opens on your Windows desktop: `pnpm tauri dev` or run the built AppImage.
+
 ## Website, documentation and presentation
 
 A dependency-free static site lives in `site/` and can be hosted anywhere (any web server, a file share, or a static

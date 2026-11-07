@@ -269,7 +269,7 @@ const RULES: Rule[] = [
       title: "Git is not installed (or not on PATH)",
       why: "This app runs your system Git for every operation, and couldn't start it.",
       fixes: [
-        "Install Git from git-scm.com (Windows/macOS) or your package manager (Linux).",
+        "Windows: install Git from git-scm.com. macOS: run “xcode-select --install” in Terminal, or “brew install git”. Linux: use your package manager.",
         "Restart the app afterwards so it picks up the updated PATH.",
       ],
       actions: [],

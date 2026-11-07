@@ -18,6 +18,21 @@ use tauri::{AppHandle, Emitter};
 /// git's own porcelain (e.g. `stash -u`) relies on pathspec magic internally.
 pub(crate) const LITERAL: &str = "--literal-pathspecs";
 
+/// Directories where a user-installed `git` usually lives on macOS/Linux. A GUI app launched from
+/// Finder/the Dock inherits only a minimal PATH (/usr/bin:/bin:…), which excludes Homebrew.
+#[cfg_attr(not(unix), allow(dead_code))]
+const EXTRA_BIN_DIRS: [&str; 3] = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"];
+
+/// Returns `current` with the `extra` directories put in front (those already present are skipped),
+/// so a Homebrew git is found before Apple's /usr/bin/git shim (which pops up an installer when
+/// the developer tools are missing).
+pub(crate) fn merge_path(current: &str, extra: &[&str], sep: char) -> String {
+    let present: Vec<&str> = current.split(sep).collect();
+    let mut parts: Vec<&str> = extra.iter().copied().filter(|d| !present.contains(d)).collect();
+    parts.extend(present.into_iter().filter(|p| !p.is_empty()));
+    parts.join(&sep.to_string())
+}
+
 pub(crate) fn git_cmd() -> Command {
     let mut cmd = Command::new("git");
     #[cfg(windows)]
@@ -26,6 +41,11 @@ pub(crate) fn git_cmd() -> Command {
         // CREATE_NO_WINDOW: never flash a console window.
         cmd.creation_flags(0x0800_0000);
     }
+    #[cfg(unix)]
+    cmd.env(
+        "PATH",
+        merge_path(&std::env::var("PATH").unwrap_or_default(), &EXTRA_BIN_DIRS, ':'),
+    );
     // Fail instead of hanging on a terminal prompt; credential helpers still work.
     cmd.env("GIT_TERMINAL_PROMPT", "0");
     // Read-only commands (status, diff …) must not opportunistically rewrite `.git/index`:
@@ -583,6 +603,14 @@ mod tests {
         assert_eq!(s.files[1].orig_path.as_deref(), Some("old.ts"));
         assert!(s.files[2].conflicted);
         assert!(s.files[3].untracked);
+    }
+
+    #[test]
+    fn merge_path_puts_missing_dirs_first_without_duplicates() {
+        let p = merge_path("/usr/bin:/bin:/usr/local/bin", &["/opt/homebrew/bin", "/usr/local/bin"], ':');
+        assert_eq!(p, "/opt/homebrew/bin:/usr/bin:/bin:/usr/local/bin");
+        assert_eq!(merge_path("", &["/a"], ':'), "/a");
+        assert_eq!(merge_path("/x:", &["/a"], ':'), "/a:/x");
     }
 
     #[test]

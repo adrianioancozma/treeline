@@ -11,7 +11,8 @@ export type Segment =
 
 export type Choice = "ours" | "theirs" | "both" | "both-rev" | "base";
 
-const lines = (s: string) => s.split(/(?<=\n)/);
+// Splits into lines keeping their line endings. (No regex lookbehind: older Safari engines on macOS lack it.)
+const lines = (s: string) => s.match(/[^\n]*\n|[^\n]+$/g) ?? [];
 const isMarker = (line: string, m: string) =>
   line.startsWith(m) && (line.length === m.length || /^[ \r\n]/.test(line[m.length]));
 

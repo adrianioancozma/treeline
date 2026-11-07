@@ -1,13 +1,69 @@
+use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
+use tauri::{AppHandle, Wry};
+
 mod git;
 mod ops;
 mod store;
 mod watcher;
+
+/// The macOS menu bar. Tauri's default menu binds Cmd+W to "Close Window", which would close the
+/// whole app instead of the current tab (the app handles Cmd+W itself), so it is left out here.
+/// The Edit menu is required for Cmd+C / Cmd+V / Cmd+A to work in text fields.
+/// (Built on every platform so it is compile-checked everywhere; only applied on macOS.)
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
+    let app_menu = Submenu::with_items(
+        app,
+        "APMGIT CLIENT",
+        true,
+        &[
+            &PredefinedMenuItem::about(app, None, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::show_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+    let view_menu = Submenu::with_items(app, "View", true, &[&PredefinedMenuItem::fullscreen(app, None)?])?;
+    let window_menu = Submenu::with_items(
+        app,
+        "Window",
+        true,
+        &[&PredefinedMenuItem::minimize(app, None)?, &PredefinedMenuItem::maximize(app, None)?],
+    )?;
+    Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu])
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(watcher::WatchState::default())
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_menu(build_app_menu(app.handle())?)?;
+            #[cfg(not(target_os = "macos"))]
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             git::git_toplevel,
             git::repo_status,

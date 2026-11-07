@@ -28,6 +28,9 @@
     "targets": "all",
     "publisher": "APM",
     "category": "DeveloperTool",
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    },
     "shortDescription": "A fast, provider-independent Git client",
     "longDescription": "APMGIT CLIENT is a fast desktop Git client with tabs, bookmarks, submodules, history graph, staging by hunk or line, merge and rebase tools. It works with any Git remote.",
     "icon": [
