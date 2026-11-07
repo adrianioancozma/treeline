@@ -270,7 +270,7 @@ const RULES: Rule[] = [
       title: "Git is not installed (or not on PATH)",
       why: "This app runs your system Git for every operation, and couldn't start it. Programs started from the Start menu or Finder don't always see the same PATH as your terminal.",
       fixes: [
-        "If Git is already installed, choose its program (git.exe on Windows, usually in “C:\Program Files\Git\cmd”) with “Locate Git…”. The app remembers it.",
+        "If Git is already installed, choose its program (git.exe on Windows, usually in “C:\\Program Files\\Git\\cmd”) with “Locate Git…”. The app remembers it.",
         "Otherwise install it. Windows: Git from git-scm.com. macOS: run “xcode-select --install” in Terminal, or “brew install git”. Linux: use your package manager.",
       ],
       actions: ["choose-git"],

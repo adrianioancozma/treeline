@@ -66,3 +66,12 @@ describe("explainError", () => {
     expect(e.fixes.length).toBeGreaterThan(0);
   });
 });
+
+describe("git-missing explanation", () => {
+  it("offers Locate Git and shows the Windows folder with its backslashes", () => {
+    const ex = explainError("Could not run git (is it installed and on PATH?): program not found");
+    expect(ex.id).toBe("git-missing");
+    expect(ex.actions).toContain("choose-git");
+    expect(ex.fixes.join(" ")).toContain(String.raw`C:\Program Files\Git\cmd`);
+  });
+});
