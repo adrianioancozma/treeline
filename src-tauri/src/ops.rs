@@ -1109,9 +1109,15 @@ mod tests {
         String::from_utf8_lossy(&out.stdout).into_owned()
     }
 
+    /// A fresh repository with its own identity. The code under test runs plain `git commit`
+    /// (rebase reword, merge continue …), so the identity must live in the repository itself;
+    /// tests must never depend on the developer's global git configuration or on signing setup.
     fn repo() -> tempfile::TempDir {
         let d = tempfile::tempdir().unwrap();
         git(d.path(), &["init", "-q", "-b", "main"]);
+        git(d.path(), &["config", "user.name", "Test"]);
+        git(d.path(), &["config", "user.email", "t@example.com"]);
+        git(d.path(), &["config", "commit.gpgsign", "false"]);
         d
     }
 
