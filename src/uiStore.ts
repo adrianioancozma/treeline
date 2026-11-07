@@ -15,9 +15,10 @@ interface UiState {
   /** Interactive-rebase dialog request. `base` is the commit to rebase onto (null = root). */
   rebase: { tabId: string; base: string | null; title: string } | null;
   clone: boolean;
+  settings: boolean;
 }
 
-export const useUi = create<UiState>(() => ({ menu: null, rebase: null, clone: false }));
+export const useUi = create<UiState>(() => ({ menu: null, rebase: null, clone: false, settings: false }));
 
 export function openMenu(e: MouseEvent | { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }, items: MenuItem[]) {
   e.preventDefault?.();

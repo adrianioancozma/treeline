@@ -58,6 +58,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(watcher::WatchState::default())
         .setup(|app| {
+            store::apply_saved_settings(app.handle());
             #[cfg(target_os = "macos")]
             app.set_menu(build_app_menu(app.handle())?)?;
             #[cfg(not(target_os = "macos"))]
@@ -66,6 +67,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             git::git_toplevel,
+            git::git_info,
+            store::set_git_path,
             git::repo_status,
             git::list_submodules,
             git::init_submodule,

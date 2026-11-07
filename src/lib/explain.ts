@@ -5,6 +5,7 @@ export type ErrorAction =
   | "stash"
   | "show-changes"
   | "remove-lock"
+  | "choose-git"
   /** Last-resort fixes: shown only when the failed operation is known, and always confirmed first. */
   | "force-push"
   | "force-delete"
@@ -267,12 +268,12 @@ const RULES: Rule[] = [
     test: /Could not run git|program not found|'git' is not recognized/i,
     build: () => ({
       title: "Git is not installed (or not on PATH)",
-      why: "This app runs your system Git for every operation, and couldn't start it.",
+      why: "This app runs your system Git for every operation, and couldn't start it. Programs started from the Start menu or Finder don't always see the same PATH as your terminal.",
       fixes: [
-        "Windows: install Git from git-scm.com. macOS: run “xcode-select --install” in Terminal, or “brew install git”. Linux: use your package manager.",
-        "Restart the app afterwards so it picks up the updated PATH.",
+        "If Git is already installed, choose its program (git.exe on Windows, usually in “C:\Program Files\Git\cmd”) with “Locate Git…”. The app remembers it.",
+        "Otherwise install it. Windows: Git from git-scm.com. macOS: run “xcode-select --install” in Terminal, or “brew install git”. Linux: use your package manager.",
       ],
-      actions: [],
+      actions: ["choose-git"],
     }),
   },
   {

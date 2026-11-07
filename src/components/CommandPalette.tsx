@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { repoActions } from "../actions";
 import { errorMessage } from "../api";
 import { useApp } from "../store";
+import { useUi } from "../uiStore";
 import { GUIDE, openGuide } from "../guide";
 import { pickAndOpenRepo } from "./Home";
 
@@ -29,6 +30,7 @@ function Palette({ onClone }: { onClone: () => void }) {
     const out: Cmd[] = [
       { id: "open", label: "Open repository…", hint: "Ctrl+O", run: () => void pickAndOpenRepo(s.openRepo, (m) => s.notify("error", m)) },
       { id: "clone", label: "Clone repository…", run: onClone },
+      { id: "settings", label: "Settings… (Git program)", run: () => useUi.setState({ settings: true }) },
       { id: "tab", label: "New tab", hint: "Ctrl+T", run: s.newTab },
       { id: "guide", label: "Open the user guide", hint: "F1", run: () => void openGuide() },
       { id: "guide-errors", label: "Guide: when something goes wrong", run: () => void openGuide(GUIDE.errors) },

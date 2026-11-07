@@ -4,6 +4,7 @@ import type {
   CommitDetail,
   ConflictFile,
   FileEntry,
+  GitInfo,
   OpResult,
   PersistedState,
   RebaseCommit,
@@ -141,6 +142,11 @@ export const api = {
   terminal: (path: string) => invoke<void>("open_terminal", { path }),
   watch: (path: string) => invoke<void>("watch_repo", { path }),
   unwatch: () => invoke<void>("unwatch_repo"),
+
+  // git executable
+  gitInfo: () => invoke<GitInfo>("git_info"),
+  /** Saves (and verifies) the git executable to use; null/empty goes back to automatic detection. */
+  setGitPath: (path: string | null) => invoke<GitInfo>("set_git_path", { path }),
 
   // persistence
   async loadState(): Promise<PersistedState | null> {

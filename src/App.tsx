@@ -10,6 +10,7 @@ import { Home, pickAndOpenRepo } from "./components/Home";
 import { RepoView } from "./components/RepoView";
 import { StatusBar } from "./components/StatusBar";
 import { CloneDialog } from "./components/CloneDialog";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextMenuHost, FormDialogHost, Toasts } from "./components/Overlays";
 import { RebaseDialogHost } from "./components/RebaseDialog";
@@ -21,6 +22,7 @@ export default function App() {
   const activeId = useApp((s) => s.activeId);
   const theme = useApp((s) => s.theme);
   const cloning = useUi((s) => s.clone);
+  const settingsOpen = useUi((s) => s.settings);
 
   useEffect(() => {
     void useApp.getState().init();
@@ -90,6 +92,7 @@ export default function App() {
       <Toasts />
       <CommandPalette onClone={() => useUi.setState({ clone: true })} />
       {cloning && <CloneDialog onClose={() => useUi.setState({ clone: false })} />}
+      {settingsOpen && <SettingsDialog onClose={() => useUi.setState({ settings: false })} />}
     </div>
   );
 }

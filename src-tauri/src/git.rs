@@ -5,8 +5,9 @@
 use serde::Serialize;
 use std::ffi::OsStr;
 use std::io::{BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::RwLock;
 use tauri::{AppHandle, Emitter};
 
 // ---------------------------------------------------------------------------
@@ -33,8 +34,61 @@ pub(crate) fn merge_path(current: &str, extra: &[&str], sep: char) -> String {
     parts.join(&sep.to_string())
 }
 
+/// The git executable the user picked in the app (Settings / the "Git not found" dialog).
+/// `None` means "find it automatically". Loaded from the settings file at start-up.
+static CUSTOM_GIT: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+pub(crate) fn set_custom_git(path: Option<PathBuf>) {
+    if let Ok(mut g) = CUSTOM_GIT.write() {
+        *g = path;
+    }
+}
+
+fn custom_git() -> Option<PathBuf> {
+    CUSTOM_GIT.read().ok().and_then(|g| g.clone())
+}
+
+/// Where Git for Windows normally lives when it is installed but missing from PATH
+/// (a GUI app launched from the Start menu does not see the PATH of your terminal).
+fn windows_git_candidates() -> Vec<PathBuf> {
+    let mut v = Vec::new();
+    for var in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] {
+        if let Ok(base) = std::env::var(var) {
+            v.push(PathBuf::from(base).join("Git").join("cmd").join("git.exe"));
+        }
+    }
+    if let Ok(base) = std::env::var("LOCALAPPDATA") {
+        v.push(PathBuf::from(base).join("Programs").join("Git").join("cmd").join("git.exe"));
+    }
+    v
+}
+
+/// True when an executable called `name` exists in one of the PATH directories.
+fn on_path(name: &str) -> bool {
+    std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).any(|d| d.join(name).is_file()))
+        .unwrap_or(false)
+}
+
+/// The program to run for git: the user's chosen file, else `git` from PATH, else (Windows only)
+/// a standard Git for Windows install folder.
+fn git_program() -> PathBuf {
+    if let Some(p) = custom_git().filter(|p| p.is_file()) {
+        return p;
+    }
+    #[cfg(windows)]
+    if !on_path("git.exe") {
+        if let Some(found) = windows_git_candidates().into_iter().find(|p| p.is_file()) {
+            return found;
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = on_path;
+    PathBuf::from("git")
+}
+
 pub(crate) fn git_cmd() -> Command {
-    let mut cmd = Command::new("git");
+    let mut cmd = Command::new(git_program());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -54,8 +108,57 @@ pub(crate) fn git_cmd() -> Command {
     cmd
 }
 
+/// Start of the message produced when git itself could not be started (as opposed to git failing).
+const SPAWN_ERROR_PREFIX: &str = "Could not run git";
+
 fn spawn_error(e: std::io::Error) -> String {
-    format!("Could not run git (is it installed and on PATH?): {e}")
+    format!("{SPAWN_ERROR_PREFIX} (is it installed and on PATH?): {e}")
+}
+
+/// What the app knows about the git it will use.
+#[derive(Serialize)]
+pub struct GitInfo {
+    /// Output of `git --version`, or `None` when git cannot be started.
+    pub version: Option<String>,
+    /// The executable that will be run.
+    pub path: String,
+    /// The path the user chose, if any.
+    pub custom: Option<String>,
+}
+
+fn git_info_now() -> GitInfo {
+    let program = git_program();
+    let version = Command::new(&program).arg("--version").output().ok().filter(|o| o.status.success()).map(
+        |o| String::from_utf8_lossy(&o.stdout).trim().to_string(),
+    );
+    GitInfo {
+        version,
+        path: program.to_string_lossy().into_owned(),
+        custom: custom_git().map(|p| p.to_string_lossy().into_owned()),
+    }
+}
+
+/// Checks that `path` is a working git executable and returns its version line.
+pub(crate) fn verify_git(path: &Path) -> Result<String, String> {
+    if !path.is_file() {
+        return Err("That file does not exist.".into());
+    }
+    let out = Command::new(path)
+        .arg("--version")
+        .output()
+        .map_err(|e| format!("That file could not be run: {e}"))?;
+    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if out.status.success() && text.starts_with("git version") {
+        Ok(text)
+    } else {
+        Err("That file is not Git (it did not answer to “git --version”).".into())
+    }
+}
+
+/// Reports which git the app uses and whether it works.
+#[tauri::command]
+pub async fn git_info() -> Result<GitInfo, String> {
+    blocking(|| Ok(git_info_now())).await
 }
 
 fn combined(out: &std::process::Output) -> String {
@@ -409,7 +512,10 @@ fn repo_state(path: &str) -> Option<String> {
 pub async fn git_toplevel(path: String) -> Result<String, String> {
     blocking(move || {
         let out = run_git(&path, ["rev-parse", "--show-toplevel"])
-            .map_err(|_| "This folder is not a Git repository.".to_string())?;
+            .map_err(|e| {
+                // Only blame the folder when git actually ran; "git could not start" must stay visible.
+                if e.starts_with(SPAWN_ERROR_PREFIX) { e } else { "This folder is not a Git repository.".to_string() }
+            })?;
         Ok(out.trim().to_string())
     })
     .await
@@ -650,5 +756,57 @@ mod tests {
     fn extracts_percent() {
         assert_eq!(percent_of("Receiving objects:  42% (1/2)"), Some(42));
         assert_eq!(percent_of("Cloning into 'x'..."), None);
+    }
+}
+
+#[cfg(test)]
+mod git_path_tests {
+    use super::*;
+
+    #[test]
+    fn verify_git_rejects_missing_and_non_git_files() {
+        assert!(verify_git(Path::new("/definitely/not/here/git")).is_err());
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("notgit.txt");
+        std::fs::write(&fake, "x").unwrap();
+        assert!(verify_git(&fake).is_err());
+    }
+
+    /// A chosen file that no longer exists must be ignored, never break every git call.
+    #[test]
+    fn missing_custom_git_falls_back_to_detection() {
+        set_custom_git(Some(PathBuf::from("/definitely/not/here/git")));
+        let program = git_program();
+        set_custom_git(None);
+        assert_ne!(program, PathBuf::from("/definitely/not/here/git"));
+    }
+
+    /// The installed-app situation: PATH has no git, yet the standard Git for Windows folder is
+    /// found. Runs the probe in a child process with an empty PATH so other tests are unaffected.
+    #[cfg(windows)]
+    #[test]
+    fn windows_fallback_finds_git_when_path_is_empty() {
+        const NAME: &str = "git::git_path_tests::windows_fallback_finds_git_when_path_is_empty";
+        if std::env::var_os("APMGIT_PROBE").is_some() {
+            let info = git_info_now();
+            assert!(info.version.is_some(), "git not found with empty PATH: {}", info.path);
+            return;
+        }
+        if windows_git_candidates().iter().all(|p| !p.is_file()) {
+            return; // Git is installed somewhere unusual on this machine; nothing to probe.
+        }
+        let out = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", NAME, "--nocapture"])
+            .env("APMGIT_PROBE", "1")
+            .env("PATH", "")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    }
+
+    #[test]
+    fn toplevel_keeps_spawn_errors_visible() {
+        let e = spawn_error(std::io::Error::from(std::io::ErrorKind::NotFound));
+        assert!(e.starts_with(SPAWN_ERROR_PREFIX));
     }
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { repoActions } from "../actions";
 import { api, errorMessage } from "../api";
+import { open } from "@tauri-apps/plugin-dialog";
 import { explainError, type ErrorAction } from "../lib/explain";
 import { GUIDE, openGuide } from "../guide";
 import { useApp } from "../store";
@@ -12,6 +13,7 @@ const ACTION_LABEL: Record<ErrorAction, string> = {
   stash: "Stash my changes…",
   "show-changes": "Show changes",
   "remove-lock": "Remove lock file",
+  "choose-git": "Locate Git…",
   "force-push": "Force push (with lease)…",
   "force-delete": "Delete anyway…",
   "force-checkout": "Force checkout (discard my changes)…",
@@ -47,8 +49,31 @@ export function ErrorBox({
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  /** Lets the user pick the git executable; it is verified and remembered by the backend. */
+  const chooseGit = async () => {
+    const s = useApp.getState();
+    setBusy(true);
+    try {
+      const file = await open({
+        multiple: false,
+        directory: false,
+        title: "Locate the Git program (git.exe)",
+        filters: [{ name: "Git", extensions: ["exe"] }, { name: "All files", extensions: ["*"] }],
+      });
+      if (typeof file !== "string") return;
+      const info = await api.setGitPath(file);
+      s.notify("success", `Using ${info.version ?? "Git"} at ${info.path}. You can try again now.`);
+      onDone?.();
+    } catch (e) {
+      s.notify("error", errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const run = async (action: ErrorAction) => {
     const s = useApp.getState();
+    if (action === "choose-git") return chooseGit();
     const tab = s.tabs.find((t) => t.id === s.activeId);
     if (!tab?.path) return;
     const act = repoActions(tab.id);

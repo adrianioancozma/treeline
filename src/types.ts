@@ -126,3 +126,13 @@ export interface OpProgress {
   line: string;
   percent: number | null;
 }
+
+/** Which git the app runs and whether it works. */
+export interface GitInfo {
+  /** Output of `git --version`; null when git cannot be started. */
+  version: string | null;
+  /** The executable that will be run. */
+  path: string;
+  /** The path the user chose, if any. */
+  custom: string | null;
+}

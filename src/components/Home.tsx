@@ -29,6 +29,9 @@ export function Home() {
           <button className="btn big" onClick={() => useUi.setState({ clone: true })}>
             <Icon name="cloud" /> Clone…
           </button>
+          <button className="btn big" onClick={() => useUi.setState({ settings: true })}>
+            <Icon name="terminal" /> Settings
+          </button>
           <button className="btn big" onClick={() => void openGuide(GUIDE.start)}>
             <Icon name="help" /> User guide
           </button>
