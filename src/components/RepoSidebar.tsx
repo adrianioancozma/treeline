@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { repoActions } from "../actions";
 import { parseTrack } from "../lib/format";
+import { buildRefTree, type RefFolder } from "../lib/refTree";
 import { useApp } from "../store";
 import { openMenu, setSectionOpen, useUi } from "../uiStore";
 import type { RefInfo, Tab } from "../types";
@@ -46,6 +47,53 @@ function RemoteGroup({ tabId, remote, count, children }: { tabId: string; remote
   );
 }
 
+/** Pixels of indent per folder level. */
+const INDENT = 14;
+
+/**
+ * A ref tree: sub-folders first, then the refs sitting directly in this folder. `base` is the left
+ * padding of depth 0 and `scope` keeps folder open/closed state apart between sections.
+ */
+function RefTree<T>({ tabId, scope, folder, depth = 0, base, renderItem }: {
+  tabId: string;
+  scope: string;
+  folder: RefFolder<T>;
+  depth?: number;
+  base: number;
+  renderItem: (item: T, label: string, paddingLeft: number) => ReactNode;
+}) {
+  return (
+    <>
+      {folder.folders.map((f) => (
+        <FolderNode key={f.path} tabId={tabId} scope={scope} folder={f} depth={depth} base={base} renderItem={renderItem} />
+      ))}
+      {folder.items.map(({ item, label }) => renderItem(item, label, base + depth * INDENT))}
+    </>
+  );
+}
+
+function FolderNode<T>({ tabId, scope, folder, depth, base, renderItem }: {
+  tabId: string;
+  scope: string;
+  folder: RefFolder<T>;
+  depth: number;
+  base: number;
+  renderItem: (item: T, label: string, paddingLeft: number) => ReactNode;
+}) {
+  const { open, onToggle } = useSection(tabId, `folder:${scope}:${folder.path}`, true);
+  return (
+    <details open={open} onToggle={onToggle} className="side-folder">
+      <summary style={{ paddingLeft: base - 2 + depth * INDENT }} title={folder.path}>
+        <Icon name="chevron" size={12} />
+        <Icon name="folder" size={14} />
+        <span className="grow ellipsis">{folder.name}</span>
+        <span className="count">{folder.count}</span>
+      </summary>
+      <RefTree tabId={tabId} scope={scope} folder={folder} depth={depth + 1} base={base} renderItem={renderItem} />
+    </details>
+  );
+}
+
 export function RepoSidebar({ tab }: { tab: Tab }) {
   const d = useApp((s) => s.data[tab.id]);
   const setUi = useApp((s) => s.setUi);
@@ -57,13 +105,20 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
   const refs = d?.refs ?? [];
   const branches = refs.filter((r) => r.kind === "branch" && match(r.name));
   const tags = refs.filter((r) => r.kind === "tag" && match(r.name));
+  const branchTree = buildRefTree(branches, (b) => b.name);
+  const tagTree = buildRefTree(tags, (t) => t.name);
   const remoteGroups = useMemo(() => {
     const m = new Map<string, RefInfo[]>();
     for (const r of refs.filter((r) => r.kind === "remote" && match(r.name))) {
       const remote = r.name.split("/")[0];
       m.set(remote, [...(m.get(remote) ?? []), r]);
     }
-    return [...m.entries()];
+    // Inside a remote, `origin/feature/login` is the branch `feature/login`: fold it into folders.
+    return [...m.entries()].map(([remote, rs]) => ({
+      remote,
+      count: rs.length,
+      tree: buildRefTree(rs, (r) => r.name.slice(remote.length + 1)),
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refs, f]);
 
@@ -92,12 +147,13 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
         </div>
 
         <Section tabId={tab.id} title="Branches" count={branches.length}>
-          {branches.map((b) => {
+          <RefTree tabId={tab.id} scope="branch" folder={branchTree} base={10} renderItem={(b, label, pad) => {
             const t = parseTrack(b.track);
             const isCurrent = b.head;
             return (
               <button
                 key={b.name}
+                style={{ paddingLeft: pad }}
                 className={`side-item${isCurrent ? " current" : ""}${focusRef === b.name ? " active" : ""}`}
                 title={b.upstream ? `${b.name} → ${b.upstream}\nClick to highlight its history, double-click to check out` : b.name}
                 onClick={() => focus(b.name)}
@@ -120,24 +176,25 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
                 }
               >
                 <Icon name="branch" size={14} />
-                <span className="grow ellipsis">{b.name}</span>
+                <span className="grow ellipsis">{label}</span>
                 {t.ahead > 0 && <span className="ahead small">↑{t.ahead}</span>}
                 {t.behind > 0 && <span className="behind small">↓{t.behind}</span>}
                 {t.gone && <span className="muted small" title="Upstream branch was deleted">gone</span>}
                 {isCurrent && <span className="dot" title="Current branch" />}
               </button>
             );
-          })}
+          }} />
           {branches.length === 0 && <p className="muted small pad">No branches.</p>}
         </Section>
 
         <Section tabId={tab.id} title="Remotes" count={remoteGroups.length}>
-          {remoteGroups.map(([remote, rs]) => (
-            <RemoteGroup tabId={tab.id} key={remote} remote={remote} count={rs.length}>
-              {rs.map((r) => (
+          {remoteGroups.map(({ remote, count, tree }) => (
+            <RemoteGroup tabId={tab.id} key={remote} remote={remote} count={count}>
+              <RefTree tabId={tab.id} scope={`remote:${remote}`} folder={tree} base={34} renderItem={(r, label, pad) => (
                 <button
                   key={r.name}
-                  className={`side-item nested${focusRef === r.name ? " active" : ""}`}
+                  style={{ paddingLeft: pad }}
+                  className={`side-item${focusRef === r.name ? " active" : ""}`}
                   title={r.name}
                   onClick={() => focus(r.name)}
                   onDoubleClick={() => a.checkoutRemote(r.name)}
@@ -152,18 +209,19 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
                   }
                 >
                   <Icon name="branch" size={14} />
-                  <span className="grow ellipsis">{r.name.slice(remote.length + 1)}</span>
+                  <span className="grow ellipsis">{label}</span>
                 </button>
-              ))}
+              )} />
             </RemoteGroup>
           ))}
           {remoteGroups.length === 0 && <p className="muted small pad">No remote branches. Try Fetch.</p>}
         </Section>
 
         <Section tabId={tab.id} title="Tags" count={tags.length} open={false}>
-          {tags.map((t) => (
+          <RefTree tabId={tab.id} scope="tag" folder={tagTree} base={26} renderItem={(t, label, pad) => (
             <button
               key={t.name}
+              style={{ paddingLeft: pad }}
               className={`side-item${focusRef === t.name ? " active" : ""}`}
               onClick={() => focus(t.name)}
               onDoubleClick={() => a.checkout(t.name)}
@@ -177,9 +235,9 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
               }
             >
               <Icon name="tag" size={14} />
-              <span className="grow ellipsis">{t.name}</span>
+              <span className="grow ellipsis">{label}</span>
             </button>
-          ))}
+          )} />
           {tags.length === 0 && <p className="muted small pad">No tags.</p>}
         </Section>
 
@@ -187,7 +245,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           {d?.stashes.map((s) => (
             <button
               key={s.ref}
-              className="side-item"
+              className="side-item" style={{ paddingLeft: 26 }}
               title={s.message}
               onClick={() => setUi(tab.id, { view: "history", selCommit: s.ref })}
               onContextMenu={(e) =>
@@ -211,7 +269,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
             {d!.submodules.map((m) => (
               <button
                 key={m.path}
-                className="side-item"
+                className="side-item" style={{ paddingLeft: 26 }}
                 title={`${m.path}\nDouble-click to open`}
                 onDoubleClick={() => void a.openSubmodule(m)}
                 onContextMenu={(e) =>

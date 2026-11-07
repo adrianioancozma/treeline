@@ -186,8 +186,11 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 .filter-row input:focus { outline: none; }
 .side-scroll { flex: 1; overflow: auto; padding: 0 6px 12px; }
 .side-block { padding: 2px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
-.side-section > summary, .side-sub > summary { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: pointer; list-style: none; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; user-select: none; }
+.side-section > summary, .side-sub > summary, .side-folder > summary { display: flex; align-items: center; gap: 6px; padding: 6px 8px; cursor: pointer; list-style: none; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; user-select: none; }
 .side-sub > summary { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--text); padding-left: 16px; }
+.side-folder > summary { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--text); padding-top: 4px; padding-bottom: 4px; border-radius: 6px; }
+.side-folder > summary:hover { background: var(--bg-3); }
+.side-folder > summary .icon { color: var(--muted); }
 summary::-webkit-details-marker { display: none; }
 details > summary .icon:first-child { transition: transform 0.12s; }
 details[open] > summary > .icon:first-child { transform: rotate(90deg); }
