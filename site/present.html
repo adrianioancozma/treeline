@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APMGIT CLIENT · Presentation</title>
+<meta name="description" content="A slide presentation introducing APMGIT CLIENT, a fast Git client for any provider.">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js" defer></script>
+<script src="assets/deck.js" defer></script>
+</head>
+<body class="deck">
+<div class="deck-progress" id="progress" role="presentation"></div>
+
+<main class="deck-stage" id="stage" aria-live="polite">
+
+  <section class="slide title" aria-label="Title">
+    <img src="assets/icon.png" alt="" width="96" height="96" style="margin-bottom:18px">
+    <h1>APMGIT CLIENT</h1>
+    <p>A fast Git client for any provider.</p>
+    <p style="font-size:1rem">Use <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to move · <kbd>F</kbd> full screen · <kbd>Home</kbd>/<kbd>End</kbd></p>
+  </section>
+
+  <section class="slide" aria-label="The problem">
+    <h2>The problem</h2>
+    <ul>
+      <li>Everyday Git clients <b>slow down and crash</b> with many repositories open.</li>
+      <li>Our repositories are large, have <b>submodules</b>, and often live in <b>synced folders</b>.</li>
+      <li>When Git fails, the message is a wall of text — <b>no explanation, no next step</b>.</li>
+    </ul>
+  </section>
+
+  <section class="slide" aria-label="Goals">
+    <h2>What we set out to build</h2>
+    <ul>
+      <li><b>Fast</b> — instant tab switching, smooth history on 10,000+ commits.</li>
+      <li><b>Any provider</b> — no accounts, no integrations; just Git.</li>
+      <li><b>Tabs, bookmarks, clone, submodules</b> — the daily essentials, done well.</li>
+      <li><b>A clear interface</b> — and errors that explain themselves.</li>
+    </ul>
+  </section>
+
+  <section class="slide" aria-label="How it works">
+    <h2>How it works</h2>
+    <div class="arch">
+      <div><b>React + TypeScript</b><span>The interface: tabs, graph, diffs, dialogs.</span></div>
+      <div><b>Tauri + Rust</b><span>A small native shell. Runs every Git call off the UI thread.</span></div>
+      <div><b>Your <code>git</code></b><span>Exactly the Git you already use — so every remote and hook just works.</span></div>
+    </div>
+    <p style="margin-top:22px">It never stores credentials. Sign-in is your normal credential manager or SSH key.</p>
+  </section>
+
+  <section class="slide" aria-label="Speed">
+    <h2>Fast where it counts</h2>
+    <div class="stats">
+      <div class="stat"><b>60–420&nbsp;ms</b><span>status on 10k-commit repos</span></div>
+      <div class="stat"><b>~210&nbsp;ms</b><span>first 400 commits</span></div>
+      <div class="stat"><b>2–3×</b><span>faster submodule listing</span></div>
+    </div>
+    <ul style="margin-top:22px">
+      <li>Refresh runs <b>in parallel</b>; only the <b>active tab</b> is watched.</li>
+      <li>History is <b>virtualised</b> and loaded in pages.</li>
+      <li>Read-only commands never touch the index — no refresh loops.</li>
+    </ul>
+    <p style="font-size:0.9rem">Measured on large production repositories; results vary by machine.</p>
+  </section>
+
+  <section class="slide" aria-label="History">
+    <div class="cols">
+      <div><h2>See the whole story</h2><ul><li>Commit graph with branches, tags and merges</li><li><b>Click a branch</b> to highlight its history</li><li>Search, per-commit diffs, right-click actions</li></ul></div>
+      <figure class="shot"><img src="assets/history-highlight.png" alt="The commit graph with one branch highlighted."></figure>
+    </div>
+  </section>
+
+  <section class="slide" aria-label="Staging">
+    <div class="cols">
+      <div><h2>Stage exactly what you mean</h2><ul><li>File, <b>hunk</b>, or individual <b>lines</b></li><li>Commit, amend, commit &amp; push</li><li>Discard is always confirmed</li></ul></div>
+      <figure class="shot"><img src="assets/line-staging.png" alt="Three added lines selected for staging."></figure>
+    </div>
+  </section>
+
+  <section class="slide" aria-label="Conflicts">
+    <div class="cols">
+      <div><h2>Conflicts, calmly</h2><ul><li>Pick <b>ours, theirs or both</b> for each conflict</li><li>Edit the result, mark resolved, continue</li><li>Abort any time — nothing is lost</li></ul></div>
+      <figure class="shot"><img src="assets/conflicts.png" alt="The conflict resolver."></figure>
+    </div>
+  </section>
+
+  <section class="slide" aria-label="Rebase">
+    <div class="cols">
+      <div><h2>Tidy history</h2><ul><li><b>Interactive rebase</b> from a simple list</li><li>Reword, squash, fixup, edit, drop, reorder</li><li>Local changes stashed and restored automatically</li></ul></div>
+      <figure class="shot"><img src="assets/rebase.png" alt="The interactive rebase dialog."></figure>
+    </div>
+  </section>
+
+  <section class="slide" aria-label="Errors">
+    <div class="cols">
+      <div><h2>Errors that help</h2><ul><li><b>What happened</b>, <b>why</b>, and <b>how to fix it</b></li><li>One-click fixes where possible</li><li><b>Force</b> options offered last, explained, and confirmed</li></ul></div>
+      <figure class="shot"><img src="assets/errors.png" alt="An explained error with fix buttons and a red force-push option."></figure>
+    </div>
+  </section>
+
+  <section class="slide" aria-label="Safe force">
+    <div class="cols">
+      <div><h2>Force, with guardrails</h2><ul><li>Never automatic</li><li>Uses <b>force-with-lease</b></li><li>States what will be lost <b>before</b> you confirm</li></ul></div>
+      <figure class="shot"><img src="assets/force-confirm.png" alt="The force-push confirmation dialog."></figure>
+    </div>
+  </section>
+
+  <section class="slide" aria-label="Quality">
+    <h2>Built to be trusted</h2>
+    <ul>
+      <li><b>50 automated tests</b>, including integration tests that run real Git operations.</li>
+      <li>Independent code review found <b>11 issues</b> — all fixed and covered by tests.</li>
+      <li>Verified end to end in the running app: clone, stage, commit, push, rebase, conflicts.</li>
+    </ul>
+  </section>
+
+  <section class="slide title" aria-label="Get started">
+    <h2>Get started</h2>
+    <p>Install Git → build or run the installer → press <kbd>Ctrl</kbd>+<kbd>O</kbd>.</p>
+    <div class="cta" style="margin-top:18px">
+      <a class="btn primary" href="docs/index.html">Read the docs</a>
+      <a class="btn" href="index.html">Overview page</a>
+    </div>
+  </section>
+</main>
+
+<div class="deck-ui">
+  <a href="index.html" aria-label="Back to the overview">← Overview</a>
+  <span id="counter" aria-live="off">1 / 1</span>
+  <span>
+    <button id="prev" type="button" aria-label="Previous slide">‹</button>
+    <button id="next" type="button" aria-label="Next slide">›</button>
+    <button id="full" type="button" aria-label="Toggle full screen">⛶</button>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme" style="width:auto;height:auto;padding:6px 12px;margin:0">◐</button>
+  </span>
+</div>
+<noscript><style>.slide{position:relative;opacity:1;visibility:visible;transform:none;min-height:100vh}body.deck{overflow:auto;height:auto}.deck-ui{display:none}</style></noscript>
+</body>
+</html>

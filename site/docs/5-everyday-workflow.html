@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Everyday workflow · APMGIT CLIENT</title>
+<meta name="description" content="APMGIT CLIENT documentation: a fast Git client that works with any Git provider.">
+<link rel="icon" href="../assets/icon.png">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+</head>
+<body class="docs">
+<header class="topbar">
+  <a class="brand" href="../index.html"><img src="../assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <nav class="top-links" aria-label="Main">
+    <a href="../index.html">Overview</a>
+    <a href="../docs/index.html" aria-current="page">Docs</a>
+    <a href="../present.html">Presentation</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme">◐</button>
+  </nav>
+</header>
+<div class="doc-layout">
+<nav class="doc-nav" aria-label="Documentation">
+  <button class="nav-toggle" type="button" aria-expanded="false">Contents</button>
+  <ol>
+    <li><a href="index.html">Introduction</a></li>
+    <li><a href="1-before-you-start.html"><span class="num">1</span>Before you start</a></li>
+    <li><a href="2-opening-and-cloning-repositories.html"><span class="num">2</span>Opening and cloning repositories</a></li>
+    <li><a href="3-tabs-and-bookmarks.html"><span class="num">3</span>Tabs and bookmarks</a></li>
+    <li><a href="4-a-tour-of-the-window.html"><span class="num">4</span>A tour of the window</a></li>
+    <li><a href="5-everyday-workflow.html" aria-current="page"><span class="num">5</span>Everyday workflow</a></li>
+    <li><a href="6-history-and-the-commit-graph.html"><span class="num">6</span>History and the commit graph</a></li>
+    <li><a href="7-branches-and-tags.html"><span class="num">7</span>Branches and tags</a></li>
+    <li><a href="8-fetch-pull-and-push.html"><span class="num">8</span>Fetch, pull and push</a></li>
+    <li><a href="9-submodules.html"><span class="num">9</span>Submodules</a></li>
+    <li><a href="10-merging-rebasing-and-conflicts.html"><span class="num">10</span>Merging, rebasing and conflicts</a></li>
+    <li><a href="11-stash-put-work-aside.html"><span class="num">11</span>Stash: put work aside</a></li>
+    <li><a href="12-undoing-things-safely.html"><span class="num">12</span>Undoing things safely</a></li>
+    <li><a href="13-when-something-goes-wrong.html"><span class="num">13</span>When something goes wrong</a></li>
+    <li><a href="14-keyboard-shortcuts.html"><span class="num">14</span>Keyboard shortcuts</a></li>
+    <li><a href="15-tips-for-speed.html"><span class="num">15</span>Tips for speed</a></li>
+    <li><a href="16-glossary.html"><span class="num">16</span>Glossary</a></li>
+  </ol>
+</nav>
+<main class="doc-main" id="main">
+<article class="prose">
+<h1>5. Everyday workflow</h1>
+<h3 id="51-see-what-changed">5.1 See what changed</h3>
+<p>Open <strong>File status</strong> (sidebar). Files are grouped:</p>
+<ul>
+<li><strong>Conflicts</strong> – needs your decision (see section 10).</li>
+<li><strong>Staged</strong> – will be included in the next commit.</li>
+<li><strong>Unstaged</strong> – changed but not yet staged (includes new untracked files, marked <strong>U</strong>).</li>
+</ul>
+<p>Click a file to see its changes on the right. Colours: green = added, red = removed.
+Badges: <strong>M</strong> modified, <strong>A</strong> added, <strong>D</strong> deleted, <strong>R</strong> renamed, <strong>U</strong> untracked, <strong>!</strong> conflict.</p>
+<h3 id="52-stage-and-unstage">5.2 Stage and unstage</h3>
+<ul>
+<li>Click <strong>+</strong> next to a file to stage it (or <strong>×</strong> to unstage). Double-click a row for the same effect.</li>
+<li><strong>Stage all / Unstage all</strong> buttons are in each section header.</li>
+<li><strong>Stage only part of a file:</strong> with the file open in the diff,<ul>
+<li>click <strong>Stage hunk</strong> to stage one block of changes, or</li>
+<li>tick the checkboxes beside individual changed lines and click <strong>Stage N lines</strong>.
+This lets you split one messy edit into several clean commits. (In a hunk that touches the very end of a file lacking a
+final newline, only whole-hunk staging is offered, to avoid corrupting the file.)</li>
+</ul>
+</li>
+<li><strong>Discard changes</strong> (↶ icon or right-click → <em>Discard changes…</em>) throws a file&#39;s unstaged changes away. This <strong>cannot be
+undone</strong>; the app asks first.</li>
+</ul>
+<h3 id="53-commit">5.3 Commit</h3>
+<ol>
+<li>Write a message in the box under the lists. Aim for a short first line (the counter turns amber past 72 characters).</li>
+<li>Press <strong>Commit</strong> or <code>Ctrl+Enter</code>.</li>
+</ol>
+<ul>
+<li><strong>Amend last commit</strong> – tick the box to rewrite the previous commit with the currently staged changes and/or a new
+message. Don&#39;t amend a commit you&#39;ve already pushed and shared.</li>
+<li><strong>Commit &amp; push…</strong> commits, then opens the Push dialog.</li>
+</ul>
+<h3 id="54-push-your-work">5.4 Push your work</h3>
+<p>Press <strong>Push</strong>. The dialog lets you choose the remote and branch. Tick <strong>Track this remote branch</strong> the first time you push
+a new branch. <strong>Force push (with lease)</strong> overwrites the remote branch only if nobody else has pushed since you last
+fetched — use it after rewriting history (rebase/amend), never casually.</p>
+
+</article>
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#51-see-what-changed">5.1 See what changed</a></li><li><a href="#52-stage-and-unstage">5.2 Stage and unstage</a></li><li><a href="#53-commit">5.3 Commit</a></li><li><a href="#54-push-your-work">5.4 Push your work</a></li></ul></aside>
+<nav class="pager" aria-label="Previous and next page">
+  <a class="prev" href="4-a-tour-of-the-window.html"><small>Previous</small>4. A tour of the window</a>
+  <a class="next" href="6-history-and-the-commit-graph.html"><small>Next</small>6. History and the commit graph</a>
+</nav>
+<footer class="footer"><p>APMGIT CLIENT works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

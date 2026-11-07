@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. When something goes wrong · APMGIT CLIENT</title>
+<meta name="description" content="APMGIT CLIENT documentation: a fast Git client that works with any Git provider.">
+<link rel="icon" href="../assets/icon.png">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+</head>
+<body class="docs">
+<header class="topbar">
+  <a class="brand" href="../index.html"><img src="../assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <nav class="top-links" aria-label="Main">
+    <a href="../index.html">Overview</a>
+    <a href="../docs/index.html" aria-current="page">Docs</a>
+    <a href="../present.html">Presentation</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme">◐</button>
+  </nav>
+</header>
+<div class="doc-layout">
+<nav class="doc-nav" aria-label="Documentation">
+  <button class="nav-toggle" type="button" aria-expanded="false">Contents</button>
+  <ol>
+    <li><a href="index.html">Introduction</a></li>
+    <li><a href="1-before-you-start.html"><span class="num">1</span>Before you start</a></li>
+    <li><a href="2-opening-and-cloning-repositories.html"><span class="num">2</span>Opening and cloning repositories</a></li>
+    <li><a href="3-tabs-and-bookmarks.html"><span class="num">3</span>Tabs and bookmarks</a></li>
+    <li><a href="4-a-tour-of-the-window.html"><span class="num">4</span>A tour of the window</a></li>
+    <li><a href="5-everyday-workflow.html"><span class="num">5</span>Everyday workflow</a></li>
+    <li><a href="6-history-and-the-commit-graph.html"><span class="num">6</span>History and the commit graph</a></li>
+    <li><a href="7-branches-and-tags.html"><span class="num">7</span>Branches and tags</a></li>
+    <li><a href="8-fetch-pull-and-push.html"><span class="num">8</span>Fetch, pull and push</a></li>
+    <li><a href="9-submodules.html"><span class="num">9</span>Submodules</a></li>
+    <li><a href="10-merging-rebasing-and-conflicts.html"><span class="num">10</span>Merging, rebasing and conflicts</a></li>
+    <li><a href="11-stash-put-work-aside.html"><span class="num">11</span>Stash: put work aside</a></li>
+    <li><a href="12-undoing-things-safely.html"><span class="num">12</span>Undoing things safely</a></li>
+    <li><a href="13-when-something-goes-wrong.html" aria-current="page"><span class="num">13</span>When something goes wrong</a></li>
+    <li><a href="14-keyboard-shortcuts.html"><span class="num">14</span>Keyboard shortcuts</a></li>
+    <li><a href="15-tips-for-speed.html"><span class="num">15</span>Tips for speed</a></li>
+    <li><a href="16-glossary.html"><span class="num">16</span>Glossary</a></li>
+  </ol>
+</nav>
+<main class="doc-main" id="main">
+<article class="prose">
+<h1>13. When something goes wrong</h1>
+<p>Whenever an operation fails, the app shows a red panel with:</p>
+<ol>
+<li>a plain-language <strong>title</strong> and explanation of <em>why</em> it happened,</li>
+<li><strong>How to fix it</strong> — numbered steps,</li>
+<li>one-click <strong>action buttons</strong> where possible (Pull, Pull (rebase), Stash my changes…, Show changes, Remove lock file),</li>
+<li><strong>Technical details</strong> (Git&#39;s exact output — expand it when asking for help) and <strong>Copy details</strong>.</li>
+</ol>
+<p>Errors stay on screen until you dismiss them (✕, or <strong>Dismiss all</strong>), and a panel closes itself once you use its fix.</p>
+<p>Common situations:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>You see …</th>
+<th>Meaning</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><em>Git is locked by another process</em></td>
+<td>A <code>.lock</code> file exists — another Git tool is busy, or one crashed</td>
+<td>Wait/close other tools; if none, <strong>Remove lock file</strong></td>
+</tr>
+<tr>
+<td><em>The remote has commits you don&#39;t have</em></td>
+<td>Push rejected (non-fast-forward)</td>
+<td><strong>Pull</strong> (or <strong>Pull (rebase)</strong>), then push again</td>
+</tr>
+<tr>
+<td><em>Git could not sign in to the remote</em></td>
+<td>Wrong/expired credentials or SSH key</td>
+<td>See <a href="1-before-you-start.html#signing-in">Signing in</a></td>
+</tr>
+<tr>
+<td><em>Could not reach the remote server</em></td>
+<td>Offline, VPN or proxy</td>
+<td>Check connection; retry</td>
+</tr>
+<tr>
+<td><em>Uncommitted changes are in the way</em></td>
+<td>A checkout/merge would overwrite your edits</td>
+<td><strong>Stash my changes…</strong>, repeat, then pop</td>
+</tr>
+<tr>
+<td><em>The changes conflict and need your decision</em></td>
+<td>Merge/rebase conflict</td>
+<td>Resolve in File status (section 10)</td>
+</tr>
+<tr>
+<td><em>Git doesn&#39;t know who you are</em></td>
+<td>No <code>user.name</code>/<code>user.email</code></td>
+<td>Run the two <code>git config</code> commands in section 1</td>
+</tr>
+<tr>
+<td><em>A Git hook stopped the operation</em></td>
+<td>The repo&#39;s pre-commit/pre-push check failed</td>
+<td>Read the technical details, fix, retry</td>
+</tr>
+<tr>
+<td><em>This branch isn&#39;t linked to a remote branch yet</em></td>
+<td>No upstream</td>
+<td>Push with <strong>Track this remote branch</strong></td>
+</tr>
+<tr>
+<td><em>A file or folder is in use or protected</em></td>
+<td>Another program (editor, antivirus, OneDrive) holds a file</td>
+<td>Close it; move the repo out of OneDrive</td>
+</tr>
+</tbody></table></div>
+<p>If the <strong>same</strong> problem keeps appearing, press <strong>Refresh</strong> (<code>Ctrl+R</code>), and try the command in the <strong>Terminal</strong> to see Git&#39;s
+full output.</p>
+
+</article>
+
+<nav class="pager" aria-label="Previous and next page">
+  <a class="prev" href="12-undoing-things-safely.html"><small>Previous</small>12. Undoing things safely</a>
+  <a class="next" href="14-keyboard-shortcuts.html"><small>Next</small>14. Keyboard shortcuts</a>
+</nav>
+<footer class="footer"><p>APMGIT CLIENT works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

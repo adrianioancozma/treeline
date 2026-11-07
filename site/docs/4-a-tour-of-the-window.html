@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. A tour of the window · APMGIT CLIENT</title>
+<meta name="description" content="APMGIT CLIENT documentation: a fast Git client that works with any Git provider.">
+<link rel="icon" href="../assets/icon.png">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+</head>
+<body class="docs">
+<header class="topbar">
+  <a class="brand" href="../index.html"><img src="../assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <nav class="top-links" aria-label="Main">
+    <a href="../index.html">Overview</a>
+    <a href="../docs/index.html" aria-current="page">Docs</a>
+    <a href="../present.html">Presentation</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme">◐</button>
+  </nav>
+</header>
+<div class="doc-layout">
+<nav class="doc-nav" aria-label="Documentation">
+  <button class="nav-toggle" type="button" aria-expanded="false">Contents</button>
+  <ol>
+    <li><a href="index.html">Introduction</a></li>
+    <li><a href="1-before-you-start.html"><span class="num">1</span>Before you start</a></li>
+    <li><a href="2-opening-and-cloning-repositories.html"><span class="num">2</span>Opening and cloning repositories</a></li>
+    <li><a href="3-tabs-and-bookmarks.html"><span class="num">3</span>Tabs and bookmarks</a></li>
+    <li><a href="4-a-tour-of-the-window.html" aria-current="page"><span class="num">4</span>A tour of the window</a></li>
+    <li><a href="5-everyday-workflow.html"><span class="num">5</span>Everyday workflow</a></li>
+    <li><a href="6-history-and-the-commit-graph.html"><span class="num">6</span>History and the commit graph</a></li>
+    <li><a href="7-branches-and-tags.html"><span class="num">7</span>Branches and tags</a></li>
+    <li><a href="8-fetch-pull-and-push.html"><span class="num">8</span>Fetch, pull and push</a></li>
+    <li><a href="9-submodules.html"><span class="num">9</span>Submodules</a></li>
+    <li><a href="10-merging-rebasing-and-conflicts.html"><span class="num">10</span>Merging, rebasing and conflicts</a></li>
+    <li><a href="11-stash-put-work-aside.html"><span class="num">11</span>Stash: put work aside</a></li>
+    <li><a href="12-undoing-things-safely.html"><span class="num">12</span>Undoing things safely</a></li>
+    <li><a href="13-when-something-goes-wrong.html"><span class="num">13</span>When something goes wrong</a></li>
+    <li><a href="14-keyboard-shortcuts.html"><span class="num">14</span>Keyboard shortcuts</a></li>
+    <li><a href="15-tips-for-speed.html"><span class="num">15</span>Tips for speed</a></li>
+    <li><a href="16-glossary.html"><span class="num">16</span>Glossary</a></li>
+  </ol>
+</nav>
+<main class="doc-main" id="main">
+<article class="prose">
+<h1>4. A tour of the window</h1>
+<pre><code>┌ Tabs ─────────────────────────────────────────────────────  ⌘ palette · ☀ theme ┐
+│ Repo name · branch chip · ★   [Commit][Fetch][Pull▾][Push] [Branch][Merge][Stash][Tag] [Terminal][Explorer][Refresh] │
+├──────────────┬──────────────────────────────────────────────────────────────────┤
+│  Sidebar     │  Main area: File status  — or —  History                         │
+│  • File status│                                                                  │
+│  • History   │                                                                  │
+│  • Branches  │                                                                  │
+│  • Remotes   │                                                                  │
+│  • Tags      │                                                                  │
+│  • Stashes   │                                                                  │
+│  • Submodules│                                                                  │
+├──────────────┴──────────────────────────────────────────────────────────────────┤
+│ Status bar: what the app is doing now · repository path                          │
+└──────────────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<ul>
+<li><strong>Toolbar badges:</strong> the number on <em>Commit</em> is how many files changed; on <em>Push</em> how many commits you haven&#39;t pushed; on
+<em>Pull</em> how many commits are waiting on the server.</li>
+<li><strong>Branch chip</strong> <code>main ↑1 ↓2</code> – you are 1 commit ahead of and 2 commits behind the remote branch.</li>
+<li><strong>Right-click</strong> almost anything (branches, tags, stashes, files, commits, submodules) for its actions.</li>
+<li><strong>Drag the thin dividers</strong> between panels to resize them; sizes are remembered.</li>
+<li><strong>Theme:</strong> the ☀ button switches light/dark (or choose “follow system” in the command palette).</li>
+<li><strong>Command palette</strong> (<code>Ctrl+K</code>): type to find any action — Fetch, New branch, Check out <em>x</em>, Open bookmark <em>y</em>…</li>
+</ul>
+
+</article>
+
+<nav class="pager" aria-label="Previous and next page">
+  <a class="prev" href="3-tabs-and-bookmarks.html"><small>Previous</small>3. Tabs and bookmarks</a>
+  <a class="next" href="5-everyday-workflow.html"><small>Next</small>5. Everyday workflow</a>
+</nav>
+<footer class="footer"><p>APMGIT CLIENT works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

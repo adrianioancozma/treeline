@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10. Merging, rebasing and conflicts · APMGIT CLIENT</title>
+<meta name="description" content="APMGIT CLIENT documentation: a fast Git client that works with any Git provider.">
+<link rel="icon" href="../assets/icon.png">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+</head>
+<body class="docs">
+<header class="topbar">
+  <a class="brand" href="../index.html"><img src="../assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <nav class="top-links" aria-label="Main">
+    <a href="../index.html">Overview</a>
+    <a href="../docs/index.html" aria-current="page">Docs</a>
+    <a href="../present.html">Presentation</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme">◐</button>
+  </nav>
+</header>
+<div class="doc-layout">
+<nav class="doc-nav" aria-label="Documentation">
+  <button class="nav-toggle" type="button" aria-expanded="false">Contents</button>
+  <ol>
+    <li><a href="index.html">Introduction</a></li>
+    <li><a href="1-before-you-start.html"><span class="num">1</span>Before you start</a></li>
+    <li><a href="2-opening-and-cloning-repositories.html"><span class="num">2</span>Opening and cloning repositories</a></li>
+    <li><a href="3-tabs-and-bookmarks.html"><span class="num">3</span>Tabs and bookmarks</a></li>
+    <li><a href="4-a-tour-of-the-window.html"><span class="num">4</span>A tour of the window</a></li>
+    <li><a href="5-everyday-workflow.html"><span class="num">5</span>Everyday workflow</a></li>
+    <li><a href="6-history-and-the-commit-graph.html"><span class="num">6</span>History and the commit graph</a></li>
+    <li><a href="7-branches-and-tags.html"><span class="num">7</span>Branches and tags</a></li>
+    <li><a href="8-fetch-pull-and-push.html"><span class="num">8</span>Fetch, pull and push</a></li>
+    <li><a href="9-submodules.html"><span class="num">9</span>Submodules</a></li>
+    <li><a href="10-merging-rebasing-and-conflicts.html" aria-current="page"><span class="num">10</span>Merging, rebasing and conflicts</a></li>
+    <li><a href="11-stash-put-work-aside.html"><span class="num">11</span>Stash: put work aside</a></li>
+    <li><a href="12-undoing-things-safely.html"><span class="num">12</span>Undoing things safely</a></li>
+    <li><a href="13-when-something-goes-wrong.html"><span class="num">13</span>When something goes wrong</a></li>
+    <li><a href="14-keyboard-shortcuts.html"><span class="num">14</span>Keyboard shortcuts</a></li>
+    <li><a href="15-tips-for-speed.html"><span class="num">15</span>Tips for speed</a></li>
+    <li><a href="16-glossary.html"><span class="num">16</span>Glossary</a></li>
+  </ol>
+</nav>
+<main class="doc-main" id="main">
+<article class="prose">
+<h1>10. Merging, rebasing and conflicts</h1>
+<h3 id="merge">Merge</h3>
+<p>Toolbar <strong>Merge</strong> (or right-click a branch → <em>Merge into …</em>). Options: always create a merge commit (<code>--no-ff</code>), or squash
+everything into one uncommitted change.</p>
+<h3 id="rebase">Rebase</h3>
+<p>Right-click a branch → <em>Rebase current onto this…</em> replays your commits on top of another branch for a linear history.
+Only rebase commits you haven&#39;t shared.</p>
+<h3 id="interactive-rebase-tidy-up-recent-commits">Interactive rebase (tidy up recent commits)</h3>
+<p>Right-click a commit in History → <strong>Interactive rebase from here…</strong>. For each commit choose <strong>Pick</strong>, <strong>Reword</strong> (edit the
+message), <strong>Edit</strong> (pause to amend it), <strong>Squash</strong> (merge into the one before, combining messages), <strong>Fixup</strong> (merge,
+discarding its message) or <strong>Drop</strong>. Use the arrows to reorder (newest on top). Uncommitted changes are stashed and restored
+automatically. Merge commits aren&#39;t listed (a rebase flattens them).</p>
+<h3 id="conflicts">Conflicts</h3>
+<p>A conflict means both sides changed the same lines. The operation <strong>pauses</strong> — nothing is lost.</p>
+<ol>
+<li>A yellow banner (“Merge in progress …”) appears in File status; conflicted files are listed under <strong>Conflicts</strong>.</li>
+<li>Click a conflicted file. For each conflict choose <strong>Use ours</strong>, <strong>Use theirs</strong>, <strong>Both</strong> or <strong>Both (reversed)</strong> — or edit
+the <strong>Result</strong> box by hand.</li>
+<li>Click <strong>Mark resolved</strong> (enabled when every conflict is decided). Repeat for each file.</li>
+<li>When no conflicts remain, press <strong>Continue</strong> in the banner. <strong>Abort</strong> cancels and restores the state from before.</li>
+</ol>
+<p><em>Ours</em> = the branch you are on; <em>theirs</em> = the one being merged in (for a rebase these are swapped in meaning, which is
+normal Git behaviour). If one side deleted the file you get <strong>Keep ours / Keep theirs</strong> instead.</p>
+<h3 id="cherry-pick-revert-reset">Cherry-pick, revert, reset</h3>
+<ul>
+<li><strong>Cherry-pick</strong> copies one commit onto the current branch.</li>
+<li><strong>Revert</strong> makes a <em>new</em> commit that undoes an earlier one (safe for shared history).</li>
+<li><strong>Reset</strong> moves the branch pointer — see section 12.</li>
+</ul>
+
+</article>
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#merge">Merge</a></li><li><a href="#rebase">Rebase</a></li><li><a href="#interactive-rebase-tidy-up-recent-commits">Interactive rebase (tidy up recent commits)</a></li><li><a href="#conflicts">Conflicts</a></li><li><a href="#cherry-pick-revert-reset">Cherry-pick, revert, reset</a></li></ul></aside>
+<nav class="pager" aria-label="Previous and next page">
+  <a class="prev" href="9-submodules.html"><small>Previous</small>9. Submodules</a>
+  <a class="next" href="11-stash-put-work-aside.html"><small>Next</small>11. Stash: put work aside</a>
+</nav>
+<footer class="footer"><p>APMGIT CLIENT works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APMGIT CLIENT · A fast Git client for any provider</title>
+<meta name="description" content="APMGIT CLIENT is a fast desktop Git client with tabs, bookmarks, submodules, a commit graph, line-level staging and a conflict resolver. It works with any Git server.">
+<link rel="icon" href="assets/icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="index.html"><img src="assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <nav class="top-links" aria-label="Main">
+    <a href="index.html" aria-current="page">Overview</a>
+    <a href="docs/index.html">Docs</a>
+    <a href="present.html">Presentation</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme">◐</button>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="hero wrap">
+    <h1>The Git client that <em>keeps up</em><br>with your repositories</h1>
+    <p class="lead">Many tabs, big histories, submodules everywhere — and it stays fast. Works with <strong>any Git server</strong>: self-hosted, GitLab, Gitea, Azure DevOps, or a plain folder.</p>
+    <div class="cta">
+      <a class="btn primary" href="#get-it">Get started</a>
+      <a class="btn" href="docs/index.html">Read the docs</a>
+      <a class="btn" href="present.html">View the presentation</a>
+    </div>
+    <figure class="shot">
+      <img src="assets/history-highlight.png" width="1382" height="822" alt="The history view: a commit graph with one branch highlighted and the rest dimmed, a sidebar of branches, remotes, tags, stashes and submodules, and a toolbar with Fetch, Pull, Push, Branch, Merge and Stash.">
+      <figcaption>Click a branch and the graph highlights everything reachable from it.</figcaption>
+    </figure>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <h2>Built around three ideas</h2>
+      <p class="sub">A Git client should get out of the way, tell you the truth, and never lock you in.</p>
+      <div class="grid">
+        <div class="card"><div class="ico" aria-hidden="true">⚡</div><h3>Fast, on purpose</h3><p>Every Git call runs off the interface thread. Only the tab you're looking at is refreshed, by watching its files — no polling, no spinning.</p></div>
+        <div class="card"><div class="ico" aria-hidden="true">🔌</div><h3>Any Git provider</h3><p>It drives the <code>git</code> you already have installed, so any remote works. No accounts, no sign-in screens, no integrations to configure.</p></div>
+        <div class="card"><div class="ico" aria-hidden="true">💬</div><h3>Errors that help</h3><p>When something fails you get a plain explanation, numbered fixes and one-click actions — with risky options clearly marked and always confirmed.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="features">
+    <div class="wrap">
+      <h2>What it does</h2>
+      <p class="sub">The everyday workflow and the hard days, both covered.</p>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Stage exactly what you mean to</h3>
+          <p>Split one messy edit into clean commits. Stage a whole file, a single hunk, or just the lines you tick.</p>
+          <ul><li>Stage, unstage and discard per file, hunk or line</li><li>Commit, amend, or commit and push in one go</li><li>Renames and untracked files handled correctly</li></ul>
+        </div>
+        <figure class="shot"><img src="assets/line-staging.png" width="1382" height="822" loading="lazy" alt="A diff with three added lines ticked and a highlighted 'Stage 3 lines' button in the hunk header."></figure>
+      </div>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Resolve conflicts without fear</h3>
+          <p>Conflicts pause the operation, they never lose work. Pick ours, theirs or both for each conflict and watch the result update.</p>
+          <ul><li>Side-by-side ours / theirs with an editable result</li><li>Continue, skip or abort from a banner</li><li>Refuses to mangle files that aren't valid UTF-8</li></ul>
+        </div>
+        <figure class="shot"><img src="assets/conflicts.png" width="1382" height="822" loading="lazy" alt="The conflict resolver showing the 'ours' and 'theirs' versions of a conflicting block with buttons to use ours, theirs, both, or both reversed, and an editable result pane."></figure>
+      </div>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Tidy history with interactive rebase</h3>
+          <p>Reorder, reword, squash, fixup, edit or drop recent commits from a simple list — no text editor, no todo files.</p>
+          <ul><li>Uncommitted changes are stashed and restored for you</li><li>Reword keeps the full message, not just the subject</li><li>Pause, fix, continue — all from the app</li></ul>
+        </div>
+        <figure class="shot"><img src="assets/rebase.png" width="1382" height="822" loading="lazy" alt="The interactive rebase dialog listing three commits, each with a Pick/Reword/Edit/Squash/Fixup/Drop selector and up and down arrows."></figure>
+      </div>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Submodules that just work</h3>
+          <p>See their state at a glance, open one with a double-click — it appears in a tab right beside its parent — and update them all in one step.</p>
+          <ul><li>Initialised on demand when you open them</li><li>Clone with submodules; a failing submodule only warns</li><li>Status from a single fast query, not a slow per-module scan</li></ul>
+        </div>
+        <figure class="shot"><img src="assets/submodules.png" width="1382" height="822" loading="lazy" alt="A submodule open in its own tab, directly to the right of its parent repository's tab."></figure>
+      </div>
+
+      <div class="feature">
+        <div class="text">
+          <h3>When it fails, it explains</h3>
+          <p>A rejected push isn't a wall of text. You get what happened, why, and what to do — and force options are offered last, with the consequences spelled out first.</p>
+          <ul><li>About twenty common errors recognised, with fixes</li><li>One-click: Pull, Pull (rebase), Stash, Remove lock file</li><li>Force push uses <em>force-with-lease</em> and asks you to confirm</li></ul>
+        </div>
+        <figure class="shot"><img src="assets/errors.png" width="1382" height="822" loading="lazy" alt="An error panel titled 'The remote has commits you don't have' with numbered fixes and buttons Pull, Pull (rebase) and a red-outlined Force push (with lease)."></figure>
+      </div>
+
+      <div class="feature">
+        <div class="text">
+          <h3>Looks right in the light, too</h3>
+          <p>Dark and light themes, resizable panes, a command palette for everything (<kbd>Ctrl</kbd>+<kbd>K</kbd>), and keyboard shortcuts for the rest.</p>
+        </div>
+        <figure class="shot"><img src="assets/light.png" width="1382" height="822" loading="lazy" alt="The history view in the light theme."></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="speed">
+    <div class="wrap">
+      <h2>Fast where it counts</h2>
+      <p class="sub">Measured on large production repositories (8,000–10,000 commits, thousands of branches, with submodules).</p>
+      <div class="stats">
+        <div class="stat"><b>60–420&nbsp;ms</b><span>working-tree status</span></div>
+        <div class="stat"><b>~210&nbsp;ms</b><span>first 400 commits of history</span></div>
+        <div class="stat"><b>2–3×</b><span>faster submodule listing than <code>git submodule status</code></span></div>
+        <div class="stat"><b>0</b><span>accounts to create or integrations to configure</span></div>
+      </div>
+      <p class="note">Numbers are from our own machines and repositories; yours will vary with disk speed and repository size. Keeping repositories out of OneDrive and similar sync folders helps a lot.</p>
+    </div>
+  </section>
+
+  <section class="block" id="get-it">
+    <div class="wrap">
+      <h2>Get it running</h2>
+      <p class="sub">It needs Git 2.30 or newer on your <code>PATH</code>. Installers are built per operating system.</p>
+      <ol class="steps">
+        <li><strong>Install Git</strong><br>Check with <code>git --version</code>, and set your name and email once.</li>
+        <li><strong>Build or install</strong><br>Run <code>pnpm tauri build</code> on your OS, or run the Windows installer from <code>src-tauri/target/release/bundle</code>.</li>
+        <li><strong>Open a repository</strong><br>Press <kbd>Ctrl</kbd>+<kbd>O</kbd>, or clone one. Star it to keep it one click away.</li>
+      </ol>
+      <div class="cta" style="margin-top:26px">
+        <a class="btn primary" href="docs/1-before-you-start.html">Setup guide</a>
+        <a class="btn" href="docs/5-everyday-workflow.html">Everyday workflow</a>
+        <a class="btn" href="docs/13-when-something-goes-wrong.html">When something goes wrong</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer"><div class="wrap"><p>APMGIT CLIENT — a provider-independent desktop Git client. Built with Tauri, Rust and React. It never stores your passwords; sign-in is handled by your normal Git setup.</p></div></footer>
+</body>
+</html>

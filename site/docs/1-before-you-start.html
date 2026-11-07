@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1. Before you start · APMGIT CLIENT</title>
+<meta name="description" content="APMGIT CLIENT documentation: a fast Git client that works with any Git provider.">
+<link rel="icon" href="../assets/icon.png">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+</head>
+<body class="docs">
+<header class="topbar">
+  <a class="brand" href="../index.html"><img src="../assets/icon.png" alt="" width="28" height="28"><span>APMGIT CLIENT</span></a>
+  <nav class="top-links" aria-label="Main">
+    <a href="../index.html">Overview</a>
+    <a href="../docs/index.html" aria-current="page">Docs</a>
+    <a href="../present.html">Presentation</a>
+    <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme">◐</button>
+  </nav>
+</header>
+<div class="doc-layout">
+<nav class="doc-nav" aria-label="Documentation">
+  <button class="nav-toggle" type="button" aria-expanded="false">Contents</button>
+  <ol>
+    <li><a href="index.html">Introduction</a></li>
+    <li><a href="1-before-you-start.html" aria-current="page"><span class="num">1</span>Before you start</a></li>
+    <li><a href="2-opening-and-cloning-repositories.html"><span class="num">2</span>Opening and cloning repositories</a></li>
+    <li><a href="3-tabs-and-bookmarks.html"><span class="num">3</span>Tabs and bookmarks</a></li>
+    <li><a href="4-a-tour-of-the-window.html"><span class="num">4</span>A tour of the window</a></li>
+    <li><a href="5-everyday-workflow.html"><span class="num">5</span>Everyday workflow</a></li>
+    <li><a href="6-history-and-the-commit-graph.html"><span class="num">6</span>History and the commit graph</a></li>
+    <li><a href="7-branches-and-tags.html"><span class="num">7</span>Branches and tags</a></li>
+    <li><a href="8-fetch-pull-and-push.html"><span class="num">8</span>Fetch, pull and push</a></li>
+    <li><a href="9-submodules.html"><span class="num">9</span>Submodules</a></li>
+    <li><a href="10-merging-rebasing-and-conflicts.html"><span class="num">10</span>Merging, rebasing and conflicts</a></li>
+    <li><a href="11-stash-put-work-aside.html"><span class="num">11</span>Stash: put work aside</a></li>
+    <li><a href="12-undoing-things-safely.html"><span class="num">12</span>Undoing things safely</a></li>
+    <li><a href="13-when-something-goes-wrong.html"><span class="num">13</span>When something goes wrong</a></li>
+    <li><a href="14-keyboard-shortcuts.html"><span class="num">14</span>Keyboard shortcuts</a></li>
+    <li><a href="15-tips-for-speed.html"><span class="num">15</span>Tips for speed</a></li>
+    <li><a href="16-glossary.html"><span class="num">16</span>Glossary</a></li>
+  </ol>
+</nav>
+<main class="doc-main" id="main">
+<article class="prose">
+<h1>1. Before you start</h1>
+<ul>
+<li><strong>Git must be installed</strong> (version 2.30 or newer) and available on your <code>PATH</code>. Check by running <code>git --version</code> in a
+terminal. Download from <a href="https://git-scm.com">https://git-scm.com</a> if needed.</li>
+<li><strong>Tell Git who you are</strong> once per computer, otherwise commits are refused:<pre><code>git config --global user.name  &quot;Your Name&quot;
+git config --global user.email &quot;you@example.com&quot;
+</code></pre>
+</li>
+</ul>
+<h3 id="signing-in">Signing in</h3>
+<p>The app uses whatever Git is already set up with:</p>
+<ul>
+<li><strong>HTTPS remotes</strong> – the first time Git needs a password or token, your operating system&#39;s credential manager
+(Git Credential Manager on Windows/macOS) opens a sign-in window and remembers the result.</li>
+<li><strong>SSH remotes</strong> – your SSH key must be loaded (<code>ssh-add -l</code> lists loaded keys) and its public half added to your
+account on the server.</li>
+</ul>
+<p>If a fetch/push fails with an authentication error, the app explains it and shows these steps (see
+<a href="13-when-something-goes-wrong.html">section 13</a>).</p>
+
+</article>
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#signing-in">Signing in</a></li></ul></aside>
+<nav class="pager" aria-label="Previous and next page">
+  <a class="prev" href="index.html"><small>Previous</small>Introduction</a>
+  <a class="next" href="2-opening-and-cloning-repositories.html"><small>Next</small>2. Opening and cloning repositories</a>
+</nav>
+<footer class="footer"><p>APMGIT CLIENT works with any Git server. Documentation is generated from <code>docs/USER_GUIDE.md</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

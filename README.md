@@ -68,6 +68,25 @@ pnpm tauri build
 
 Regenerate the icon set from a 1024×1024 PNG with `pnpm tauri icon path/to/icon.png`.
 
+## Website, documentation and presentation
+
+A dependency-free static site lives in `site/` and can be hosted anywhere (any web server, a file share, or a static
+host of your choice) or opened locally:
+
+| Page | What it is |
+| --- | --- |
+| `site/index.html` | Landing / overview page with screenshots and the feature tour |
+| `site/present.html` | Full-screen slide deck (←/→, Space, `F` for full screen, `#5` deep links) |
+| `site/docs/*.html` | Documentation, **generated from `docs/USER_GUIDE.md`** (one page per section) |
+
+```sh
+pnpm site:build              # regenerate site/docs from docs/USER_GUIDE.md
+node scripts/check-site.mjs  # verify every link, image and #anchor in the site
+```
+
+Edit the guide (not the generated HTML), rebuild, then commit both. Serve locally with any static server, for example
+`npx serve site`.
+
 ## Project layout
 
 ```
