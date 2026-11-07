@@ -103,6 +103,10 @@ kbd { font-family: var(--mono); font-size: 11px; background: var(--bg-3); border
 /* Tabs */
 .tabbar { display: flex; align-items: flex-end; gap: 2px; padding: 6px 8px 0; background: var(--bg-2); border-bottom: 1px solid var(--border); overflow-x: auto; min-height: 40px; }
 .tab { display: flex; align-items: center; gap: 7px; max-width: 220px; min-width: 120px; padding: 7px 8px 7px 12px; border-radius: 8px 8px 0 0; cursor: pointer; color: var(--muted); user-select: none; position: relative; }
+.tab.dragging { opacity: 0.5; }
+.tab.drop-before::before, .tab.drop-after::after { content: ""; position: absolute; top: 4px; bottom: 0; width: 2px; background: var(--accent); }
+.tab.drop-before::before { left: -2px; }
+.tab.drop-after::after { right: -2px; }
 .tab:hover { background: var(--bg-3); color: var(--text); }
 .tab.active { background: var(--bg); color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
 .tab-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

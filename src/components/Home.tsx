@@ -2,7 +2,6 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { errorMessage } from "../api";
 import { useApp } from "../store";
 import { useUi } from "../uiStore";
-import { GUIDE, openGuide } from "../guide";
 import { Icon } from "./Icon";
 
 export function pickAndOpenRepo(openRepo: (p: string) => Promise<void>, onError: (m: string) => void) {
@@ -28,12 +27,6 @@ export function Home() {
           </button>
           <button className="btn big" onClick={() => useUi.setState({ clone: true })}>
             <Icon name="cloud" /> Clone…
-          </button>
-          <button className="btn big" onClick={() => useUi.setState({ settings: true })}>
-            <Icon name="terminal" /> Settings
-          </button>
-          <button className="btn big" onClick={() => void openGuide(GUIDE.start)}>
-            <Icon name="help" /> User guide
           </button>
         </div>
       </div>

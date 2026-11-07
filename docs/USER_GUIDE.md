@@ -31,7 +31,10 @@ your passwords: sign-in is handled by your normal Git setup (see [Signing in](#s
   `brew install git`. Linux: `sudo apt install git` (or your distribution's equivalent).
   The app also looks in Git's usual install folders on Windows. If it still cannot find Git, it says so and offers
   **Locate Git…**: choose the Git program (`git.exe`, normally in `C:\Program Files\Git\cmd`) and the app remembers it.
-  You can change this later in **Settings** (the Settings button on the start page, or the command palette).
+  You can change this later in **Settings** (the gear icon in the top bar, or the command palette).
+* **Version and updates.** The version number is at the bottom right of the window and in **Settings**. The app checks
+  for a newer version when it starts and tells you if there is one. You can also use **Settings → Check for updates**.
+  Nothing is installed until you press **Install and restart**.
 * **Tell Git who you are** once per computer, otherwise commits are refused:
   ```
   git config --global user.name  "Your Name"
@@ -69,6 +72,7 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 * Each repository opens in its own **tab**. Switching tabs is instant; only the tab you are looking at is refreshed.
 * `Ctrl+T` new tab · `Ctrl+W` close tab · `Ctrl+Tab` / `Ctrl+Shift+Tab` next / previous · middle-click a tab to close it.
 * Your open tabs are **restored** next time you start the app.
+* **Drag a tab** left or right to put your tabs in the order you like; the order is remembered. Each tab also remembers which sidebar sections (Branches, Remotes, Tags, Stashes, Submodules) you opened or closed.
 * A small orange dot on a tab means that repository has uncommitted changes.
 * **Bookmarks:** click the ☆ next to the repository name to bookmark it (★ = bookmarked). Remove it by clicking ★ again,
   or the ✕ on the bookmark card.
@@ -101,8 +105,7 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 * **Drag the thin dividers** between panels to resize them; sizes are remembered.
 * **Theme:** the ☀ button switches light/dark (or choose “follow system” in the command palette).
 * **Command palette** (`Ctrl+K`): type to find any action — Fetch, New branch, Check out *x*, Open bookmark *y*…
-* **This guide is built into the app.** Press `F1`, click the **?** button at the top right, or use **User guide** on the
-  home screen. It opens in its own window and works offline. Error panels have a **Learn more** button that opens the
+* **This guide is built into the app.** Press `F1` or click the **?** button at the top right. It opens in its own window and works offline. Error panels have a **Learn more** button that opens the
   page on fixing errors, and the command palette has shortcuts to the most useful pages.
 
 ---

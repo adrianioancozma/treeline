@@ -56,6 +56,8 @@ fn build_app_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(watcher::WatchState::default())
         .setup(|app| {
             store::apply_saved_settings(app.handle());

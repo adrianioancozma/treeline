@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { api, baseName, errorMessage } from "./api";
+import { forgetSections } from "./uiStore";
+import { checkForUpdate } from "./updater";
 import type {
   Bookmark,
   Commit,
@@ -122,6 +124,8 @@ interface AppState {
   closeTab: (id: string) => void;
   setActive: (id: string) => void;
   cycleTab: (step: 1 | -1) => void;
+  /** Moves a tab so that it ends up at `toIndex` in the tab bar. */
+  moveTab: (id: string, toIndex: number) => void;
   /** Opens a repo in the active home tab (or a new tab). Throws if it is not a repo. */
   openRepo: (path: string, afterTabId?: string) => Promise<void>;
   reload: (id?: string) => Promise<void>;
@@ -198,6 +202,10 @@ export const useApp = create<AppState>((set, get) => {
         watchActive();
         void get().reload();
       }
+      // Quiet start-up check: only speaks up when a newer version exists; failures (offline, no release yet) stay silent.
+      void checkForUpdate()
+        .then((u) => u && get().notify("info", `Version ${u.version} is available. Open Settings (the gear icon) to install it.`))
+        .catch(() => undefined);
     },
 
     newTab() {
@@ -213,6 +221,7 @@ export const useApp = create<AppState>((set, get) => {
       const next = tabs.filter((t) => t.id !== id);
       const data = { ...get().data };
       delete data[id];
+      forgetSections(id);
       const newActive =
         activeId === id ? (next[Math.min(idx, next.length - 1)]?.id ?? null) : activeId;
       set({ tabs: next, activeId: newActive, data });
@@ -227,6 +236,17 @@ export const useApp = create<AppState>((set, get) => {
       set({ activeId: id });
       watchActive();
       void get().reload(id);
+    },
+
+    moveTab(id, toIndex) {
+      const tabs = get().tabs;
+      const from = tabs.findIndex((t) => t.id === id);
+      const to = Math.max(0, Math.min(toIndex, tabs.length - 1));
+      if (from < 0 || from === to) return;
+      const next = [...tabs];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      set({ tabs: next });
     },
 
     cycleTab(step) {

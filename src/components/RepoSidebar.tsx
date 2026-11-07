@@ -2,19 +2,46 @@ import { useMemo, useState, type ReactNode } from "react";
 import { repoActions } from "../actions";
 import { parseTrack } from "../lib/format";
 import { useApp } from "../store";
-import { openMenu } from "../uiStore";
+import { openMenu, setSectionOpen, useUi } from "../uiStore";
 import type { RefInfo, Tab } from "../types";
 import { Icon } from "./Icon";
 
-function Section({ title, count, children, open = true }: { title: string; count?: number; children: ReactNode; open?: boolean }) {
+/**
+ * Open/closed state of a sidebar section: the user's own choice in this tab (each tab keeps its
+ * own layout), else the given default.
+ */
+function useSection(tabId: string, key: string, fallback: boolean) {
+  const stored = useUi((s) => s.sections[tabId]?.[key]);
+  const open = stored ?? fallback;
+  // Fires for the user's click and when the `open` prop changes; only a real difference is a choice.
+  const onToggle = (e: { currentTarget: HTMLDetailsElement }) => {
+    if (e.currentTarget.open !== open) setSectionOpen(tabId, key, e.currentTarget.open);
+  };
+  return { open, onToggle };
+}
+
+function Section({ tabId, title, count, children, open: fallback = true }: { tabId: string; title: string; count?: number; children: ReactNode; open?: boolean }) {
+  const { open, onToggle } = useSection(tabId, title, fallback);
   return (
-    <details open={open} className="side-section">
+    <details open={open} onToggle={onToggle} className="side-section">
       <summary>
         <Icon name="chevron" size={12} />
         <span>{title}</span>
         {count !== undefined && <span className="count">{count}</span>}
       </summary>
       <div className="side-items">{children}</div>
+    </details>
+  );
+}
+
+function RemoteGroup({ tabId, remote, count, children }: { tabId: string; remote: string; count: number; children: ReactNode }) {
+  const { open, onToggle } = useSection(tabId, `remote:${remote}`, true);
+  return (
+    <details open={open} onToggle={onToggle} className="side-sub">
+      <summary>
+        <Icon name="cloud" size={14} /> {remote} <span className="count">{count}</span>
+      </summary>
+      {children}
     </details>
   );
 }
@@ -64,7 +91,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           </button>
         </div>
 
-        <Section title="Branches" count={branches.length}>
+        <Section tabId={tab.id} title="Branches" count={branches.length}>
           {branches.map((b) => {
             const t = parseTrack(b.track);
             const isCurrent = b.head;
@@ -104,12 +131,9 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           {branches.length === 0 && <p className="muted small pad">No branches.</p>}
         </Section>
 
-        <Section title="Remotes" count={remoteGroups.length}>
+        <Section tabId={tab.id} title="Remotes" count={remoteGroups.length}>
           {remoteGroups.map(([remote, rs]) => (
-            <details key={remote} open className="side-sub">
-              <summary>
-                <Icon name="cloud" size={14} /> {remote} <span className="count">{rs.length}</span>
-              </summary>
+            <RemoteGroup tabId={tab.id} key={remote} remote={remote} count={rs.length}>
               {rs.map((r) => (
                 <button
                   key={r.name}
@@ -131,12 +155,12 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
                   <span className="grow ellipsis">{r.name.slice(remote.length + 1)}</span>
                 </button>
               ))}
-            </details>
+            </RemoteGroup>
           ))}
           {remoteGroups.length === 0 && <p className="muted small pad">No remote branches. Try Fetch.</p>}
         </Section>
 
-        <Section title="Tags" count={tags.length} open={false}>
+        <Section tabId={tab.id} title="Tags" count={tags.length} open={false}>
           {tags.map((t) => (
             <button
               key={t.name}
@@ -159,7 +183,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           {tags.length === 0 && <p className="muted small pad">No tags.</p>}
         </Section>
 
-        <Section title="Stashes" count={d?.stashes.length ?? 0} open={(d?.stashes.length ?? 0) > 0}>
+        <Section tabId={tab.id} title="Stashes" count={d?.stashes.length ?? 0} open={(d?.stashes.length ?? 0) > 0}>
           {d?.stashes.map((s) => (
             <button
               key={s.ref}
@@ -183,7 +207,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
         </Section>
 
         {(d?.submodules.length ?? 0) > 0 && (
-          <Section title="Submodules" count={d!.submodules.length}>
+          <Section tabId={tab.id} title="Submodules" count={d!.submodules.length}>
             {d!.submodules.map((m) => (
               <button
                 key={m.path}

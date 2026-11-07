@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import type {
   Commit,
   CommitDetail,
@@ -142,6 +143,9 @@ export const api = {
   terminal: (path: string) => invoke<void>("open_terminal", { path }),
   watch: (path: string) => invoke<void>("watch_repo", { path }),
   unwatch: () => invoke<void>("unwatch_repo"),
+
+  /** The installed app version (from tauri.conf.json). */
+  appVersion: () => getVersion(),
 
   // git executable
   gitInfo: () => invoke<GitInfo>("git_info"),

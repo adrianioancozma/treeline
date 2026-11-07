@@ -1,9 +1,11 @@
+import { useAppVersion } from "../hooks";
 import { useApp } from "../store";
 
 export function StatusBar() {
   const { tabs, activeId, data, progress } = useApp();
   const tab = tabs.find((t) => t.id === activeId);
   const d = activeId ? data[activeId] : undefined;
+  const version = useAppVersion();
   const busy = d?.busy ?? (d?.loading ? "Refreshing…" : null);
   return (
     <footer className="statusbar">
@@ -25,6 +27,11 @@ export function StatusBar() {
         )}
       </span>
       <span className="muted ellipsis">{tab?.path ?? ""}</span>
+      {version && (
+        <span className="muted" title="APMGIT CLIENT version">
+          v{version}
+        </span>
+      )}
     </footer>
   );
 }

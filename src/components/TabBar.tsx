@@ -1,12 +1,49 @@
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useApp } from "../store";
+import { useUi } from "../uiStore";
 import { openGuide } from "../guide";
 import { Icon } from "./Icon";
 
 export function TabBar() {
-  const { tabs, activeId, setActive, closeTab, newTab, data } = useApp();
+  const { tabs, activeId, setActive, closeTab, newTab, moveTab, data } = useApp();
+  const bar = useRef<HTMLDivElement>(null);
+  /** The tab being dragged and the slot (0 … tabs.length) it would drop into. */
+  const [drag, setDrag] = useState<{ id: string; slot: number } | null>(null);
+
+  // Pointer events instead of HTML5 drag-and-drop: the webview's file-drop handling can swallow the latter.
+  const startDrag = (e: ReactPointerEvent, id: string) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest(".tab-close")) return;
+    const startX = e.clientX;
+    let moving = false;
+    let slot = 0;
+    const slotAt = (x: number) => {
+      const els = Array.from(bar.current?.querySelectorAll<HTMLElement>(".tab") ?? []);
+      const i = els.findIndex((el) => x < el.getBoundingClientRect().left + el.offsetWidth / 2);
+      return i < 0 ? els.length : i;
+    };
+    const move = (ev: PointerEvent) => {
+      if (!moving && Math.abs(ev.clientX - startX) < 5) return;
+      moving = true;
+      slot = slotAt(ev.clientX);
+      setDrag({ id, slot });
+    };
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      setDrag(null);
+      if (!moving) return;
+      const from = useApp.getState().tabs.findIndex((t) => t.id === id);
+      moveTab(id, slot > from ? slot - 1 : slot);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
+
   return (
-    <div className="tabbar" role="tablist">
-      {tabs.map((t) => {
+    <div className="tabbar" role="tablist" ref={bar}>
+      {tabs.map((t, i) => {
         const s = data[t.id]?.status;
         const dirty = (s?.files.length ?? 0) > 0;
         return (
@@ -14,8 +51,11 @@ export function TabBar() {
             key={t.id}
             role="tab"
             aria-selected={t.id === activeId}
-            className={`tab${t.id === activeId ? " active" : ""}`}
+            className={`tab${t.id === activeId ? " active" : ""}${drag?.id === t.id ? " dragging" : ""}${
+              drag?.slot === i ? " drop-before" : ""
+            }${drag && drag.slot === tabs.length && i === tabs.length - 1 ? " drop-after" : ""}`}
             title={t.path ?? "New tab"}
+            onPointerDown={(e) => startDrag(e, t.id)}
             onClick={() => setActive(t.id)}
             onAuxClick={(e) => e.button === 1 && closeTab(t.id)}
           >
@@ -46,6 +86,14 @@ export function TabBar() {
         onClick={() => void openGuide().catch((e) => useApp.getState().notify("error", String(e)))}
       >
         <Icon name="help" size={16} />
+      </button>
+      <button
+        className="icon-btn"
+        aria-label="Settings"
+        title="Settings (Git program)"
+        onClick={() => useUi.setState({ settings: true })}
+      >
+        <Icon name="gear" size={16} />
       </button>
       <button className="icon-btn" aria-label="Command palette (Ctrl+K)" title="Command palette (Ctrl+K)" onClick={() => useApp.getState().setPalette(true)}>
         <Icon name="command" size={16} />

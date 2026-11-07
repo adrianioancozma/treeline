@@ -1,4 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "./api";
+
+/** The installed app version, or null until it is known (or if it cannot be read). */
+export function useAppVersion(): string | null {
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    api.appVersion().then(setVersion, () => undefined);
+  }, []);
+  return version;
+}
 
 /** Reads a saved pane size, clamped to the allowed range so a stale or corrupt value cannot break the layout. */
 function readSize(key: string, fallback: number, min: number, max: number): number {
