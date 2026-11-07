@@ -1046,6 +1046,133 @@ pub fn open_terminal(path: String) -> Result<(), String> {
     cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+// ---------------------------------------------------------------------------
+// File history and blame
+// ---------------------------------------------------------------------------
+
+/// One commit that touched a file, with the file's name at that commit (it changes across renames).
+#[derive(Serialize, Debug)]
+pub struct FileCommit {
+    pub sha: String,
+    pub parents: Vec<String>,
+    pub author: String,
+    pub email: String,
+    pub time: i64,
+    pub refs: Vec<String>,
+    pub subject: String,
+    pub file: String,
+}
+
+const FILE_LOG_FORMAT: &str = "--format=%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%D%x1f%s%x1f";
+
+fn parse_file_log(raw: &str) -> Vec<FileCommit> {
+    raw.split('\x1e')
+        .filter_map(|rec| {
+            let f: Vec<&str> = rec.split('\x1f').collect();
+            // seven commit fields, then the file name `--name-only` prints after the format line
+            if f.len() < 8 {
+                return None;
+            }
+            let file = f[7].trim().lines().next().unwrap_or("").trim().to_string();
+            Some(FileCommit {
+                sha: f[0].trim().into(),
+                parents: f[1].split_whitespace().map(String::from).collect(),
+                author: f[2].into(),
+                email: f[3].into(),
+                time: f[4].parse().unwrap_or(0),
+                refs: f[5].split(", ").filter(|r| !r.is_empty()).map(String::from).collect(),
+                subject: f[6].into(),
+                file,
+            })
+        })
+        .collect()
+}
+
+/// The commits that changed one file, newest first, following it across renames.
+#[tauri::command]
+pub async fn file_log(path: String, file: String, skip: u32, limit: u32) -> Result<Vec<FileCommit>, String> {
+    blocking(move || {
+        let args: Vec<String> = vec![
+            LITERAL.into(),
+            "log".into(),
+            "--follow".into(),
+            "--name-only".into(),
+            "--no-color".into(),
+            FILE_LOG_FORMAT.into(),
+            format!("--skip={skip}"),
+            format!("-n{limit}"),
+            "--".into(),
+            file,
+        ];
+        match run_git(&path, args) {
+            Ok(raw) => Ok(parse_file_log(&raw)),
+            Err(e) if e.contains("does not have any commits") || e.contains("bad default revision") => Ok(Vec::new()),
+            Err(e) => Err(e),
+        }
+    })
+    .await
+}
+
+/// One line of a file together with the commit that last changed it.
+#[derive(Serialize, Debug)]
+pub struct BlameLine {
+    pub sha: String,
+    pub author: String,
+    pub time: i64,
+    pub summary: String,
+    pub line: u32,
+    pub text: String,
+}
+
+fn parse_blame(raw: &str) -> Vec<BlameLine> {
+    let mut out = Vec::new();
+    let (mut sha, mut author, mut summary) = (String::new(), String::new(), String::new());
+    let (mut time, mut line) = (0i64, 0u32);
+    for l in raw.lines() {
+        if let Some(text) = l.strip_prefix('\t') {
+            out.push(BlameLine {
+                sha: sha.clone(),
+                author: author.clone(),
+                time,
+                summary: summary.clone(),
+                line,
+                text: text.to_string(),
+            });
+        } else if let Some(v) = l.strip_prefix("author ") {
+            author = v.into();
+        } else if let Some(v) = l.strip_prefix("author-time ") {
+            time = v.parse().unwrap_or(0);
+        } else if let Some(v) = l.strip_prefix("summary ") {
+            summary = v.into();
+        } else {
+            // "<40-hex sha> <original line> <final line> [<group size>]" starts each line's block
+            let mut it = l.split(' ');
+            if let (Some(h), Some(_orig), Some(fin)) = (it.next(), it.next(), it.next()) {
+                if h.len() == 40 && h.chars().all(|c| c.is_ascii_hexdigit()) {
+                    sha = h.into();
+                    line = fin.parse().unwrap_or(0);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Who last changed each line of a file, in the working copy or (with `rev`) at a given commit.
+#[tauri::command]
+pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Result<Vec<BlameLine>, String> {
+    blocking(move || {
+        let mut args: Vec<String> = vec![LITERAL.into(), "blame".into(), "--line-porcelain".into()];
+        if let Some(r) = rev.filter(|r| !r.is_empty()) {
+            args.push(r);
+        }
+        args.push("--".into());
+        args.push(file);
+        run_git(&path, args).map(|raw| parse_blame(&raw))
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1329,5 +1456,31 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert!(list[0].message.contains("wip"));
         assert_eq!(fs::read_to_string(d.path().join("s.txt")).unwrap(), "1");
+    }
+
+    #[test]
+    fn file_log_follows_renames_and_blame_names_the_author() {
+        let d = repo();
+        let path = p(&d);
+        fs::write(d.path().join("old.txt"), "one\ntwo\n").unwrap();
+        git(d.path(), &["add", "."]);
+        git(d.path(), &["-c", "user.name=Alice", "commit", "-qm", "create"]);
+        git(d.path(), &["mv", "old.txt", "new.txt"]);
+        git(d.path(), &["commit", "-qm", "rename"]);
+        fs::write(d.path().join("new.txt"), "one\ntwo\nthree\n").unwrap();
+        git(d.path(), &["add", "."]);
+        git(d.path(), &["-c", "user.name=Bob", "commit", "-qm", "add three"]);
+
+        let raw = run_git(&path, [LITERAL, "log", "--follow", "--name-only", "--no-color", FILE_LOG_FORMAT, "--", "new.txt"]).unwrap();
+        let log = parse_file_log(&raw);
+        let subjects: Vec<&str> = log.iter().map(|c| c.subject.as_str()).collect();
+        assert_eq!(subjects, ["add three", "rename", "create"], "{raw:?}");
+        assert_eq!(log[0].file, "new.txt");
+        assert_eq!(log[2].file, "old.txt", "name at the oldest commit");
+
+        let blame = parse_blame(&run_git(&path, [LITERAL, "blame", "--line-porcelain", "--", "new.txt"]).unwrap());
+        assert_eq!(blame.len(), 3);
+        assert_eq!((blame[0].author.as_str(), blame[0].text.as_str()), ("Alice", "one"));
+        assert_eq!((blame[2].author.as_str(), blame[2].summary.as_str(), blame[2].line), ("Bob", "add three", 3));
     }
 }

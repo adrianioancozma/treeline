@@ -28,6 +28,8 @@ export interface RepoUi {
   view: View;
   sel: FileSel | null;
   selCommit: string | null;
+  /** A second commit picked with Ctrl+click; the history then shows the difference between the two. */
+  compareCommit: string | null;
   historyAll: boolean;
   query: string;
   /** Unsent commit message, kept per tab. */
@@ -86,6 +88,7 @@ const emptyUi = (): RepoUi => ({
   view: "files",
   sel: null,
   selCommit: null,
+  compareCommit: null,
   historyAll: true,
   query: "",
   draft: "",
@@ -363,7 +366,7 @@ export const useApp = create<AppState>((set, get) => {
         // A rewritten history (rebase, reset) can drop the selected commit; clear it instead of erroring.
         const sel = get().data[id]?.ui.selCommit;
         if (reset && sel && !sel.startsWith("stash@") && page.length < LOG_PAGE && !page.some((c) => c.sha === sel)) {
-          get().setUi(id, { selCommit: null });
+          get().setUi(id, { selCommit: null, compareCommit: null });
         }
       } catch (e) {
         // logDone stops the "load more" effect from retrying a failing query in a tight loop.

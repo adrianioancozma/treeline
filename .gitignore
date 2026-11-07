@@ -34,3 +34,4 @@ dist-ssr
 
 # Generated: the site bundled into the app (scripts/sync-guide.mjs)
 public/guide/
+.vip-keys

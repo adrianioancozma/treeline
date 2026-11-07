@@ -136,3 +136,18 @@ export interface GitInfo {
   /** The path the user chose, if any. */
   custom: string | null;
 }
+
+/** A commit that changed one file; `file` is the file's name at that commit (renames change it). */
+export interface FileCommit extends Commit {
+  file: string;
+}
+
+/** One line of a file and the commit that last changed it. */
+export interface BlameLine {
+  sha: string;
+  author: string;
+  time: number;
+  summary: string;
+  line: number;
+  text: string;
+}

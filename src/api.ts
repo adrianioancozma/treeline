@@ -1,9 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import type {
+  BlameLine,
   Commit,
   CommitDetail,
   ConflictFile,
+  FileCommit,
   FileEntry,
   GitInfo,
   OpResult,
@@ -63,6 +65,9 @@ export const api = {
     query?: string,
     file?: string,
   ) => invoke<Commit[]>("git_log", { path, skip, limit, all, query: query ?? null, file: file ?? null }),
+  fileLog: (path: string, file: string, skip: number, limit: number) =>
+    invoke<FileCommit[]>("file_log", { path, file, skip, limit }),
+  blame: (path: string, file: string, rev: string | null) => invoke<BlameLine[]>("git_blame", { path, file, rev }),
   refs: (path: string) => invoke<RefInfo[]>("list_refs", { path }),
   remotes: (path: string) => invoke<string[]>("list_remotes", { path }),
 

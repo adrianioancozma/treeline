@@ -5,7 +5,7 @@ import { useDebounced, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
 import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
 import { useApp } from "../store";
-import { openMenu } from "../uiStore";
+import { openMenu, useUi } from "../uiStore";
 import type { Commit, CommitDetail, FileEntry, Tab } from "../types";
 import { DiffView } from "./DiffView";
 import { Icon } from "./Icon";
@@ -96,6 +96,14 @@ export function HistoryView({ tab }: { tab: Tab }) {
   }, [last, rowsData.length, d.logDone, d.logLoading, d.logLoaded, loadLog, tab.id]);
 
   const selected = d.ui.selCommit;
+  const compare = d.ui.compareCommit;
+  // The older of the two commits is the base, so the difference always reads old → new.
+  const pair = useMemo(() => {
+    if (!selected || !compare) return null;
+    const a = rowsData.findIndex((c) => c.sha === selected);
+    const b = rowsData.findIndex((c) => c.sha === compare);
+    return a >= 0 && b >= 0 && a < b ? { base: compare, target: selected } : { base: selected, target: compare };
+  }, [selected, compare, rowsData]);
   const commitBySha = useMemo(() => new Map(d.log.map((c) => [c.sha, c])), [d.log]);
 
   const commitMenu = (e: React.MouseEvent, c: Commit) => {
@@ -160,9 +168,15 @@ export function HistoryView({ tab }: { tab: Tab }) {
               return (
                 <div
                   key={c.sha}
-                  className={`crow${selected === c.sha ? " active" : ""}${isWip ? " wip" : ""}${highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha)) ? " dim" : ""}`}
+                  className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha)) ? " dim" : ""}`}
                   style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: `${graphW}px 1fr 150px 110px 64px` }}
-                  onClick={() => (isWip ? setUi(tab.id, { view: "files" }) : setUi(tab.id, { selCommit: c.sha }))}
+                  onClick={(e) => {
+                    if (isWip) return setUi(tab.id, { view: "files" });
+                    // Ctrl+click a second commit to compare it with the selected one.
+                    if ((e.ctrlKey || e.metaKey) && selected && !selected.startsWith("stash@") && selected !== c.sha)
+                      return setUi(tab.id, { compareCommit: compare === c.sha ? null : c.sha });
+                    setUi(tab.id, { selCommit: c.sha, compareCommit: null });
+                  }}
                   onContextMenu={(e) => !isWip && commitMenu(e, c)}
                 >
                   <GraphCell row={graph[i]} width={graphW} />
@@ -186,7 +200,17 @@ export function HistoryView({ tab }: { tab: Tab }) {
         </div>
       </div>
       <div className="splitter h" onMouseDown={onSplit} role="separator" aria-orientation="horizontal" />
-      {selected ? (
+      {pair ? (
+        <CommitDetailPane
+          key={`${pair.base}..${pair.target}`}
+          tab={tab}
+          sha={pair.target}
+          commit={commitBySha.get(pair.target)}
+          base={pair.base}
+          baseCommit={commitBySha.get(pair.base)}
+          onClear={() => setUi(tab.id, { compareCommit: null })}
+        />
+      ) : selected ? (
         <CommitDetailPane key={selected} tab={tab} sha={selected} commit={commitBySha.get(selected)} />
       ) : (
         <div className="empty">
@@ -198,7 +222,22 @@ export function HistoryView({ tab }: { tab: Tab }) {
   );
 }
 
-function CommitDetailPane({ tab, sha, commit }: { tab: Tab; sha: string; commit?: Commit }) {
+function CommitDetailPane({
+  tab,
+  sha,
+  commit,
+  base,
+  baseCommit,
+  onClear,
+}: {
+  tab: Tab;
+  sha: string;
+  commit?: Commit;
+  /** When set, show the difference between `base` and `sha` instead of what `sha` changed. */
+  base?: string;
+  baseCommit?: Commit;
+  onClear?: () => void;
+}) {
   const path = tab.path!;
   const notify = useApp.getState().notify;
   const a = repoActions(tab.id);
@@ -207,7 +246,7 @@ function CommitDetailPane({ tab, sha, commit }: { tab: Tab; sha: string; commit?
   const [file, setFile] = useState<FileEntry | null>(null);
   const [diff, setDiff] = useState("");
   const [width, onSplit] = useSplit("detail-left", 380, 240, 700, "x");
-  const parent = detail?.parents[0] ?? null;
+  const parent = base ?? detail?.parents[0] ?? null;
 
   useEffect(() => {
     let live = true;
@@ -216,7 +255,7 @@ function CommitDetailPane({ tab, sha, commit }: { tab: Tab; sha: string; commit?
         const det = await api.commitDetail(path, sha);
         if (!live) return;
         setDetail(det);
-        const fl = await api.commitFiles(path, sha, det.parents[0] ?? null);
+        const fl = await api.commitFiles(path, sha, base ?? det.parents[0] ?? null);
         if (!live) return;
         setFiles(fl);
         setFile(fl[0] ?? null);
@@ -227,7 +266,7 @@ function CommitDetailPane({ tab, sha, commit }: { tab: Tab; sha: string; commit?
     return () => {
       live = false;
     };
-  }, [path, sha, notify]);
+  }, [path, sha, base, notify]);
 
   useEffect(() => {
     if (!file || !detail) {
@@ -249,7 +288,18 @@ function CommitDetailPane({ tab, sha, commit }: { tab: Tab; sha: string; commit?
     <div className="detail" style={{ gridTemplateColumns: `${width}px 6px 1fr` }}>
       <div className="detail-left">
         <div className="detail-meta">
-          <h3 className="commit-title">{title}</h3>
+          {base && (
+            <div className="compare-bar">
+              <strong>Comparing</strong> <code>{base.slice(0, 7)}</code> → <code>{sha.slice(0, 7)}</code>
+              <button className="btn tiny" onClick={onClear} title="Back to the single commit">
+                Clear
+              </button>
+              <p className="muted small ellipsis" title={baseCommit?.subject}>
+                from: {baseCommit?.subject ?? base.slice(0, 7)}
+              </p>
+            </div>
+          )}
+          <h3 className="commit-title">{base ? `to: ${title}` : title}</h3>
           {bodyLines.join("\n").trim() && <pre className="commit-body">{bodyLines.join("\n").trim()}</pre>}
           {detail && (
             <p className="commit-line small">
@@ -278,6 +328,16 @@ function CommitDetailPane({ tab, sha, commit }: { tab: Tab; sha: string; commit?
                 key={f.path}
                 className={`file-row${file?.path === f.path ? " active" : ""}`}
                 onClick={() => setFile(f)}
+                onContextMenu={(e) =>
+                  openMenu(e, [
+                    { label: "File history…", onClick: () => useUi.setState({ fileHistory: { repo: path, file: f.path, mode: "history" } }) },
+                    {
+                      label: "Blame at this commit…",
+                      disabled: f.status === "D",
+                      onClick: () => useUi.setState({ fileHistory: { repo: path, file: f.path, mode: "blame", rev: sha } }),
+                    },
+                  ])
+                }
                 title={f.old_path ? `${f.old_path} → ${f.path}` : f.path}
               >
                 <span className={`badge ${kind}`}>{f.status}</span>

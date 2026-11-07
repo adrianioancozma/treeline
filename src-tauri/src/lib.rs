@@ -89,6 +89,8 @@ pub fn run() {
             ops::commit_diff,
             ops::commit_detail,
             ops::git_log,
+            ops::file_log,
+            ops::git_blame,
             ops::list_refs,
             ops::checkout,
             ops::checkout_remote,

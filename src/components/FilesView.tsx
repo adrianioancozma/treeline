@@ -5,7 +5,7 @@ import { useSplit } from "../hooks";
 import { splitPath } from "../lib/format";
 import { useApp } from "../store";
 import type { FileSel } from "../store";
-import { openMenu } from "../uiStore";
+import { openMenu, useUi } from "../uiStore";
 import type { FileChange, Tab } from "../types";
 import { ConflictResolver } from "./ConflictResolver";
 import { DiffView, type PatchKind } from "./DiffView";
@@ -149,6 +149,13 @@ export function FilesView({ tab }: { tab: Tab }) {
       ...(kind === "unstaged" ? [{ label: "Discard changes…", danger: true, onClick: () => discard([f]) }] : []),
       { separator: true },
       { label: "Copy path", onClick: () => a.copy(f.path) },
+      ...(f.untracked
+        ? []
+        : [
+            { separator: true },
+            { label: "File history…", onClick: () => useUi.setState({ fileHistory: { repo: tab.path!, file: f.path, mode: "history" } }) },
+            { label: "Blame (who changed each line)…", onClick: () => useUi.setState({ fileHistory: { repo: tab.path!, file: f.path, mode: "blame" } }) },
+          ]),
     ]);
 
   const row = (f: FileChange, kind: FileSel["kind"]) => {

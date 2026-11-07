@@ -24,7 +24,19 @@ function loadSections(): TabSections {
   }
 }
 
+/** A request to show one file's history or blame. */
+export interface FileHistoryRequest {
+  /** Repository folder. */
+  repo: string;
+  /** File path relative to the repository. */
+  file: string;
+  mode: "history" | "blame";
+  /** Blame the file as of this commit instead of the working copy. */
+  rev?: string;
+}
+
 interface UiState {
+  fileHistory: FileHistoryRequest | null;
   /** Sidebar sections the user toggled by hand, per tab; absent = use the section's default. */
   sections: TabSections;
   menu: { x: number; y: number; items: MenuItem[] } | null;
@@ -34,7 +46,7 @@ interface UiState {
   settings: boolean;
 }
 
-export const useUi = create<UiState>(() => ({ sections: loadSections(), menu: null, rebase: null, clone: false, settings: false }));
+export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false }));
 
 export function openMenu(e: MouseEvent | { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }, items: MenuItem[]) {
   e.preventDefault?.();

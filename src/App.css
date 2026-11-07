@@ -275,6 +275,9 @@ body.resizing .splitter::after { background: var(--accent); }
 .vlist { flex: 1; overflow: auto; min-height: 0; position: relative; }
 .crow { position: absolute; left: 0; right: 0; cursor: default; }
 .crow:hover { background: var(--bg-3); }
+.crow.compare { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--muted); }
+.compare-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.compare-bar p { flex-basis: 100%; margin: 0; }
 .crow.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .crow.dim { opacity: 0.3; }
 .crow.dim:hover { opacity: 0.65; }
@@ -397,3 +400,24 @@ body.resizing .splitter::after { background: var(--accent); }
 .btn.danger-outline { color: var(--danger); border-color: var(--danger); background: transparent; }
 .btn.danger-outline:hover:not(:disabled) { background: rgba(255, 107, 107, 0.12); }
 .modal p { white-space: pre-line; }
+
+/* File history and blame */
+.modal.wide { width: 94vw; max-width: 1400px; height: 88vh; max-height: 88vh; }
+.fh-head { display: flex; align-items: center; gap: 12px; }
+.fh-head h2 { flex: 1; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { padding: 5px 14px; background: transparent; color: var(--muted); border: 0; cursor: pointer; }
+.seg button.active { background: var(--accent-soft); color: var(--text); }
+.fh-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 360px 1fr; gap: 12px; }
+.fh-list { overflow: auto; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--border); border-radius: 8px; padding: 4px; }
+.fh-commit { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+.fh-commit:hover { background: var(--bg-3); }
+.fh-commit.active { background: var(--accent-soft); }
+.fh-diff { min-width: 0; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.blame { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.blame-row { display: grid; grid-template-columns: 300px 48px 1fr; align-items: baseline; }
+.blame-row:not(.same) { border-top: 1px solid var(--border); }
+.blame-who { text-align: left; padding: 0 8px; border: 0; background: transparent; color: var(--muted); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; }
+.blame-who:hover:not(:disabled) { color: var(--accent); }
+.blame-no { text-align: right; padding-right: 10px; color: var(--muted); }
+.blame-text { white-space: pre; padding-right: 12px; }

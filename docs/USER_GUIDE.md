@@ -161,6 +161,15 @@ Open **History** (sidebar).
 * **Right-click a commit** for: copy ID, check out, new branch/tag here, cherry-pick, revert, merge into current, reset the
   current branch to here (soft / mixed / hard), and interactive rebase from here.
 * Long histories load in pages as you scroll.
+* **Compare two commits:** click one commit, then hold `Ctrl` (`Cmd` on a Mac) and click a second one. The panel shows
+  what changed *between* them (older → newer), file by file. Ctrl+click the second commit again, or press **Clear**, to
+  go back to a single commit.
+* **History of one file:** right-click a file (in File status, or in a commit's list of changed files) and choose
+  **File history…**. You see every commit that changed that file, even before it was renamed, and the change each one
+  made.
+* **Who changed each line (Blame):** right-click a file and choose **Blame…**, or switch to the **Blame** tab in the file
+  history window. Each line shows who last changed it, when, and in which commit; click that name to jump to the
+  commit in the file's history. From a commit's file list, **Blame at this commit…** shows the file as it was then.
 
 ---
 
