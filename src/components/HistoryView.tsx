@@ -79,12 +79,28 @@ export function HistoryView({ tab }: { tab: Tab }) {
     [focusTip, d.log],
   );
   const focusIndex = focusTip ? rowsData.findIndex((c) => c.sha === focusTip) : -1;
-  // Scroll the tip into view when the focus changes (not on every refresh).
+  // Jump to the tip when the focus changes (not on every refresh). History loads in pages, so a tip
+  // further back is not there yet: keep loading until it appears, then scroll to it.
+  const [seeking, setSeeking] = useState<string | null>(focusRef);
   useEffect(() => {
+    setSeeking(focusRef);
+  }, [focusRef]);
+  useEffect(() => {
+    if (!seeking || !focusTip || !d.logLoaded) return;
     const el = scroller.current;
-    if (el && focusIndex >= 0) el.scrollTop = Math.max(0, focusIndex * ROW_H - ROW_H * 2);
+    if (focusIndex >= 0) {
+      if (el) el.scrollTop = Math.max(0, focusIndex * ROW_H - ROW_H * 2);
+      setSeeking(null);
+    } else if (!d.logDone) {
+      if (!d.logLoading) void loadLog(tab.id, false);
+    } else if (!d.ui.historyAll) {
+      // Not on the checked-out branch's history at all: widen to all branches, which reloads the log.
+      setUi(tab.id, { historyAll: true });
+    } else {
+      setSeeking(null); // nowhere to find it; the chip says "not in loaded history"
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRef, d.logLoaded]);
+  }, [seeking, focusTip, focusIndex, d.logLoaded, d.logDone, d.logLoading, d.ui.historyAll]);
   const maxLanes = Math.min(12, Math.max(1, ...graph.map((r) => r.lanes)));
   const graphW = maxLanes * LANE_W + 8;
 
