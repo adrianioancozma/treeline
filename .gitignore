@@ -31,3 +31,6 @@ dist-ssr
 
 # Claude Code local settings
 .claude/
+
+# Generated: the site bundled into the app (scripts/sync-guide.mjs)
+public/guide/

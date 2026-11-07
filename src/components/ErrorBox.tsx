@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { repoActions } from "../actions";
 import { api, errorMessage } from "../api";
 import { explainError, type ErrorAction } from "../lib/explain";
+import { GUIDE, openGuide } from "../guide";
 import { useApp } from "../store";
 import type { ErrorCtx } from "../types";
 
@@ -120,6 +121,9 @@ export function ErrorBox({
               {ACTION_LABEL[a]}
             </button>
           ))}
+        <button className="btn tiny" onClick={() => void openGuide(GUIDE.errors)} title="Open the guide page on fixing errors">
+          Learn more
+        </button>
         <button className="btn tiny" onClick={copy}>
           {copied ? "Copied ✓" : "Copy details"}
         </button>

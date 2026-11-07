@@ -97,6 +97,9 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 * **Drag the thin dividers** between panels to resize them; sizes are remembered.
 * **Theme:** the ☀ button switches light/dark (or choose “follow system” in the command palette).
 * **Command palette** (`Ctrl+K`): type to find any action — Fetch, New branch, Check out *x*, Open bookmark *y*…
+* **This guide is built into the app.** Press `F1`, click the **?** button at the top right, or use **User guide** on the
+  home screen. It opens in its own window and works offline. Error panels have a **Learn more** button that opens the
+  page on fixing errors, and the command palette has shortcuts to the most useful pages.
 
 ---
 
@@ -264,7 +267,8 @@ Whenever an operation fails, the app shows a red panel with:
 1. a plain-language **title** and explanation of *why* it happened,
 2. **How to fix it** — numbered steps,
 3. one-click **action buttons** where possible (Pull, Pull (rebase), Stash my changes…, Show changes, Remove lock file),
-4. **Technical details** (Git's exact output — expand it when asking for help) and **Copy details**.
+4. **Technical details** (Git's exact output — expand it when asking for help), **Copy details**, and **Learn more**, which
+   opens this page of the guide.
 
 Errors stay on screen until you dismiss them (✕, or **Dismiss all**), and a panel closes itself once you use its fix.
 
@@ -292,6 +296,7 @@ full output.
 
 | Shortcut | Action |
 | --- | --- |
+| `F1` | Open this user guide |
 | `Ctrl+K` | Command palette |
 | `Ctrl+O` | Open repository |
 | `Ctrl+T` / `Ctrl+W` | New tab / close tab |

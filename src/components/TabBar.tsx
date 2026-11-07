@@ -1,4 +1,5 @@
 import { useApp } from "../store";
+import { openGuide } from "../guide";
 import { Icon } from "./Icon";
 
 export function TabBar() {
@@ -38,6 +39,14 @@ export function TabBar() {
         <Icon name="plus" size={16} />
       </button>
       <span className="grow" />
+      <button
+        className="icon-btn"
+        aria-label="Open the user guide (F1)"
+        title="User guide (F1)"
+        onClick={() => void openGuide().catch((e) => useApp.getState().notify("error", String(e)))}
+      >
+        <Icon name="help" size={16} />
+      </button>
       <button className="icon-btn" aria-label="Command palette (Ctrl+K)" title="Command palette (Ctrl+K)" onClick={() => useApp.getState().setPalette(true)}>
         <Icon name="command" size={16} />
       </button>

@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useApp } from "./store";
 import { useUi } from "./uiStore";
+import { openGuide } from "./guide";
 import type { OpProgress } from "./types";
 import { TabBar } from "./components/TabBar";
 import { Home, pickAndOpenRepo } from "./components/Home";
@@ -49,6 +50,11 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F1") {
+        e.preventDefault();
+        void openGuide().catch((err) => useApp.getState().notify("error", String(err)));
+        return;
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const app = useApp.getState();
       const key = e.key.toLowerCase();

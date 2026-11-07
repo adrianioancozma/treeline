@@ -25,6 +25,7 @@ const PATHS = {
   sun: "M12 8a4 4 0 100 8 4 4 0 000-8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5",
   copy: "M8 8h12v12H8zM4 4h12v2M4 4v12h2",
   down: "M6 9l6 6 6-6",
+  help: "M12 21a9 9 0 100-18 9 9 0 000 18zM9.5 9.5a2.5 2.5 0 114 2c-.9.6-1.5 1.1-1.5 2.2M12 17h.01",
 } as const;
 
 export type IconName = keyof typeof PATHS;

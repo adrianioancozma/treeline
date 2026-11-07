@@ -21,7 +21,7 @@ Built with **Tauri 2** (Rust) and **React + TypeScript**. Runs on Windows, macOS
 | **Branches & tags** | Create, check out, rename, delete (local and remote), tag, push tag. |
 | **Remotes** | Fetch, pull (merge / rebase / fast-forward only), push (upstream, tags, force-with-lease) with progress. |
 | **Merge tools** | Merge (`--no-ff`, squash), rebase, **interactive rebase** (pick/reword/edit/squash/fixup/drop, reorder), cherry-pick, revert, reset, stash, and a **conflict resolver** with per-conflict ours/theirs/both and an editable result. |
-| **UX** | Command palette (`Ctrl+K`), context menus, dark/light theme, resizable panes, keyboard shortcuts. |
+| **UX** | Command palette (`Ctrl+K`), context menus, dark/light theme, resizable panes, keyboard shortcuts, and the full user guide built in (`F1`, works offline). |
 
 ### Keyboard shortcuts
 
@@ -84,7 +84,9 @@ pnpm site:build              # regenerate site/docs from docs/USER_GUIDE.md
 node scripts/check-site.mjs  # verify every link, image and #anchor in the site
 ```
 
-Edit the guide (not the generated HTML), rebuild, then commit both. Serve locally with any static server, for example
+Edit the guide (not the generated HTML), rebuild, then commit both. The site is also bundled into the app
+(`scripts/sync-guide.mjs` copies it to the git-ignored `public/guide/` before every dev run and build) so **F1** opens it
+offline in its own window. Serve locally with any static server, for example
 `npx serve site`.
 
 ## Project layout

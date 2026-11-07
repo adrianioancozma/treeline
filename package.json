@@ -4,12 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "node scripts/sync-guide.mjs && vite",
+    "build": "node scripts/sync-guide.mjs && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
-    "site:build": "node scripts/build-site.mjs"
+    "site:build": "node scripts/build-site.mjs",
+    "guide:sync": "node scripts/sync-guide.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
