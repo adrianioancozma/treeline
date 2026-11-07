@@ -48,7 +48,10 @@
 <ul>
 <li><strong>Git must be installed</strong> (version 2.30 or newer) and available on your <code>PATH</code>. Check by running <code>git --version</code> in a
 terminal. Windows: download from <a href="https://git-scm.com">https://git-scm.com</a>. macOS: run <code>xcode-select --install</code> in Terminal, or
-<code>brew install git</code>. Linux: <code>sudo apt install git</code> (or your distribution&#39;s equivalent).</li>
+<code>brew install git</code>. Linux: <code>sudo apt install git</code> (or your distribution&#39;s equivalent).
+The app also looks in Git&#39;s usual install folders on Windows. If it still cannot find Git, it says so and offers
+<strong>Locate Git…</strong>: choose the Git program (<code>git.exe</code>, normally in <code>C:\Program Files\Git\cmd</code>) and the app remembers it.
+You can change this later in <strong>Settings</strong> (the Settings button on the start page, or the command palette).</li>
 <li><strong>Tell Git who you are</strong> once per computer, otherwise commits are refused:<pre><code>git config --global user.name  &quot;Your Name&quot;
 git config --global user.email &quot;you@example.com&quot;
 </code></pre>

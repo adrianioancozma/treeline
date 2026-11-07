@@ -29,6 +29,9 @@ your passwords: sign-in is handled by your normal Git setup (see [Signing in](#s
 * **Git must be installed** (version 2.30 or newer) and available on your `PATH`. Check by running `git --version` in a
   terminal. Windows: download from <https://git-scm.com>. macOS: run `xcode-select --install` in Terminal, or
   `brew install git`. Linux: `sudo apt install git` (or your distribution's equivalent).
+  The app also looks in Git's usual install folders on Windows. If it still cannot find Git, it says so and offers
+  **Locate Git…**: choose the Git program (`git.exe`, normally in `C:\Program Files\Git\cmd`) and the app remembers it.
+  You can change this later in **Settings** (the Settings button on the start page, or the command palette).
 * **Tell Git who you are** once per computer, otherwise commits are refused:
   ```
   git config --global user.name  "Your Name"
@@ -286,6 +289,7 @@ Common situations:
 | *Git doesn't know who you are* | No `user.name`/`user.email` | Run the two `git config` commands in section 1 |
 | *A Git hook stopped the operation* | The repo's pre-commit/pre-push check failed | Read the technical details, fix, retry |
 | *This branch isn't linked to a remote branch yet* | No upstream | Push with **Track this remote branch** |
+| *Git is not installed (or not on PATH)* | The app could not start Git — programs opened from the Start menu or Finder do not always see your terminal's `PATH` | **Locate Git…** and pick `git.exe`, or install Git (section 1) |
 | *A file or folder is in use or protected* | Another program (editor, antivirus, OneDrive) holds a file | Close it; move the repo out of OneDrive |
 
 If the **same** problem keeps appearing, press **Refresh** (`Ctrl+R`), and try the command in the **Terminal** to see Git's

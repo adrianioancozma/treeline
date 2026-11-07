@@ -23,6 +23,8 @@ echo "==> Rust: tests (these run real git operations on Linux)"
 (cd src-tauri && cargo test --lib)
 
 echo "==> Building packages"
+# WSL has no FUSE, so linuxdeploy (AppImage) must extract itself instead of mounting.
+export APPIMAGE_EXTRACT_AND_RUN=1
 pnpm tauri build
 
 echo
