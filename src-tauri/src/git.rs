@@ -50,6 +50,7 @@ fn custom_git() -> Option<PathBuf> {
 
 /// Where Git for Windows normally lives when it is installed but missing from PATH
 /// (a GUI app launched from the Start menu does not see the PATH of your terminal).
+#[cfg_attr(not(windows), allow(dead_code))]
 fn windows_git_candidates() -> Vec<PathBuf> {
     let mut v = Vec::new();
     for var in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"] {
