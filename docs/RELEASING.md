@@ -12,7 +12,21 @@ The app checks for updates against `latest.json` on GitHub Releases (address in 
 
 ## Steps
 
-1. Raise `version` in `src-tauri/tauri.conf.json`, `package.json` and `src-tauri/Cargo.toml`; commit it.
+## Automatic release (preferred)
+
+`.github/workflows/release.yml` builds Windows, Linux and macOS (Apple Silicon and Intel) installers on GitHub
+and publishes them, with a combined `latest.json`, to the release.
+
+1. Add the repository secrets `TAURI_SIGNING_PRIVATE_KEY` (the contents of `~/.tauri/treeline.key`) and
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (empty if none) under Settings → Secrets and variables → Actions. One time only.
+2. Raise `version` in `src-tauri/tauri.conf.json`, `package.json` and `src-tauri/Cargo.toml` (and `Cargo.lock`); commit and push to `main`.
+3. `git tag v<version> && git push origin v<version>`. The release appears when all four jobs finish.
+
+The installers are not code-signed, so Windows SmartScreen and macOS Gatekeeper warn on first run.
+
+## Manual release (Windows only)
+
+1. Raise `version` as above; commit it.
 2. Build with the key available (PowerShell):
    ```
    $env:TAURI_SIGNING_PRIVATE_KEY = "$HOME\.tauri\treeline.key"
