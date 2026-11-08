@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag such as v0.1.2 (after raising the version in package.json, Cargo.toml, Cargo.lock and tauri.conf.json).
+# Push a tag such as v0.1.3 (after raising the version in package.json, Cargo.toml, Cargo.lock and tauri.conf.json).
 on:
   push:
     tags: ["v*"]
@@ -18,10 +18,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
-            --title "Treeline $GITHUB_REF_NAME" --notes "See the assets below to install Treeline."
-          id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq .id 2>/dev/null \
-            || gh api "repos/$GITHUB_REPOSITORY/releases" --jq "map(select(.tag_name==\"$GITHUB_REF_NAME\"))[0].id")
+          id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases"             -f tag_name="$GITHUB_REF_NAME" -f name="Treeline $GITHUB_REF_NAME"             -f body="See the assets below to install Treeline." -F draft=true --jq .id)
+          echo "Created draft release $id"
+          test -n "$id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
   build:
