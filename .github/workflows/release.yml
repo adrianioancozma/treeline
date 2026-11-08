@@ -1,18 +1,35 @@
 name: Release
 
-# Push a tag such as v0.1.1 (after raising the version in package.json, Cargo.toml and tauri.conf.json).
+# Push a tag such as v0.1.2 (after raising the version in package.json, Cargo.toml, Cargo.lock and tauri.conf.json).
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - id: create
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
+            --title "Treeline $GITHUB_REF_NAME" --notes "See the assets below to install Treeline."
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq .id 2>/dev/null \
+            || gh api "repos/$GITHUB_REPOSITORY/releases" --jq "map(select(.tag_name==\"$GITHUB_REF_NAME\"))[0].id")
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: create-release
     strategy:
       fail-fast: false
+      # One at a time: every job merges its platform into the same latest.json.
+      max-parallel: 1
       matrix:
         include:
           - platform: windows-latest
@@ -21,7 +38,7 @@ jobs:
             args: ""
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
-          - platform: macos-13
+          - platform: macos-latest
             args: "--target x86_64-apple-darwin"
     runs-on: ${{ matrix.platform }}
     steps:
@@ -55,11 +72,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Treeline ${{ github.ref_name }}
-          releaseBody: See the assets below to install Treeline.
-          releaseDraft: false
-          prerelease: false
-          uploadUpdaterJson: true
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          includeUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  publish:
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
