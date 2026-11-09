@@ -1332,8 +1332,17 @@ pub struct RebaseStep {
     pub message: Option<String>,
 }
 
+/// A path made safe to place between single quotes in a shell command line (git runs `exec` lines of a
+/// rebase todo through `sh`): backslashes become slashes, and a single quote is closed, escaped and
+/// reopened, so a folder name such as `it's; calc` stays one literal argument.
 fn sh_path(p: &Path) -> String {
-    p.to_string_lossy().replace('\\', "/")
+    p.to_string_lossy().replace('\\', "/").replace('\'', "'\\''")
+}
+
+/// A commit id as it appears in a rebase todo line: only hex digits, so it cannot carry a newline
+/// (which would add a line of its own, such as an `exec`) or a space.
+fn is_hex_id(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 64 && s.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 /// Runs `git rebase -i` non-interactively by handing git a pre-written todo list.
@@ -1354,6 +1363,9 @@ pub async fn rebase_interactive(
         fs::create_dir_all(&work).map_err(|e| e.to_string())?;
         let mut todo = String::new();
         for (i, s) in steps.iter().enumerate() {
+            if !is_hex_id(&s.sha) {
+                return Err("A rebase step has an invalid commit id.".into());
+            }
             match s.action.as_str() {
                 "reword" => {
                     let msg_file = work.join(format!("msg{i}.txt"));
@@ -1805,6 +1817,25 @@ pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Resul
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn rebase_todo_lines_cannot_be_injected() {
+        // A folder name with a quote must stay inside the quotes of the exec line.
+        let p = Path::new("C:\\Users\\me\\it's; calc; '\\x\\.git");
+        let quoted = sh_path(p);
+        assert_eq!(quoted, "C:/Users/me/it'\\''s; calc; '\\''/x/.git");
+        // Evaluating the line the way sh does must give back exactly one argument equal to the original path.
+        let line = format!("echo '{quoted}'");
+        if let Ok(out) = std::process::Command::new("sh").arg("-c").arg(&line).output() {
+            if out.status.success() {
+                assert_eq!(String::from_utf8_lossy(&out.stdout).trim_end(), "C:/Users/me/it's; calc; '/x/.git");
+            }
+        }
+        assert!(is_hex_id("0123456789abcdefABCDEF"));
+        for bad in ["", "abc\nexec calc", "abc def", "abc;calc", "../x", "HEAD"] {
+            assert!(!is_hex_id(bad), "{bad:?}");
+        }
+    }
 
     #[test]
     fn reads_the_branch_from_a_merge_message() {
