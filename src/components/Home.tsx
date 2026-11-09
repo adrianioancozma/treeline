@@ -1,11 +1,11 @@
-import { open } from "@tauri-apps/plugin-dialog";
-import { errorMessage } from "../api";
+import { api, errorMessage } from "../api";
 import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import { Icon } from "./Icon";
 
 export function pickAndOpenRepo(openRepo: (p: string) => Promise<void>, onError: (m: string) => void) {
-  return open({ directory: true, multiple: false, title: "Open repository" })
+  return api
+    .pickFolder("Open repository", "repo")
     .then((dir) => (typeof dir === "string" ? openRepo(dir) : undefined))
     .catch((e) => onError(errorMessage(e)));
 }

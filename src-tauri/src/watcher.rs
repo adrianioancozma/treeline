@@ -38,6 +38,7 @@ fn is_noise(root: &Path, path: &Path) -> bool {
 /// Starts watching `path` (replacing any previous watch). Emits `repo-changed` with the path.
 #[tauri::command]
 pub fn watch_repo(app: AppHandle, state: State<'_, WatchState>, path: String) -> Result<(), String> {
+    crate::git::ensure_allowed(&path)?;
     let emit_path = path.clone();
     let root = std::path::PathBuf::from(&path);
     let mut debouncer = new_debouncer(

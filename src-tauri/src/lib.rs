@@ -61,6 +61,7 @@ pub fn run() {
         .manage(watcher::WatchState::default())
         .setup(|app| {
             store::apply_saved_settings(app.handle());
+            store::register_saved_repos(app.handle());
             #[cfg(target_os = "macos")]
             app.set_menu(build_app_menu(app.handle())?)?;
             #[cfg(not(target_os = "macos"))]
@@ -72,6 +73,7 @@ pub fn run() {
             git::git_info,
             store::set_git_path,
             git::repo_status,
+            git::pick_folder,
             git::repo_risks,
             git::list_submodules,
             git::init_submodule,

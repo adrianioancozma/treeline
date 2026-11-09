@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
 import { api, errorMessage } from "../api";
 import { useApp } from "../store";
 import { ErrorBox } from "./ErrorBox";
@@ -37,7 +36,7 @@ export function CloneDialog({ onClose }: { onClose: () => void }) {
   };
 
   const browse = async () => {
-    const dir = await open({ directory: true, multiple: false, title: "Choose destination folder" });
+    const dir = await api.pickFolder("Choose destination folder", "destination");
     if (typeof dir === "string") setParent(dir);
   };
 

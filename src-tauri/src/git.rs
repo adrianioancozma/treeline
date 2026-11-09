@@ -209,6 +209,139 @@ fn combined(out: &std::process::Output) -> String {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Which folders the app may act on
+// ---------------------------------------------------------------------------
+//
+// Every command takes a folder path from the web page. If script ever ran in the page it could point
+// git at any folder, so the commands only accept folders the user has actually opened. The list is
+// filled only from Rust: the native folder picker (`pick_folder`), the saved tabs and bookmarks read at
+// start-up, a repository derived from an allowed one (a submodule, the top level of a picked
+// sub-folder) and a finished clone.
+
+const NOT_OPENED: &str = "That folder has not been opened in Treeline. Use Open repository to choose it.";
+
+fn opened_repos() -> &'static std::sync::Mutex<Vec<String>> {
+    static REPOS: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> = std::sync::OnceLock::new();
+    REPOS.get_or_init(Default::default)
+}
+
+fn clone_destinations() -> &'static std::sync::Mutex<Vec<String>> {
+    static DESTS: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> = std::sync::OnceLock::new();
+    DESTS.get_or_init(Default::default)
+}
+
+/// A comparable form of a folder path: symlinks and junctions resolved when the folder exists,
+/// forward slashes, no Windows `\\?\` prefix, no trailing slash, and lower case on Windows.
+fn allow_key(p: &str) -> String {
+    let path = Path::new(p);
+    // Resolve links through the deepest part that exists, then add the rest back unchanged: a path that
+    // does not exist yet below a junction must still be judged by where the junction leads.
+    let mut existing = path;
+    let mut rest: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut real = loop {
+        if let Ok(resolved) = std::fs::canonicalize(existing) {
+            break resolved;
+        }
+        match (existing.parent(), existing.file_name()) {
+            (Some(parent), Some(name)) if !parent.as_os_str().is_empty() => {
+                rest.push(name);
+                existing = parent;
+            }
+            _ => break path.to_path_buf(), // nothing resolves (or a relative path): compared as written
+        }
+    };
+    if real != path {
+        for part in rest.iter().rev() {
+            real.push(part);
+        }
+    }
+    let mut s = real.to_string_lossy().replace(char::from(92), "/");
+    if let Some(rest) = s.strip_prefix("//?/UNC/") {
+        s = format!("//{rest}");
+    } else if let Some(rest) = s.strip_prefix("//?/") {
+        s = rest.to_string();
+    }
+    while s.len() > 1 && s.ends_with('/') {
+        s.pop();
+    }
+    if cfg!(windows) {
+        s = s.to_lowercase();
+    }
+    s
+}
+
+fn push_unique(list: &std::sync::Mutex<Vec<String>>, key: String) {
+    if let Ok(mut g) = list.lock() {
+        if !g.contains(&key) {
+            g.push(key);
+        }
+    }
+}
+
+/// A whole drive or the filesystem root ("/", "C:", "C:/"): trusting one would trust everything below it.
+fn is_filesystem_root(key: &str) -> bool {
+    key == "/" || key.is_empty() || (key.len() <= 3 && key.as_bytes().get(1) == Some(&b':'))
+}
+
+/// Marks a folder (and everything inside it) as one the user has opened. A filesystem root is never
+/// trusted this way.
+pub(crate) fn allow_repo(path: &str) {
+    let key = allow_key(path);
+    if !is_filesystem_root(&key) {
+        push_unique(opened_repos(), key);
+    }
+}
+
+/// Marks a folder as one the user has chosen to clone into.
+pub(crate) fn allow_clone_destination(path: &str) {
+    push_unique(clone_destinations(), allow_key(path));
+}
+
+pub(crate) fn clone_destination_allowed(path: &str) -> bool {
+    let key = allow_key(path);
+    clone_destinations().lock().map(|g| g.contains(&key)).unwrap_or(false)
+}
+
+/// Fails unless `path` is (inside) a folder the user opened. A path that tries to climb out with `..`
+/// is refused outright, and a link or junction is judged by where it really leads.
+pub(crate) fn ensure_allowed(path: &str) -> Result<(), String> {
+    let key = allow_key(path);
+    if key.split('/').any(|part| part == "..") {
+        return Err(NOT_OPENED.into());
+    }
+    let ok = opened_repos()
+        .lock()
+        .map(|g| g.iter().any(|root| key == *root || key.starts_with(&format!("{root}/"))))
+        .unwrap_or(false);
+    if ok {
+        Ok(())
+    } else {
+        Err(NOT_OPENED.into())
+    }
+}
+
+/// Shows the operating system's folder picker and trusts whatever the user picks. `purpose` is
+/// `repo` (a repository to open) or `destination` (a folder to clone into).
+#[tauri::command]
+pub async fn pick_folder(app: AppHandle, title: String, purpose: String) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = tauri::async_runtime::spawn_blocking(move || app.dialog().file().set_title(title).blocking_pick_folder())
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(picked) = picked else { return Ok(None) };
+    let path = picked.into_path().map_err(|e| e.to_string())?.to_string_lossy().into_owned();
+    if purpose != "destination" && is_filesystem_root(&allow_key(&path)) {
+        return Err("Choose the repository's folder, not a whole drive.".into());
+    }
+    if purpose == "destination" {
+        allow_clone_destination(&path);
+    } else {
+        allow_repo(&path);
+    }
+    Ok(Some(path))
+}
+
 /// Rejects a branch, tag, remote or commit name that git would read as an option (for example
 /// `--upload-pack=...`) or that contains a NUL byte. Git itself forbids ref names that start with `-`,
 /// so no legitimate name is refused.
@@ -565,12 +698,17 @@ fn repo_state(path: &str) -> Option<String> {
 #[tauri::command]
 pub async fn git_toplevel(path: String) -> Result<String, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let out = run_git(&path, ["rev-parse", "--show-toplevel"])
             .map_err(|e| {
                 // Only blame the folder when git actually ran; "git could not start" must stay visible.
                 if e.starts_with(SPAWN_ERROR_PREFIX) { e } else { "This folder is not a Git repository.".to_string() }
             })?;
-        Ok(out.trim().to_string())
+        let top = out.trim().to_string();
+        // The folder the user picked may be inside a repository (or be a submodule of one they opened):
+        // the repository's own top level is the folder every later command will use.
+        allow_repo(&top);
+        Ok(top)
     })
     .await
 }
@@ -678,12 +816,16 @@ pub(crate) fn repo_risks_now(path: &str) -> Result<Vec<String>, String> {
 /// Lists the ways this repository could make git run a program (see `repo_risks_now`).
 #[tauri::command]
 pub async fn repo_risks(path: String) -> Result<Vec<String>, String> {
-    blocking(move || repo_risks_now(&path)).await
+    blocking(move || {
+        ensure_allowed(&path)?;
+        repo_risks_now(&path)
+    }).await
 }
 
 #[tauri::command]
 pub async fn repo_status(path: String) -> Result<RepoStatus, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let raw = run_git(
             &path,
             [
@@ -704,6 +846,7 @@ pub async fn repo_status(path: String) -> Result<RepoStatus, String> {
 #[tauri::command]
 pub async fn list_submodules(path: String) -> Result<Vec<Submodule>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         // A repo without a .gitmodules has none; skip the process entirely.
         if !PathBuf::from(&path).join(".gitmodules").exists() {
             return Ok(Vec::new());
@@ -775,6 +918,7 @@ pub(crate) fn parse_gitlinks(raw: &str) -> Vec<(String, String, bool)> {
 #[tauri::command]
 pub async fn init_submodule(path: String, submodule: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         run_op(
             &path,
             [LITERAL, "submodule", "update", "--init", "--recursive", "--", &submodule],
@@ -809,6 +953,7 @@ pub(crate) fn pick_branch_source(refs: &str, branch: &str) -> Option<(bool, Stri
 #[tauri::command]
 pub async fn switch_submodules_branch(path: String, branch: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&branch)?;
         let raw = run_git(&path, ["ls-files", "--stage", "-z"])?;
         let root = PathBuf::from(&path);
@@ -852,6 +997,7 @@ pub async fn switch_submodules_branch(path: String, branch: String) -> Result<Op
 #[tauri::command]
 pub async fn update_submodules(path: String, remote: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args = vec!["submodule", "update", "--init", "--recursive"];
         if remote {
             args.push("--remote");
@@ -879,6 +1025,23 @@ pub async fn clone_repo(
     recursive: bool,
 ) -> Result<CloneOutcome, String> {
     blocking(move || {
+        // A clone creates files, so the destination must come from the user: a folder chosen with the
+        // picker, or (when the path was typed) one the user confirms in a window of the operating system.
+        let parent = Path::new(&dest).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+        if !clone_destination_allowed(&parent) {
+            use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+            let sure = app
+                .dialog()
+                .message(format!("Clone\n{}\n\ninto\n{}", redact_urls(&url), dest))
+                .title("Clone repository")
+                .kind(MessageDialogKind::Warning)
+                .buttons(MessageDialogButtons::OkCancelCustom("Clone".into(), "Cancel".into()))
+                .blocking_show();
+            if !sure {
+                return Err("Clone cancelled.".into());
+            }
+            allow_clone_destination(&parent);
+        }
         let mut args = vec!["clone".to_string(), "--progress".to_string()];
         if recursive {
             args.push("--recurse-submodules".into());
@@ -886,9 +1049,11 @@ pub async fn clone_repo(
         args.extend(["--".to_string(), url, dest.clone()]);
         let res = stream_git(&app, &id, None, &args)?;
         if res.ok {
+            allow_repo(&dest);
             return Ok(CloneOutcome { path: dest, warning: None });
         }
         if is_submodule_failure(&res.output) && run_git(&dest, ["rev-parse", "--git-dir"]).is_ok() {
+            allow_repo(&dest);
             return Ok(CloneOutcome {
                 path: dest,
                 warning: Some(format!(
@@ -1106,6 +1271,66 @@ mod tests {
         for (input, want) in cases {
             assert_eq!(redact_urls(input), want, "{input}");
         }
+    }
+
+    #[test]
+    fn only_opened_folders_are_accepted() {
+        let base = std::env::temp_dir().join(format!("treeline-allow-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let opened = base.join("opened");
+        let inside = opened.join("libs").join("sub");
+        let sibling = base.join("sibling");
+        let outside = base.join("outside");
+        for d in [&inside, &sibling, &outside] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        let s = |p: &Path| p.to_string_lossy().into_owned();
+
+        assert!(ensure_allowed(&s(&opened)).is_err(), "nothing is allowed until the user opens it");
+        allow_repo(&s(&opened));
+        assert!(ensure_allowed(&s(&opened)).is_ok());
+        assert!(ensure_allowed(&s(&inside)).is_ok(), "a submodule folder inside an opened repository");
+        assert!(ensure_allowed(&s(&opened.join("not-created-yet"))).is_ok(), "a path below it that does not exist yet");
+        assert!(ensure_allowed(&s(&sibling)).is_err(), "a sibling folder");
+        assert!(ensure_allowed(&s(&base)).is_err(), "the parent of an opened folder");
+        assert!(ensure_allowed(&format!("{}-evil", s(&opened))).is_err(), "a folder whose name merely starts the same");
+        assert!(ensure_allowed(&s(&opened.join("..").join("outside"))).is_err(), "climbing out with ..");
+        assert!(ensure_allowed(&format!("{}/../outside", s(&opened))).is_err());
+        assert!(ensure_allowed("").is_err());
+        assert!(ensure_allowed("relative/path").is_err());
+        if cfg!(windows) {
+            assert!(ensure_allowed(&s(&opened).to_uppercase()).is_ok(), "Windows paths ignore case");
+            assert!(ensure_allowed(&s(&opened).replace('\\', "/")).is_ok(), "and either slash");
+        }
+
+        // A link or junction inside the opened folder that leads elsewhere is judged by where it leads.
+        let link = opened.join("escape");
+        #[cfg(windows)]
+        let made = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(&link).arg(&outside).output().map(|o| o.status.success()).unwrap_or(false);
+        #[cfg(unix)]
+        let made = std::os::unix::fs::symlink(&outside, &link).is_ok();
+        if made {
+            assert!(ensure_allowed(&s(&link)).is_err(), "a link out of the opened folder");
+            assert!(ensure_allowed(&s(&link.join("anything"))).is_err());
+        } else {
+            eprintln!("skipped link check: cannot create links here");
+        }
+
+        // A whole drive or the filesystem root is never trusted: it would trust everything below it.
+        for root in ["/", "C:/", "C:", "D:\\"] {
+            allow_repo(root);
+        }
+        assert!(ensure_allowed(&s(&sibling)).is_err(), "roots were not registered");
+        assert!(is_filesystem_root(&allow_key(if cfg!(windows) { "C:\\" } else { "/" })));
+        assert!(!is_filesystem_root(&allow_key(&s(&opened))));
+
+        // Clone destinations are a separate, exact-match list.
+        assert!(!clone_destination_allowed(&s(&sibling)));
+        allow_clone_destination(&s(&sibling));
+        assert!(clone_destination_allowed(&s(&sibling)));
+        assert!(!clone_destination_allowed(&s(&sibling.join("deeper"))), "only the chosen folder itself");
+        assert!(ensure_allowed(&s(&sibling)).is_err(), "choosing a destination does not open it");
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

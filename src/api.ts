@@ -25,6 +25,9 @@ import type {
 
 export const api = {
   // repository
+  /** The operating system's folder picker, shown by the backend. Only folders chosen here (or opened before) can be used. */
+  pickFolder: (title: string, purpose: "repo" | "destination") =>
+    invoke<string | null>("pick_folder", { title, purpose }),
   toplevel: (path: string) => invoke<string>("git_toplevel", { path }),
   status: (path: string) => invoke<RepoStatus>("repo_status", { path }),
   submodules: (path: string) => invoke<Submodule[]>("list_submodules", { path }),

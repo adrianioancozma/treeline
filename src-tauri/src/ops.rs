@@ -2,7 +2,7 @@
 //! merge / rebase / cherry-pick, and conflict resolution.
 
 use crate::git::{
-    blocking, opt_ref_arg, ref_arg, run_git, run_git_ok_codes, run_git_stdin, run_op, stream_git, OpResult, LITERAL,
+    blocking, ensure_allowed, opt_ref_arg, ref_arg, run_git, run_git_ok_codes, run_git_stdin, run_op, stream_git, OpResult, LITERAL,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -25,6 +25,7 @@ fn nul_list(files: &[String]) -> Vec<u8> {
 #[tauri::command]
 pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         if files.is_empty() {
             return Ok(());
         }
@@ -41,6 +42,7 @@ pub async fn stage_files(path: String, files: Vec<String>) -> Result<(), String>
 #[tauri::command]
 pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         if files.is_empty() {
             return Ok(());
         }
@@ -57,12 +59,18 @@ pub async fn unstage_files(path: String, files: Vec<String>) -> Result<(), Strin
 
 #[tauri::command]
 pub async fn stage_all(path: String) -> Result<(), String> {
-    blocking(move || run_git(&path, ["add", "-A"]).map(|_| ())).await
+    blocking(move || {
+        ensure_allowed(&path)?;
+        run_git(&path, ["add", "-A"]).map(|_| ())
+    }).await
 }
 
 #[tauri::command]
 pub async fn unstage_all(path: String) -> Result<(), String> {
-    blocking(move || run_git(&path, ["reset", "-q"]).map(|_| ())).await
+    blocking(move || {
+        ensure_allowed(&path)?;
+        run_git(&path, ["reset", "-q"]).map(|_| ())
+    }).await
 }
 
 /// Throws away working-tree changes: `tracked` files are restored, `untracked` ones deleted.
@@ -73,6 +81,7 @@ pub async fn discard_files(
     untracked: Vec<String>,
 ) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         if !tracked.is_empty() {
             run_git_stdin(
                 &path,
@@ -99,6 +108,7 @@ pub async fn apply_patch(
     reverse: bool,
 ) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args = vec!["apply", "--recount", "--whitespace=nowarn"];
         if cached {
             args.push("--cached");
@@ -115,6 +125,7 @@ pub async fn apply_patch(
 #[tauri::command]
 pub async fn commit(path: String, message: String, amend: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args = vec!["commit".to_string()];
         if amend {
             args.push("--amend".into());
@@ -136,6 +147,7 @@ pub async fn commit(path: String, message: String, amend: bool) -> Result<OpResu
 #[tauri::command]
 pub async fn head_message(path: String) -> Result<String, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         Ok(run_git(&path, ["log", "-1", "--format=%B"])
             .unwrap_or_default()
             .trim()
@@ -157,6 +169,7 @@ pub async fn file_diff(
     context: u32,
 ) -> Result<String, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let ctx = format!("-U{context}");
         if untracked {
             return run_git_ok_codes(
@@ -207,6 +220,7 @@ pub async fn commit_files(
     parent: Option<String>,
 ) -> Result<Vec<FileEntry>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&sha)?;
         opt_ref_arg(&parent)?;
         let raw = match &parent {
@@ -231,6 +245,7 @@ pub async fn commit_diff(
     context: u32,
 ) -> Result<String, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&sha)?;
         opt_ref_arg(&parent)?;
         let ctx = format!("-U{context}");
@@ -262,6 +277,7 @@ pub struct CommitDetail {
 #[tauri::command]
 pub async fn commit_detail(path: String, sha: String) -> Result<CommitDetail, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&sha)?;
         let raw = run_git(
             &path,
@@ -338,6 +354,7 @@ pub async fn git_log(
     file: Option<String>,
 ) -> Result<Vec<Commit>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args: Vec<String> = vec![
             LITERAL.into(),
             "log".into(),
@@ -429,6 +446,7 @@ fn parse_refs(raw: &str) -> Vec<RefInfo> {
 #[tauri::command]
 pub async fn list_refs(path: String) -> Result<Vec<RefInfo>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let raw = run_git(
             &path,
             [
@@ -447,6 +465,7 @@ pub async fn list_refs(path: String) -> Result<Vec<RefInfo>, String> {
 #[tauri::command]
 pub async fn checkout(path: String, target: String, force: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&target)?;
         // `git checkout <remote-branch-short-name>` DWIM-creates a tracking branch.
         let mut args = vec!["checkout"];
@@ -463,6 +482,7 @@ pub async fn checkout(path: String, target: String, force: bool) -> Result<OpRes
 #[tauri::command]
 pub async fn checkout_remote(path: String, remote_branch: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&remote_branch)?;
         let local = remote_branch
             .split_once('/')
@@ -486,6 +506,7 @@ pub async fn create_branch(
     checkout: bool,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&name)?;
         opt_ref_arg(&start)?;
         let mut args = if checkout {
@@ -504,6 +525,7 @@ pub async fn create_branch(
 #[tauri::command]
 pub async fn rename_branch(path: String, old: String, new: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&old)?;
         ref_arg(&new)?;
         run_op(&path, ["branch", "-m", &old, &new], &[])
@@ -513,6 +535,7 @@ pub async fn rename_branch(path: String, old: String, new: String) -> Result<OpR
 #[tauri::command]
 pub async fn delete_branch(path: String, name: String, force: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&name)?;
         run_op(&path, ["branch", if force { "-D" } else { "-d" }, &name], &[])
     }).await
@@ -570,6 +593,7 @@ fn resolve_commit(path: &str, rev: &str) -> Result<String, String> {
 #[tauri::command]
 pub async fn merged_branches(path: String, target: String) -> Result<Vec<MergedBranch>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let target_sha = resolve_commit(&path, &target)?;
         let raw = run_git(
             &path,
@@ -613,6 +637,7 @@ pub async fn merged_branches(path: String, target: String) -> Result<Vec<MergedB
 #[tauri::command]
 pub async fn branch_history(path: String, name: String, target: String, limit: u32) -> Result<BranchHistory, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let target_sha = resolve_commit(&path, &target)?;
         let branch = format!("refs/heads/{name}");
         let tip = resolve_commit(&path, &branch)?;
@@ -656,6 +681,7 @@ pub async fn branch_history(path: String, name: String, target: String, limit: u
 #[tauri::command]
 pub async fn delete_merged_branches(path: String, target: String, names: Vec<String>) -> Result<Vec<BranchDeleteResult>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         for item in &names {
             ref_arg(item)?;
         }
@@ -688,6 +714,7 @@ pub async fn create_tag(
     message: Option<String>,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&name)?;
         opt_ref_arg(&rev)?;
         let mut args = vec!["tag".to_string()];
@@ -706,6 +733,7 @@ pub async fn create_tag(
 #[tauri::command]
 pub async fn delete_tag(path: String, name: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&name)?;
         run_op(&path, ["tag", "-d", &name], &[])
     }).await
@@ -718,6 +746,7 @@ pub async fn delete_tag(path: String, name: String) -> Result<OpResult, String> 
 #[tauri::command]
 pub async fn fetch(app: AppHandle, id: String, path: String, prune: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args: Vec<String> = vec!["fetch".into(), "--all".into(), "--progress".into()];
         if prune {
             args.push("--prune".into());
@@ -739,6 +768,7 @@ pub async fn fetch_ref(
     refspec: Option<String>,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&remote)?;
         opt_ref_arg(&refspec)?;
         let mut args: Vec<String> = vec!["fetch".into(), "--progress".into(), remote];
@@ -754,6 +784,7 @@ pub async fn fetch_ref(
 #[tauri::command]
 pub async fn pull(app: AppHandle, id: String, path: String, mode: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args: Vec<String> = vec!["pull".into(), "--progress".into()];
         match mode.as_str() {
             // A dirty tree would otherwise make `pull --rebase` refuse to start.
@@ -778,6 +809,7 @@ pub async fn push(
     tags: bool,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         opt_ref_arg(&remote)?;
         opt_ref_arg(&refspec)?;
         let mut args: Vec<String> = vec!["push".into(), "--progress".into()];
@@ -804,6 +836,7 @@ pub async fn push(
 #[tauri::command]
 pub async fn list_remotes(path: String) -> Result<Vec<String>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         Ok(run_git(&path, ["remote"])?
             .lines()
             .map(|l| l.trim().to_string())
@@ -822,6 +855,7 @@ pub async fn delete_remote_branch(
     branch: String,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&remote)?;
         ref_arg(&branch)?;
         let args: Vec<String> = vec!["push".into(), remote, "--delete".into(), branch];
@@ -837,6 +871,7 @@ pub async fn delete_remote_branch(
 #[tauri::command]
 pub async fn merge(path: String, rev: String, no_ff: bool, squash: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&rev)?;
         let mut args = vec!["merge"];
         if squash {
@@ -941,6 +976,7 @@ fn classify_merge(path: &str, source_sha: &str, target: &str) -> MergePreview {
 #[tauri::command]
 pub async fn preview_merge(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergePreview>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let sha = resolve_commit(&path, &source)?;
         let busy = other_worktree_branches(&path);
         let out = std::thread::scope(|scope| {
@@ -973,6 +1009,7 @@ pub async fn preview_merge(path: String, source: String, targets: Vec<String>) -
 #[tauri::command]
 pub async fn merge_into_branches(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergeApplied>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         for item in &targets {
             ref_arg(item)?;
         }
@@ -1067,6 +1104,7 @@ pub(crate) fn discarded_by_merge(path: &str, source_sha: &str, target: &str) -> 
 #[tauri::command]
 pub async fn check_merge_result(path: String, source: String, target: String) -> Result<Vec<String>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let sha = resolve_commit(&path, &source)?;
         Ok(discarded_by_merge(&path, &sha, &target))
     })
@@ -1091,6 +1129,7 @@ fn rerere_prefilled(path: &str, file: &str, work: &str) -> bool {
 #[tauri::command]
 pub async fn prefilled_conflicts(path: String) -> Result<Vec<String>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let raw = run_git(&path, ["diff", "--name-only", "-z", "--diff-filter=U"])?;
         Ok(raw
             .split('\0')
@@ -1113,6 +1152,7 @@ pub async fn prefilled_conflicts(path: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub async fn enable_rerere(path: String) -> Result<bool, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let current = run_git(&path, ["config", "--get", "rerere.enabled"]).unwrap_or_default();
         if current.trim() == "true" {
             return Ok(false);
@@ -1192,6 +1232,7 @@ fn merge_reusing_resolution(path: &str, source_sha: &str, target: &str) -> Merge
 #[tauri::command]
 pub async fn merge_reusing_resolutions(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergeApplied>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         for item in &targets {
             ref_arg(item)?;
         }
@@ -1214,6 +1255,7 @@ pub async fn merge_reusing_resolutions(path: String, source: String, targets: Ve
 #[tauri::command]
 pub async fn rebase(path: String, onto: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&onto)?;
         run_op(&path, ["rebase", "--autostash", &onto], &[("GIT_EDITOR", "true".into())])
     }).await
@@ -1222,6 +1264,7 @@ pub async fn rebase(path: String, onto: String) -> Result<OpResult, String> {
 #[tauri::command]
 pub async fn cherry_pick(path: String, sha: String, mainline: Option<u32>) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&sha)?;
         let mut args = vec!["cherry-pick".to_string()];
         if let Some(m) = mainline {
@@ -1236,6 +1279,7 @@ pub async fn cherry_pick(path: String, sha: String, mainline: Option<u32>) -> Re
 #[tauri::command]
 pub async fn revert(path: String, sha: String, mainline: Option<u32>) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&sha)?;
         let mut args = vec!["revert".to_string(), "--no-edit".to_string()];
         if let Some(m) = mainline {
@@ -1251,6 +1295,7 @@ pub async fn revert(path: String, sha: String, mainline: Option<u32>) -> Result<
 #[tauri::command]
 pub async fn reset(path: String, rev: String, mode: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&rev)?;
         let flag = match mode.as_str() {
             "soft" => "--soft",
@@ -1267,6 +1312,7 @@ pub async fn reset(path: String, rev: String, mode: String) -> Result<OpResult, 
 #[tauri::command]
 pub async fn sequencer_action(path: String, state: String, action: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let envs = [("GIT_EDITOR", "true".to_string())];
         match (state.as_str(), action.as_str()) {
             ("merge", "abort") => run_op(&path, ["merge", "--abort"], &envs),
@@ -1295,6 +1341,7 @@ pub struct RebaseCommit {
 #[tauri::command]
 pub async fn rebase_todo(path: String, base: Option<String>) -> Result<Vec<RebaseCommit>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         opt_ref_arg(&base)?;
         let mut args = vec![
             "log".to_string(),
@@ -1354,6 +1401,7 @@ pub async fn rebase_interactive(
     steps: Vec<RebaseStep>,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         opt_ref_arg(&base)?;
         // Keep the todo and reword messages inside the git dir: a paused rebase (conflict, `edit`)
         // runs the remaining `exec` lines later, so these files must outlive this call.
@@ -1427,6 +1475,7 @@ fn parse_stashes(raw: &str) -> Vec<StashEntry> {
 #[tauri::command]
 pub async fn stash_list(path: String) -> Result<Vec<StashEntry>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         Ok(parse_stashes(&run_git(
             &path,
             ["stash", "list", "--format=%gd%x1f%gs%x1f%at"],
@@ -1442,6 +1491,7 @@ pub async fn stash_push(
     include_untracked: bool,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let mut args = vec!["stash".to_string(), "push".into()];
         if include_untracked {
             args.push("-u".into());
@@ -1458,6 +1508,7 @@ pub async fn stash_push(
 #[tauri::command]
 pub async fn stash_action(path: String, reference: String, action: String) -> Result<OpResult, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         ref_arg(&reference)?;
         if !matches!(action.as_str(), "apply" | "pop" | "drop") {
             return Err(format!("Unknown stash action: {action}"));
@@ -1560,6 +1611,7 @@ fn incoming_name(path: &str) -> Option<String> {
 #[tauri::command]
 pub async fn conflict_file(path: String, file: String) -> Result<ConflictFile, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let full = safe_real_path(&path, &file)?;
         // Refuse non-UTF-8 files: a lossy decode would permanently alter bytes outside the
         // conflict region when the resolution is written back.
@@ -1585,6 +1637,7 @@ pub async fn conflict_file(path: String, file: String) -> Result<ConflictFile, S
 #[tauri::command]
 pub async fn resolve_side(path: String, file: String, side: String) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let (flag, stage) = if side == "theirs" { ("--theirs", "3") } else { ("--ours", "2") };
         // Only fall back to deleting the file when that side genuinely has no version of it
         // (it deleted the file). Any other checkout failure must be reported, never turned into a delete.
@@ -1607,6 +1660,7 @@ pub async fn resolve_side(path: String, file: String, side: String) -> Result<()
 #[tauri::command]
 pub async fn remove_lock_file(path: String, lock: String) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let lock_path = PathBuf::from(&lock);
         if lock_path.extension().and_then(|e| e.to_str()) != Some("lock") {
             return Err("Only .lock files can be removed.".into());
@@ -1626,6 +1680,7 @@ pub async fn remove_lock_file(path: String, lock: String) -> Result<(), String> 
 #[tauri::command]
 pub async fn save_resolution(path: String, file: String, content: String) -> Result<(), String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let full = safe_real_path(&path, &file)?;
         fs::write(&full, content).map_err(|e| e.to_string())?;
         run_git(&path, [LITERAL, "add", "--", &file]).map(|_| ())
@@ -1651,6 +1706,7 @@ fn require_existing_folder(path: &str) -> Result<(), String> {
 
 #[tauri::command]
 pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    ensure_allowed(&path)?;
     require_existing_folder(&path)?;
     #[cfg(target_os = "windows")]
     let mut cmd = {
@@ -1675,6 +1731,7 @@ pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_terminal(path: String) -> Result<(), String> {
+    ensure_allowed(&path)?;
     require_existing_folder(&path)?;
     #[cfg(target_os = "windows")]
     let mut cmd = {
@@ -1745,6 +1802,7 @@ fn parse_file_log(raw: &str) -> Vec<FileCommit> {
 #[tauri::command]
 pub async fn file_log(path: String, file: String, skip: u32, limit: u32) -> Result<Vec<FileCommit>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         let args: Vec<String> = vec![
             LITERAL.into(),
             "log".into(),
@@ -1815,6 +1873,7 @@ fn parse_blame(raw: &str) -> Vec<BlameLine> {
 #[tauri::command]
 pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Result<Vec<BlameLine>, String> {
     blocking(move || {
+        ensure_allowed(&path)?;
         opt_ref_arg(&rev)?;
         let mut args: Vec<String> = vec![LITERAL.into(), "blame".into(), "--line-porcelain".into()];
         if let Some(r) = rev.filter(|r| !r.is_empty()) {
@@ -2127,6 +2186,8 @@ mod tests {
     /// tests must never depend on the developer's global git configuration or on signing setup.
     fn repo() -> tempfile::TempDir {
         let d = tempfile::tempdir().unwrap();
+        // Commands only accept folders the user opened; a test repository stands in for one.
+        crate::git::allow_repo(&d.path().to_string_lossy());
         git(d.path(), &["init", "-q", "-b", "main"]);
         git(d.path(), &["config", "user.name", "Test"]);
         git(d.path(), &["config", "user.email", "t@example.com"]);
