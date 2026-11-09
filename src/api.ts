@@ -33,8 +33,8 @@ export const api = {
   submodules: (path: string) => invoke<Submodule[]>("list_submodules", { path }),
   initSubmodule: (path: string, submodule: string) =>
     invoke<OpResult>("init_submodule", { path, submodule }),
-  switchSubmodulesBranch: (path: string, branch: string) =>
-    invoke<OpResult>("switch_submodules_branch", { path, branch }),
+  switchSubmodulesBranch: (path: string, branch: string, pull = false) =>
+    invoke<OpResult>("switch_submodules_branch", { path, branch, pull }),
   updateSubmodules: (path: string, remote: boolean) =>
     invoke<OpResult>("update_submodules", { path, remote }),
   clone: (id: string, url: string, dest: string, recursive: boolean) =>
@@ -75,6 +75,9 @@ export const api = {
     query?: string,
     file?: string,
   ) => invoke<Commit[]>("git_log", { path, skip, limit, all, query: query ?? null, file: file ?? null }),
+  /** Ids of the commits matching the History filters (the whole history, not just the loaded part). */
+  logMatches: (path: string, all: boolean, filter: { author?: string; text?: string; since?: string; until?: string }) =>
+    invoke<string[]>("git_log_matches", { path, all, filter }),
   fileLog: (path: string, file: string, skip: number, limit: number) =>
     invoke<FileCommit[]>("file_log", { path, file, skip, limit }),
   blame: (path: string, file: string, rev: string | null) => invoke<BlameLine[]>("git_blame", { path, file, rev }),

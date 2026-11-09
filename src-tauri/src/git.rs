@@ -1018,7 +1018,8 @@ pub(crate) fn pick_branch_source(refs: &str, branch: &str) -> Option<(bool, Stri
 /// are not initialised or lack the branch are left alone. A submodule whose checkout fails (for
 /// example uncommitted changes) is reported but does not stop the others.
 #[tauri::command]
-pub async fn switch_submodules_branch(path: String, branch: String) -> Result<OpResult, String> {
+pub async fn switch_submodules_branch(path: String, branch: String, pull: Option<bool>) -> Result<OpResult, String> {
+    let pull = pull.unwrap_or(false);
     blocking(move || {
         ensure_allowed(&path)?;
         ref_arg(&branch)?;
@@ -1045,7 +1046,23 @@ pub async fn switch_submodules_branch(path: String, branch: String) -> Result<Op
             } else {
                 run_op(&dir_s, ["checkout", "--track", "-b", &branch, &source], &[])?
             };
-            if res.ok {
+            if res.ok && pull {
+                // Only a fast-forward: a submodule is never left half-merged. A branch without an
+                // upstream simply has nothing to pull.
+                let has_upstream = run_op(&dir_s, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"], &[])?.ok;
+                if !has_upstream {
+                    lines.push(format!("{sub}: switched to {branch} (no upstream, not pulled)"));
+                } else {
+                    let p = run_op(&dir_s, ["pull", "--ff-only"], &[])?;
+                    if p.ok {
+                        lines.push(format!("{sub}: switched to {branch} and pulled"));
+                    } else {
+                        ok = false;
+                        lines.push(format!("{sub}: switched to {branch}, but the pull FAILED
+{}", p.output.trim()));
+                    }
+                }
+            } else if res.ok {
                 lines.push(format!("{sub}: switched to {branch}"));
             } else {
                 ok = false;

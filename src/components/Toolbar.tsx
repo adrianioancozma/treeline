@@ -97,9 +97,27 @@ export function Toolbar({ tab }: { tab: Tab }) {
             icon="submodule"
             label="Sync subs"
             disabled={busy || !s?.branch}
-            title={s?.branch ? `Switch submodules to ${s.branch} (where that branch exists)` : "Check out a branch first"}
+            title={s?.branch ? `Switch submodules to ${s.branch} (where that branch exists). The arrow offers Sync and pull` : "Check out a branch first"}
             onClick={() => s?.branch && void a.switchSubmodules(s.branch)}
           />
+        )}
+        {(d?.submodules.length ?? 0) > 0 && (
+          <button
+            className="tool mini"
+            aria-label="More sync options"
+            disabled={busy || !s?.branch}
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              const branch = s?.branch;
+              if (!branch) return;
+              openMenu({ clientX: r.left - 40, clientY: r.bottom + 4 }, [
+                { label: "Sync — switch branches only", onClick: () => void a.switchSubmodules(branch) },
+                { label: "Sync and pull — switch, then pull (fast-forward)", onClick: () => void a.switchSubmodules(branch, true) },
+              ]);
+            }}
+          >
+            <Icon name="down" size={12} />
+          </button>
         )}
         <Btn icon="merge" label="Merge" onClick={() => a.merge()} />
         <Btn icon="merge" label="Merge to many" title="Merge one branch into several branches at once, with a conflict check first" onClick={() => useUi.setState({ multiMerge: { tabId: tab.id } })} />

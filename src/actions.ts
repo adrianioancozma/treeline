@@ -1,7 +1,7 @@
 import { api, errorMessage, joinPath } from "./api";
 import { useApp } from "./store";
 import { useUi } from "./uiStore";
-import { parseTrack } from "./lib/format";
+import { classifyRef, parseTrack } from "./lib/format";
 import type { Commit, ErrorCtx, Submodule } from "./types";
 
 /** All user-facing repository actions. Used by the toolbar, menus and the command palette. */
@@ -141,6 +141,47 @@ export function repoActions(tabId: string) {
         ctx: { op: "checkout", target: name },
       }),
 
+    /**
+     * Double-click on a history row: check out the branch on that commit (asking when there are
+     * several), else the local branch tracking a remote one, else the commit itself (detached).
+     */
+    checkoutCommit(c: { sha: string; refs: string[] }) {
+      const d = data();
+      const remotes = d?.remotes ?? [];
+      const locals = new Set((d?.refs ?? []).filter((r) => r.kind === "branch").map((r) => r.name));
+      const names = c.refs
+        .map((r) => classifyRef(r, remotes))
+        .filter((r): r is NonNullable<typeof r> => !!r);
+      const branches = names.filter((r) => (r.kind === "branch" || r.kind === "head") && r.label !== "HEAD").map((r) => r.label);
+      // A remote branch counts only when its local namesake does not exist (that one may sit elsewhere).
+      const remoteOnly = names
+        .filter((r) => r.kind === "remote" && !r.label.endsWith("/HEAD") && !locals.has(r.label.slice(r.label.indexOf("/") + 1)))
+        .map((r) => r.label);
+      const pick = (title: string, options: string[], go: (name: string) => void) =>
+        st().openDialog({
+          title,
+          fields: [{ key: "name", label: "Branch", type: "select", value: options[0], options: options.map((o) => ({ value: o, label: o })) }],
+          submitLabel: "Check out",
+          onSubmit: (v) => go(String(v.name)),
+        });
+      const cur = d?.status?.branch ?? null;
+      const others = branches.filter((b) => b !== cur);
+      if (d?.status?.head === c.sha && others.length === 0 && remoteOnly.length === 0) {
+        st().notify("info", cur ? `Already on ${cur}` : "Already on this commit");
+        return;
+      }
+      if (others.length === 1) return void a.checkout(others[0]);
+      if (others.length > 1) return pick("Which branch do you want to check out?", others, (n) => void a.checkout(n));
+      if (remoteOnly.length === 1) return void a.checkoutRemote(remoteOnly[0]);
+      if (remoteOnly.length > 1) return pick("Which remote branch do you want to check out?", remoteOnly, (n) => void a.checkoutRemote(n));
+      confirm(
+        "Check out this commit?",
+        `No branch points at ${c.sha.slice(0, 7)}, so this puts you in a detached HEAD: you can look around and build on it, but new commits belong to no branch until you create one (Branch button).`,
+        "Check out",
+        () => void a.checkout(c.sha),
+      );
+    },
+
     /** Checks out `target` and merges `source` into it, leaving any conflicts for the normal resolver. */
     async resolveMerge(target: string, source: string): Promise<void> {
       const ok = await run(`Checking out ${target}…`, () => api.checkout(path(), target), {
@@ -151,8 +192,9 @@ export function repoActions(tabId: string) {
     },
 
     /** Puts every checked-out submodule on `branch` where a branch of that name exists. */
-    switchSubmodules: (branch: string) =>
-      run("Switching submodules…", () => api.switchSubmodulesBranch(path(), branch), {
+    /** Moves the submodules onto `branch`; with `pull`, also fast-forwards each one that was switched. */
+    switchSubmodules: (branch: string, pull = false) =>
+      run(pull ? "Switching submodules and pulling…" : "Switching submodules…", () => api.switchSubmodulesBranch(path(), branch, pull), {
         quiet: false,
         success: undefined,
       }),
