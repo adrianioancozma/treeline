@@ -83,6 +83,26 @@ export interface DialogSpec {
   onSubmit: (values: Record<string, string | boolean>) => void | Promise<void>;
 }
 
+const TRUSTED_REPOS_KEY = "trusted-repos";
+
+/** Folders the user already confirmed they trust, so the warning about program-running settings shows once. */
+function isTrustedRepo(path: string): boolean {
+  try {
+    return (JSON.parse(localStorage.getItem(TRUSTED_REPOS_KEY) ?? "[]") as string[]).includes(path);
+  } catch {
+    return false;
+  }
+}
+
+function trustRepo(path: string): void {
+  try {
+    const list = JSON.parse(localStorage.getItem(TRUSTED_REPOS_KEY) ?? "[]") as string[];
+    if (!list.includes(path)) localStorage.setItem(TRUSTED_REPOS_KEY, JSON.stringify([...list, path].slice(-500)));
+  } catch {
+    /* storage unavailable: the question is simply asked again next time */
+  }
+}
+
 const LOG_PAGE = 400;
 const emptyUi = (): RepoUi => ({
   view: "files",
@@ -265,6 +285,27 @@ export const useApp = create<AppState>((set, get) => {
       const existing = tabs.find((t) => t.path === top);
       if (existing) {
         get().setActive(existing.id);
+        return;
+      }
+      // A folder handed to you with its own .git can carry settings or hooks that make git run programs.
+      // Ask once before opening such a repository (nothing in it has been run yet at this point).
+      const risks = await api.repoRisks(top).catch(() => [] as string[]);
+      if (risks.length > 0 && !isTrustedRepo(top)) {
+        const shown = risks.slice(0, 8).map((r) => `• ${r}`).join("\n");
+        const more = risks.length > 8 ? `\n• …and ${risks.length - 8} more` : "";
+        get().openDialog({
+          title: "This repository can run programs",
+          description:
+            `Its own settings or hooks can make git run programs on your computer when you commit, merge, check out or fetch:\n\n${shown}${more}\n\n` +
+            "Open it only if you made this folder or got it from a source you trust. Treeline remembers your answer for this folder.",
+          fields: [],
+          submitLabel: "Open anyway",
+          danger: true,
+          onSubmit: async () => {
+            trustRepo(top);
+            await get().openRepo(path, afterTabId);
+          },
+        });
         return;
       }
       const active = tabs.find((t) => t.id === activeId);

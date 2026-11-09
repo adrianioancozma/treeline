@@ -72,6 +72,7 @@ pub fn run() {
             git::git_info,
             store::set_git_path,
             git::repo_status,
+            git::repo_risks,
             git::list_submodules,
             git::init_submodule,
             git::update_submodules,

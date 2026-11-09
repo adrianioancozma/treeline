@@ -127,6 +127,7 @@ export const api = {
     invoke<MergePreview[]>("preview_merge", { path, source, targets }),
   mergeIntoBranches: (path: string, source: string, targets: string[]) =>
     invoke<MergeApplied[]>("merge_into_branches", { path, source, targets }),
+  repoRisks: (path: string) => invoke<string[]>("repo_risks", { path }),
   checkMergeResult: (path: string, source: string, target: string) =>
     invoke<string[]>("check_merge_result", { path, source, target }),
   prefilledConflicts: (path: string) => invoke<string[]>("prefilled_conflicts", { path }),

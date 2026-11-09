@@ -575,6 +575,90 @@ pub async fn git_toplevel(path: String) -> Result<String, String> {
     .await
 }
 
+/// Describes a repository config entry that makes git run a program, or `None` when it is harmless
+/// or something the app never triggers. Git LFS filters and plain credential helpers such as
+/// `manager` are normal and ignored.
+pub(crate) fn risky_config_entry(key: &str, value: &str) -> Option<String> {
+    let k = key.to_ascii_lowercase();
+    let backslash = char::from(92);
+    let program = |why: &str| Some(format!("{key} = {value}: {why}"));
+    match k.as_str() {
+        "core.sshcommand" => return program("runs a program to connect over SSH"),
+        "core.hookspath" => return program("git hooks from that folder run when you commit, merge or check out"),
+        "core.editor" | "sequence.editor" | "core.pager" | "core.askpass" | "gpg.program" | "core.gitproxy" | "diff.external" => {
+            return program("runs a program")
+        }
+        "credential.helper" => {
+            return (value.starts_with('!') || value.contains('/') || value.contains(backslash))
+                .then(|| format!("{key} = {value}: runs a program to supply credentials"));
+        }
+        "include.path" => return program("pulls in another config file, which is not checked here"),
+        _ => {}
+    }
+    if k.starts_with("includeif.") && k.ends_with(".path") {
+        return program("pulls in another config file, which is not checked here");
+    }
+    if k.starts_with("filter.") && (k.ends_with(".clean") || k.ends_with(".smudge") || k.ends_with(".process")) {
+        return (!value.trim_start().starts_with("git-lfs"))
+            .then(|| format!("{key} = {value}: runs a program on files when they are staged or checked out"));
+    }
+    if k.starts_with("merge.") && k.ends_with(".driver") {
+        return program("runs a program to merge files");
+    }
+    if k.starts_with("diff.") && (k.ends_with(".textconv") || k.ends_with(".command")) {
+        return program("runs a program to convert or show diffs");
+    }
+    if k.starts_with("credential.") && k.ends_with(".helper") {
+        return (value.starts_with('!') || value.contains('/') || value.contains(backslash))
+            .then(|| format!("{key} = {value}: runs a program to supply credentials"));
+    }
+    if k.starts_with("remote.") && (k.ends_with(".vcs") || k.ends_with(".uploadpack") || k.ends_with(".receivepack")) {
+        return program("runs a program for this remote");
+    }
+    if k.starts_with("submodule.") && k.ends_with(".update") && value.starts_with('!') {
+        return program("runs a command when updating this submodule");
+    }
+    None
+}
+
+/// What in this repository's own settings or hooks could make git run a program when the app (or
+/// you) commits, merges, checks out or fetches. A repository you made or cloned from a source you
+/// trust normally has none of this; a folder handed to you with its `.git` included can.
+pub(crate) fn repo_risks_now(path: &str) -> Result<Vec<String>, String> {
+    let mut out = Vec::new();
+    let raw = run_git(path, ["config", "--local", "--list", "-z"])?;
+    for entry in raw.split('\0').filter(|e| !e.is_empty()) {
+        let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
+        if let Some(line) = risky_config_entry(key, value) {
+            out.push(line);
+        }
+    }
+    // Hook scripts (git ships only *.sample files).
+    if let Ok(dir) = run_git(path, ["rev-parse", "--git-path", "hooks"]) {
+        let dir = PathBuf::from(dir.trim());
+        let dir = if dir.is_absolute() { dir } else { Path::new(path).join(dir) };
+        if let Ok(read) = std::fs::read_dir(&dir) {
+            let mut names: Vec<String> = read
+                .flatten()
+                .filter(|e| e.path().is_file())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| !n.ends_with(".sample"))
+                .collect();
+            names.sort();
+            if !names.is_empty() {
+                out.push(format!("Hook scripts ({}): these run when you commit, merge, check out or push", names.join(", ")));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Lists the ways this repository could make git run a program (see `repo_risks_now`).
+#[tauri::command]
+pub async fn repo_risks(path: String) -> Result<Vec<String>, String> {
+    blocking(move || repo_risks_now(&path)).await
+}
+
 #[tauri::command]
 pub async fn repo_status(path: String) -> Result<RepoStatus, String> {
     blocking(move || {
@@ -902,6 +986,61 @@ mod tests {
         git(&["config", "include.path", &fwd(&extra)]);
         git(&["status", "-s"]);
         assert!(!marker.exists(), "the hook must not run when it comes from an included file");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn classifies_risky_repository_settings() {
+        let risky = [
+            ("core.hooksPath", ".husky"),
+            ("core.sshCommand", "ssh -i key"),
+            ("filter.evil.smudge", "calc.exe"),
+            ("merge.evil.driver", "calc %O %A %B"),
+            ("diff.evil.textconv", "calc"),
+            ("credential.helper", "!echo pw"),
+            ("credential.https://x.y.helper", "/opt/helper"),
+            ("include.path", "../x.cfg"),
+            ("includeIf.gitdir:/a/.path", "x"),
+            ("remote.origin.vcs", "ext"),
+            ("submodule.a.update", "!calc"),
+            ("core.editor", "vim"),
+        ];
+        for (k, v) in risky {
+            assert!(risky_config_entry(k, v).is_some(), "{k}");
+        }
+        let fine = [
+            ("filter.lfs.clean", "git-lfs clean -- %f"),
+            ("filter.lfs.smudge", "git-lfs smudge -- %f"),
+            ("filter.lfs.process", "git-lfs filter-process"),
+            ("credential.helper", "manager"),
+            ("credential.helper", "osxkeychain"),
+            ("core.autocrlf", "true"),
+            ("user.name", "Me"),
+            ("alias.st", "!echo status"),
+            ("remote.origin.url", "https://x"),
+            ("branch.main.remote", "origin"),
+        ];
+        for (k, v) in fine {
+            assert!(risky_config_entry(k, v).is_none(), "{k}");
+        }
+    }
+
+    #[test]
+    fn a_repository_with_hooks_and_drivers_is_reported() {
+        let dir = std::env::temp_dir().join(format!("treeline-risk-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = dir.to_string_lossy().to_string();
+        run_git(&repo, ["init", "-q"]).unwrap();
+        assert!(repo_risks_now(&repo).unwrap().is_empty(), "a fresh repository is clean (sample hooks are ignored)");
+
+        std::fs::write(dir.join(".git").join("hooks").join("pre-commit"), "#!/bin/sh\n").unwrap();
+        run_git(&repo, ["config", "merge.evil.driver", "calc"]).unwrap();
+        run_git(&repo, ["config", "filter.lfs.clean", "git-lfs clean -- %f"]).unwrap();
+        let risks = repo_risks_now(&repo).unwrap();
+        assert!(risks.iter().any(|r| r.contains("Hook scripts") && r.contains("pre-commit")), "{risks:?}");
+        assert!(risks.iter().any(|r| r.contains("merge.evil.driver")), "{risks:?}");
+        assert!(!risks.iter().any(|r| r.contains("git-lfs")), "LFS is normal: {risks:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
