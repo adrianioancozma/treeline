@@ -624,8 +624,9 @@ pub(crate) fn risky_config_entry(key: &str, value: &str) -> Option<String> {
     {
         return program("runs a command");
     }
-    // pager.<command> may be true/false or a program to page that command's output with.
-    if k.starts_with("pager.") && !matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "1" | "0" | "") {
+    // pager.<command> may be true/false or a program to page that command's output with. Git compares the
+    // value exactly (ignoring only case), so a quoted "true " with a space is a program: do not trim.
+    if k.starts_with("pager.") && !matches!(value.to_ascii_lowercase().as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "1" | "0" | "") {
         return program("runs a program to page output");
     }
     if k.starts_with("submodule.") && k.ends_with(".update") && value.starts_with('!') {
@@ -1033,6 +1034,8 @@ mod tests {
             ("mergetool.x.cmd", "x"),
             ("trailer.t.command", "x"),
             ("pager.log", "less -R"),
+            ("pager.log", "true "),
+            ("pager.log", " yes"),
         ];
         for (k, v) in risky {
             assert!(risky_config_entry(k, v).is_some(), "{k}");
