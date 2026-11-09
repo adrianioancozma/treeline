@@ -1431,6 +1431,38 @@ pub struct ConflictFile {
     pub base: Option<String>,
     /// Git already filled this file in from a remembered resolution; it only needs review and staging.
     pub prefilled: bool,
+    /// While merging: the branch being merged in (the "theirs" side). `None` for other operations.
+    pub theirs_name: Option<String>,
+}
+
+/// The branch named in a merge message such as "Merge branch 'bugfix' into release-4".
+pub(crate) fn merge_msg_branch(line: &str) -> Option<String> {
+    let q = char::from(39);
+    let rest = ["Merge branch ", "Merge remote-tracking branch ", "Merge tag "]
+        .iter()
+        .find_map(|p| line.strip_prefix(p))?;
+    let rest = rest.strip_prefix(q)?;
+    let end = rest.find(q)?;
+    Some(rest[..end].to_string())
+}
+
+/// During a merge, the name of the branch being merged in.
+fn incoming_name(path: &str) -> Option<String> {
+    let dir = PathBuf::from(run_git(path, ["rev-parse", "--absolute-git-dir"]).ok()?.trim());
+    if !dir.join("MERGE_HEAD").exists() {
+        return None;
+    }
+    let msg = fs::read_to_string(dir.join("MERGE_MSG")).unwrap_or_default();
+    if let Some(name) = msg.lines().next().and_then(merge_msg_branch) {
+        return Some(name);
+    }
+    run_git(
+        path,
+        ["name-rev", "--name-only", "--no-undefined", "--refs=refs/heads/*", "--refs=refs/remotes/*", "MERGE_HEAD"],
+    )
+    .ok()
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
 }
 
 #[tauri::command]
@@ -1450,7 +1482,8 @@ pub async fn conflict_file(path: String, file: String) -> Result<ConflictFile, S
         let stage = |n: u8| run_git(&path, ["show", &format!(":{n}:{file}")]).ok();
         let (ours, theirs) = (stage(2), stage(3));
         let prefilled = ours.is_some() && theirs.is_some() && rerere_prefilled(&path, &file, &work);
-        Ok(ConflictFile { work, ours, theirs, base: stage(1), prefilled })
+        let theirs_name = incoming_name(&path);
+        Ok(ConflictFile { work, ours, theirs, base: stage(1), prefilled, theirs_name })
     })
     .await
 }
@@ -1691,6 +1724,15 @@ pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Resul
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn reads_the_branch_from_a_merge_message() {
+        assert_eq!(merge_msg_branch("Merge branch 'bugfix' into release-4").as_deref(), Some("bugfix"));
+        assert_eq!(merge_msg_branch("Merge branch 'feature/x'").as_deref(), Some("feature/x"));
+        assert_eq!(merge_msg_branch("Merge remote-tracking branch 'origin/develop' into x").as_deref(), Some("origin/develop"));
+        assert_eq!(merge_msg_branch("Merge commit 'abc123'"), None);
+        assert_eq!(merge_msg_branch("Fix something"), None);
+    }
 
     #[test]
     fn parses_merge_tree_output() {

@@ -80,6 +80,8 @@ export interface ConflictFile {
   base: string | null;
   /** Git filled the file in from a remembered resolution; it only needs review and staging. */
   prefilled?: boolean;
+  /** While merging: the branch being merged in (the "theirs" side). */
+  theirsName?: string | null;
 }
 
 export interface RebaseCommit {
