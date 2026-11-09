@@ -27,6 +27,19 @@ Built with **Tauri 2** (Rust) and **React + TypeScript**.
 > docs**, or **send code**. Start with [Help us test](#help-us-test-on-macos-and-linux) or [CONTRIBUTING.md](CONTRIBUTING.md) —
 > and if you're not sure where to begin, just open an issue and say hello.
 
+## Install
+
+Download the installer for your system from the **[latest release](https://github.com/suhailaleryani/treeline/releases/latest)**:
+
+| OS | Download | Notes |
+| --- | --- | --- |
+| **Windows 10/11** | `…-setup.exe` (or `.msi`) | Unsigned: SmartScreen → **More info → Run anyway** |
+| **macOS 12+** | `.dmg` (`aarch64` = Apple Silicon, `x64` = Intel) | Unsigned: right-click the app → **Open** once |
+| **Linux** | `.AppImage` (`chmod +x`, run), `.deb` (`sudo apt install ./file.deb`) or `.rpm` | Needs WebKitGTK 4.1 |
+
+Install [Git 2.30+](https://git-scm.com) first. Full steps are in the [User Guide](docs/USER_GUIDE.md#installing-treeline).
+macOS and Linux builds are untested (see the status table above). Prefer to build it yourself? See [Build installers](#build-installers).
+
 ## Features
 
 | Area | What you get |

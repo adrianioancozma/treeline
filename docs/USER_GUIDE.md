@@ -26,6 +26,35 @@ your passwords: sign-in is handled by your normal Git setup (see [Signing in](#s
 
 ## 1. Before you start
 
+### Installing Treeline
+Download the installer for your system from the **[latest release](https://github.com/suhailaleryani/treeline/releases/latest)**
+(open **Assets** at the bottom of the page), then follow the steps for your system. Install [Git](#git-requirement) first
+if you do not have it.
+
+**Windows 10 or 11**
+1. Download the `…-setup.exe` file (or the `.msi` if your organisation prefers MSI packages).
+2. Run it and follow the prompts. Treeline appears in the Start menu.
+3. The installers are not code-signed yet, so Windows SmartScreen may say *Unknown publisher*. Choose **More info → Run anyway**.
+
+**macOS 12 or newer**
+1. Download the `.dmg` for your Mac: `aarch64` for Apple Silicon (M1 and later), `x64` for Intel.
+2. Open it and drag **Treeline** into **Applications**.
+3. The app is not notarised yet, so macOS may refuse to open it. Right-click the app, choose **Open**, then **Open** again.
+   If it says the app is *damaged*, run `xattr -dr com.apple.quarantine /Applications/Treeline.app` in Terminal.
+
+**Linux**
+* **AppImage** (any distribution): download the `.AppImage`, then `chmod +x Treeline*.AppImage` and run it.
+* **Debian, Ubuntu**: `sudo apt install ./treeline_*.deb`
+* **Fedora, openSUSE**: `sudo dnf install ./treeline-*.rpm`
+* You need WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`), which the `.deb` and `.rpm` pull in automatically.
+
+> **macOS and Linux are not fully tested yet.** Windows is the verified platform. If something does not work on your
+> system, please tell us (see *Help us test* in the project's README).
+
+Once installed, the app updates itself: it tells you when a new version is out (see *Version and updates* below).
+If you would rather build it yourself, see the README's *Build installers* section.
+
+### Git requirement
 * **Git must be installed** (version 2.30 or newer) and available on your `PATH`. Check by running `git --version` in a
   terminal. Windows: download from <https://git-scm.com>. macOS: run `xcode-select --install` in Terminal, or
   `brew install git`. Linux: `sudo apt install git` (or your distribution's equivalent).

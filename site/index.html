@@ -26,7 +26,7 @@
     <h1>The Git client that <em>keeps up</em><br>with your repositories</h1>
     <p class="lead">Many tabs, big histories, submodules everywhere — and it stays fast. Works with <strong>any Git server</strong>: self-hosted, GitLab, Gitea, Azure DevOps, or a plain folder.</p>
     <div class="cta">
-      <a class="btn primary" href="#get-it">Get started</a>
+      <a class="btn primary" href="#get-it">Install</a>
       <a class="btn" href="docs/index.html">Read the docs</a>
       <a class="btn" href="present.html">View the presentation</a>
     </div>
@@ -124,18 +124,24 @@
 
   <section class="block" id="get-it">
     <div class="wrap">
-      <h2>Get it running</h2>
-      <p class="sub">It needs Git 2.30 or newer on your <code>PATH</code>. Installers are built per operating system.</p>
-      <ol class="steps">
-        <li><strong>Install Git</strong><br>Check with <code>git --version</code>, and set your name and email once.</li>
-        <li><strong>Build or install</strong><br>Run <code>pnpm tauri build</code> on your OS, or run the Windows installer from <code>src-tauri/target/release/bundle</code>.</li>
-        <li><strong>Open a repository</strong><br>Press <kbd>Ctrl</kbd>+<kbd>O</kbd>, or clone one. Star it to keep it one click away.</li>
-      </ol>
-      <div class="cta" style="margin-top:26px">
-        <a class="btn primary" href="docs/1-before-you-start.html">Setup guide</a>
-        <a class="btn" href="docs/5-everyday-workflow.html">Everyday workflow</a>
-        <a class="btn" href="docs/13-when-something-goes-wrong.html">When something goes wrong</a>
+      <h2>Install Treeline</h2>
+      <p class="sub">Download the installer for your system from the latest release. Treeline needs Git 2.30 or newer on your <code>PATH</code>.</p>
+      <div class="grid">
+        <div class="card"><div class="ico" aria-hidden="true">🪟</div><h3>Windows 10 / 11</h3><p>Download the <code>-setup.exe</code> (or <code>.msi</code>) and run it. Unsigned for now: if SmartScreen warns, choose <strong>More info → Run anyway</strong>.</p></div>
+        <div class="card"><div class="ico" aria-hidden="true">🍎</div><h3>macOS 12+</h3><p>Download the <code>.dmg</code> (<code>aarch64</code> for Apple Silicon, <code>x64</code> for Intel) and drag Treeline to Applications. Right-click → <strong>Open</strong> the first time. <em>Untested.</em></p></div>
+        <div class="card"><div class="ico" aria-hidden="true">🐧</div><h3>Linux</h3><p>Use the <code>.AppImage</code> (<code>chmod +x</code>, then run), the <code>.deb</code> (<code>sudo apt install ./file.deb</code>) or the <code>.rpm</code>. <em>Untested.</em></p></div>
       </div>
+      <div class="cta" style="margin-top:26px">
+        <a class="btn primary" href="https://github.com/suhailaleryani/treeline/releases/latest">Download latest release</a>
+        <a class="btn" href="docs/1-before-you-start.html#installing-treeline">Step-by-step install guide</a>
+      </div>
+      <h3 style="margin-top:34px">Then</h3>
+      <ol class="steps">
+        <li><strong>Check Git</strong><br>Run <code>git --version</code>, and set your name and email once.</li>
+        <li><strong>Open a repository</strong><br>Press <kbd>Ctrl</kbd>+<kbd>O</kbd>, or clone one. Star it to keep it one click away.</li>
+        <li><strong>Learn the flow</strong><br>The <a href="docs/5-everyday-workflow.html">everyday workflow</a> takes five minutes.</li>
+      </ol>
+      <p class="note">Prefer to build from source? See the <a href="https://github.com/suhailaleryani/treeline#build-installers">README</a>.</p>
     </div>
   </section>
 </main>

@@ -45,6 +45,37 @@
 <main class="doc-main" id="main">
 <article class="prose">
 <h1>1. Before you start</h1>
+<h3 id="installing-treeline">Installing Treeline</h3>
+<p>Download the installer for your system from the <strong><a href="https://github.com/suhailaleryani/treeline/releases/latest">latest release</a></strong>
+(open <strong>Assets</strong> at the bottom of the page), then follow the steps for your system. Install <a href="1-before-you-start.html#git-requirement">Git</a> first
+if you do not have it.</p>
+<p><strong>Windows 10 or 11</strong></p>
+<ol>
+<li>Download the <code>…-setup.exe</code> file (or the <code>.msi</code> if your organisation prefers MSI packages).</li>
+<li>Run it and follow the prompts. Treeline appears in the Start menu.</li>
+<li>The installers are not code-signed yet, so Windows SmartScreen may say <em>Unknown publisher</em>. Choose <strong>More info → Run anyway</strong>.</li>
+</ol>
+<p><strong>macOS 12 or newer</strong></p>
+<ol>
+<li>Download the <code>.dmg</code> for your Mac: <code>aarch64</code> for Apple Silicon (M1 and later), <code>x64</code> for Intel.</li>
+<li>Open it and drag <strong>Treeline</strong> into <strong>Applications</strong>.</li>
+<li>The app is not notarised yet, so macOS may refuse to open it. Right-click the app, choose <strong>Open</strong>, then <strong>Open</strong> again.
+If it says the app is <em>damaged</em>, run <code>xattr -dr com.apple.quarantine /Applications/Treeline.app</code> in Terminal.</li>
+</ol>
+<p><strong>Linux</strong></p>
+<ul>
+<li><strong>AppImage</strong> (any distribution): download the <code>.AppImage</code>, then <code>chmod +x Treeline*.AppImage</code> and run it.</li>
+<li><strong>Debian, Ubuntu</strong>: <code>sudo apt install ./treeline_*.deb</code></li>
+<li><strong>Fedora, openSUSE</strong>: <code>sudo dnf install ./treeline-*.rpm</code></li>
+<li>You need WebKitGTK 4.1 (<code>libwebkit2gtk-4.1-0</code>), which the <code>.deb</code> and <code>.rpm</code> pull in automatically.</li>
+</ul>
+<blockquote>
+<p><strong>macOS and Linux are not fully tested yet.</strong> Windows is the verified platform. If something does not work on your
+system, please tell us (see <em>Help us test</em> in the project&#39;s README).</p>
+</blockquote>
+<p>Once installed, the app updates itself: it tells you when a new version is out (see <em>Version and updates</em> below).
+If you would rather build it yourself, see the README&#39;s <em>Build installers</em> section.</p>
+<h3 id="git-requirement">Git requirement</h3>
 <ul>
 <li><strong>Git must be installed</strong> (version 2.30 or newer) and available on your <code>PATH</code>. Check by running <code>git --version</code> in a
 terminal. Windows: download from <a href="https://git-scm.com">https://git-scm.com</a>. macOS: run <code>xcode-select --install</code> in Terminal, or
@@ -75,7 +106,7 @@ account on the server.</li>
 <a href="13-when-something-goes-wrong.html">section 13</a>).</p>
 
 </article>
-<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#signing-in">Signing in</a></li></ul></aside>
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#installing-treeline">Installing Treeline</a></li><li><a href="#git-requirement">Git requirement</a></li><li><a href="#signing-in">Signing in</a></li></ul></aside>
 <nav class="pager" aria-label="Previous and next page">
   <a class="prev" href="index.html"><small>Previous</small>Introduction</a>
   <a class="next" href="2-opening-and-cloning-repositories.html"><small>Next</small>2. Opening and cloning repositories</a>
