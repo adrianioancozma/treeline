@@ -1001,6 +1001,75 @@ pub async fn merge_into_branches(path: String, source: String, targets: Vec<Stri
     .await
 }
 
+/// Files where the merge commit at the tip of `target` (whose second parent is `source_sha`) kept the
+/// branch's own version and dropped the source's change. Empty when the tip is not such a merge.
+pub(crate) fn discarded_by_merge(path: &str, source_sha: &str, target: &str) -> Vec<String> {
+    let names = |a: &str, b: &str| -> Vec<String> {
+        run_git(path, ["diff", "--name-only", "-z", a, b])
+            .unwrap_or_default()
+            .split('\0')
+            .filter(|f| !f.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let tip_ref = format!("refs/heads/{target}");
+    let Ok(line) = run_git(path, ["rev-list", "--parents", "-n", "1", &tip_ref]) else { return vec![] };
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() != 3 || parts[2] != source_sha {
+        return vec![];
+    }
+    let (tip, p1, p2) = (parts[0], parts[1], parts[2]);
+    let Ok(base) = run_git(path, ["merge-base", p1, p2]) else { return vec![] };
+    let changed_by_source = names(base.trim(), p2);
+    let differs_from_ours = names(p1, tip);
+    let differs_from_source = names(p2, tip);
+    changed_by_source
+        .into_iter()
+        .filter(|f| !differs_from_ours.contains(f) && differs_from_source.contains(f))
+        .collect()
+}
+
+/// After a hand-resolved merge: did the result drop the source's changes in some files?
+#[tauri::command]
+pub async fn check_merge_result(path: String, source: String, target: String) -> Result<Vec<String>, String> {
+    blocking(move || {
+        let sha = resolve_commit(&path, &source)?;
+        Ok(discarded_by_merge(&path, &sha, &target))
+    })
+    .await
+}
+
+/// True when git (rerere) already filled in `file` from an earlier resolution: it is still unmerged
+/// but its content has no conflict markers. Only meaningful for a file that is currently unmerged.
+fn rerere_prefilled(path: &str, file: &str, work: &str) -> bool {
+    if work.lines().any(|l| l.starts_with("<<<<<<<")) {
+        return false;
+    }
+    // `rerere remaining` lists unmerged paths rerere could NOT fill in (including delete/modify
+    // conflicts), so an unmerged path with no markers that is absent from it was auto-resolved.
+    run_git(path, ["-c", "rerere.enabled=true", "rerere", "remaining"])
+        .map(|s| !s.lines().any(|l| l.trim() == file))
+        .unwrap_or(false)
+}
+
+/// Conflicted files that git has already filled in from a remembered resolution and that still need
+/// to be reviewed and staged.
+#[tauri::command]
+pub async fn prefilled_conflicts(path: String) -> Result<Vec<String>, String> {
+    blocking(move || {
+        let raw = run_git(&path, ["diff", "--name-only", "-z", "--diff-filter=U"])?;
+        Ok(raw
+            .split('\0')
+            .filter(|f| !f.is_empty())
+            .filter(|f| {
+                fs::read_to_string(Path::new(&path).join(f)).map(|w| rerere_prefilled(&path, f, &w)).unwrap_or(false)
+            })
+            .map(str::to_string)
+            .collect())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn rebase(path: String, onto: String) -> Result<OpResult, String> {
     blocking(move || run_op(&path, ["rebase", "--autostash", &onto], &[("GIT_EDITOR", "true".into())])).await
@@ -1260,6 +1329,8 @@ pub struct ConflictFile {
     pub ours: Option<String>,
     pub theirs: Option<String>,
     pub base: Option<String>,
+    /// Git already filled this file in from a remembered resolution; it only needs review and staging.
+    pub prefilled: bool,
 }
 
 #[tauri::command]
@@ -1277,7 +1348,9 @@ pub async fn conflict_file(path: String, file: String) -> Result<ConflictFile, S
             Err(_) => String::new(),
         };
         let stage = |n: u8| run_git(&path, ["show", &format!(":{n}:{file}")]).ok();
-        Ok(ConflictFile { work, ours: stage(2), theirs: stage(3), base: stage(1) })
+        let (ours, theirs) = (stage(2), stage(3));
+        let prefilled = ours.is_some() && theirs.is_some() && rerere_prefilled(&path, &file, &work);
+        Ok(ConflictFile { work, ours, theirs, base: stage(1), prefilled })
     })
     .await
 }
@@ -1562,6 +1635,56 @@ mod tests {
         assert_eq!((c.status.as_str(), c.files), ("conflict", vec!["a.txt".to_string()]));
         assert_eq!(classify_merge(&p, &sha, "fix").status, "up-to-date");
         assert_eq!(classify_merge(&p, &sha, "nope").status, "error");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn detects_prefilled_conflicts_and_dropped_changes() {
+        let dir = std::env::temp_dir().join(format!("treeline-pf-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.to_string_lossy().to_string();
+        let g = |args: &[&str]| {
+            run_git(&p, ["-c", "user.name=t", "-c", "user.email=t@t"].iter().chain(args.iter()).copied())
+        };
+        g(&["init", "-q", "-b", "main"]).unwrap();
+        g(&["config", "rerere.enabled", "true"]).unwrap();
+        fs::write(dir.join("a.txt"), "one\n").unwrap();
+        g(&["add", "."]).unwrap();
+        g(&["commit", "-qm", "base"]).unwrap();
+        for b in ["rel-4", "rel-5"] {
+            g(&["checkout", "-q", "-b", b, "main"]).unwrap();
+            fs::write(dir.join("a.txt"), "different\n").unwrap();
+            g(&["commit", "-qam", b]).unwrap();
+        }
+        g(&["checkout", "-q", "-b", "fix", "main"]).unwrap();
+        fs::write(dir.join("a.txt"), "fixed\n").unwrap();
+        g(&["commit", "-qam", "fix"]).unwrap();
+        let sha = resolve_commit(&p, "fix").unwrap();
+
+        // First conflict resolved by hand and recorded.
+        g(&["checkout", "-q", "rel-4"]).unwrap();
+        assert!(g(&["merge", "--no-edit", "fix"]).is_err());
+        let a = fs::read_to_string(dir.join("a.txt")).unwrap();
+        assert!(a.contains("<<<<<<<"), "a real conflict has markers");
+        assert!(!rerere_prefilled(&p, "a.txt", &a));
+        fs::write(dir.join("a.txt"), "different\nfixed\n").unwrap();
+        g(&["add", "a.txt"]).unwrap();
+        g(&["commit", "-qm", "merge into rel-4"]).unwrap();
+        assert!(discarded_by_merge(&p, &sha, "rel-4").is_empty(), "a combined result keeps the change");
+
+        // The same conflict on rel-5: git fills the file in, with no markers, but it is still unmerged.
+        g(&["checkout", "-q", "rel-5"]).unwrap();
+        assert!(g(&["merge", "--no-edit", "fix"]).is_err());
+        let a = fs::read_to_string(dir.join("a.txt")).unwrap();
+        assert!(!a.contains("<<<<<<<"), "rerere replaced the markers: {a}");
+        assert!(rerere_prefilled(&p, "a.txt", &a));
+
+        // Choosing "ours" at that point drops the fix, and the check says so.
+        g(&["checkout", "--ours", "--", "a.txt"]).unwrap();
+        g(&["add", "a.txt"]).unwrap();
+        g(&["commit", "-qm", "merge into rel-5"]).unwrap();
+        assert_eq!(discarded_by_merge(&p, &sha, "rel-5"), vec!["a.txt".to_string()]);
         let _ = fs::remove_dir_all(&dir);
     }
 

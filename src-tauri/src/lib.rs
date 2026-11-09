@@ -96,6 +96,8 @@ pub fn run() {
             ops::checkout,
             ops::preview_merge,
             ops::merge_into_branches,
+            ops::check_merge_result,
+            ops::prefilled_conflicts,
             ops::checkout_remote,
             ops::create_branch,
             ops::rename_branch,
