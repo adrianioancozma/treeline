@@ -1062,7 +1062,11 @@ pub async fn prefilled_conflicts(path: String) -> Result<Vec<String>, String> {
             .split('\0')
             .filter(|f| !f.is_empty())
             .filter(|f| {
-                fs::read_to_string(Path::new(&path).join(f)).map(|w| rerere_prefilled(&path, f, &w)).unwrap_or(false)
+                safe_real_path(&path, f)
+                    .ok()
+                    .and_then(|full| fs::read_to_string(full).ok())
+                    .map(|w| rerere_prefilled(&path, f, &w))
+                    .unwrap_or(false)
             })
             .map(str::to_string)
             .collect())
@@ -1422,6 +1426,36 @@ fn safe_join(repo: &str, rel: &str) -> Result<PathBuf, String> {
     Ok(Path::new(repo).join(rel_path))
 }
 
+/// Like `safe_join`, but also refuses a symbolic link at the file or at any folder above it inside the
+/// repository. A repository can contain a link such as `a.txt -> ~/.ssh/authorized_keys`; reading or
+/// writing through it would reach outside the repository.
+fn safe_real_path(repo: &str, rel: &str) -> Result<PathBuf, String> {
+    let full = safe_join(repo, rel)?;
+    let mut cur = PathBuf::from(repo);
+    for comp in Path::new(rel).components() {
+        cur.push(comp);
+        match fs::symlink_metadata(&cur) {
+            Ok(m) if m.file_type().is_symlink() => {
+                return Err(format!(
+                    "{rel} is (or sits inside) a symbolic link, so it is not edited here: it could point outside the repository. Use Keep ours or Keep theirs for the whole file."
+                ));
+            }
+            _ => {}
+        }
+    }
+    // Windows junctions and unusual mounts do not always report as symlinks: also require the real
+    // location of the containing folder to stay inside the real repository folder.
+    let root = fs::canonicalize(repo).map_err(|e| e.to_string())?;
+    if let Some(parent) = full.parent() {
+        if let Ok(real) = fs::canonicalize(parent) {
+            if !real.starts_with(&root) {
+                return Err(format!("{rel} resolves outside the repository, so it was left alone."));
+            }
+        }
+    }
+    Ok(full)
+}
+
 #[derive(Serialize)]
 pub struct ConflictFile {
     /// Working-tree content, including conflict markers.
@@ -1468,7 +1502,7 @@ fn incoming_name(path: &str) -> Option<String> {
 #[tauri::command]
 pub async fn conflict_file(path: String, file: String) -> Result<ConflictFile, String> {
     blocking(move || {
-        let full = safe_join(&path, &file)?;
+        let full = safe_real_path(&path, &file)?;
         // Refuse non-UTF-8 files: a lossy decode would permanently alter bytes outside the
         // conflict region when the resolution is written back.
         let work = match fs::read(&full) {
@@ -1534,7 +1568,7 @@ pub async fn remove_lock_file(path: String, lock: String) -> Result<(), String> 
 #[tauri::command]
 pub async fn save_resolution(path: String, file: String, content: String) -> Result<(), String> {
     blocking(move || {
-        let full = safe_join(&path, &file)?;
+        let full = safe_real_path(&path, &file)?;
         fs::write(&full, content).map_err(|e| e.to_string())?;
         run_git(&path, [LITERAL, "add", "--", &file]).map(|_| ())
     })
@@ -1910,6 +1944,56 @@ mod tests {
         assert_eq!(r[0].track.as_deref(), Some("[ahead 1]"));
         assert_eq!(r[1].name, "origin/dev");
         assert_eq!(r[2].sha, "eee");
+    }
+
+    /// Makes a symbolic link, or returns false when the platform or account does not allow it
+    /// (Windows needs developer mode or elevated rights), in which case the test is skipped.
+    fn try_symlink(target: &Path, link: &Path) -> bool {
+        #[cfg(unix)]
+        let r = std::os::unix::fs::symlink(target, link);
+        #[cfg(windows)]
+        let r = if target.is_dir() {
+            // A junction needs no special rights, unlike a symbolic link, and is also a way out of a repository.
+            std::os::windows::fs::symlink_dir(target, link).or_else(|_| {
+                let ok = std::process::Command::new("cmd")
+                    .args(["/C", "mklink", "/J"])
+                    .arg(link)
+                    .arg(target)
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+                if ok { Ok(()) } else { Err(std::io::Error::other("mklink failed")) }
+            })
+        } else {
+            std::os::windows::fs::symlink_file(target, link)
+        };
+        r.is_ok()
+    }
+
+    #[test]
+    fn refuses_files_reached_through_symlinks() {
+        let base = std::env::temp_dir().join(format!("treeline-sl-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let repo = base.join("repo");
+        let outside = base.join("outside");
+        fs::create_dir_all(repo.join("sub")).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "secret").unwrap();
+        fs::write(repo.join("sub").join("ok.txt"), "fine").unwrap();
+        let r = repo.to_string_lossy().to_string();
+        assert!(safe_real_path(&r, "sub/ok.txt").is_ok(), "a normal file is fine");
+        assert!(safe_real_path(&r, "new-file.txt").is_ok(), "a file that does not exist yet is fine");
+        if try_symlink(&outside.join("secret.txt"), &repo.join("link.txt")) {
+            assert!(safe_real_path(&r, "link.txt").is_err(), "a link to a file outside");
+        } else {
+            eprintln!("skipped file-symlink check: cannot create symlinks here");
+        }
+        if try_symlink(&outside, &repo.join("linkdir")) {
+            assert!(safe_real_path(&r, "linkdir/secret.txt").is_err(), "a file inside a linked folder");
+        } else {
+            eprintln!("skipped folder-symlink check: cannot create symlinks here");
+        }
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
