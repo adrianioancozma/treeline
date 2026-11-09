@@ -35,6 +35,9 @@ your passwords: sign-in is handled by your normal Git setup (see [Signing in](#s
 * **Version and updates.** The version number is at the bottom right of the window and in **Settings**. The app checks
   for a newer version when it starts and tells you if there is one. You can also use **Settings → Check for updates**.
   Nothing is installed until you press **Install and restart**.
+* **Keep Git up to date.** Treeline runs your Git, so it is only as safe as that Git. If yours is older than the July 2025
+  security fixes for cloning and submodules, a notice appears once at start-up. Update Git (see above) before cloning or
+  updating submodules of a repository you do not fully trust.
 * **Tell Git who you are** once per computer, otherwise commits are refused:
   ```
   git config --global user.name  "Your Name"
@@ -62,6 +65,29 @@ If a fetch/push fails with an authentication error, the app explains it and show
 | Clone including submodules | Leave **Clone submodules too** ticked (default). |
 | Reopen something I used before | Click its card under **Bookmarks** on the home screen, or use the command palette (`Ctrl+K`). |
 
+### Opening repositories safely
+
+A folder handed to you with its own `.git` can carry settings or scripts that make Git run programs on your computer.
+Treeline protects you in a few ways:
+
+* **Only folders you opened.** Treeline works only on folders you chose with **Open repository…** or **Clone…**, folders
+  you opened before (they come back when you restart), and folders inside those (a submodule, for example). Anything else is refused with
+  *“That folder has not been opened in Treeline.”* A whole drive cannot be opened as a repository.
+* **“This repository can run programs.”** The first time you open a folder whose own settings or hooks can run programs, a
+  window lists what it found: hook scripts, `core.hooksPath` (used by tools such as husky), `core.sshCommand`, filter, merge
+  or diff drivers, credential helpers that run a program, signing programs, or an included settings file. Nothing in the
+  repository has been run at that point.
+  * **Open anyway** opens it and remembers your answer for that folder. Closing the window opens nothing.
+  * Open only folders you made yourself or got from a source you trust. Git LFS and ordinary credential helpers
+    (`manager`, `osxkeychain`) are normal and do not trigger the window. If the check itself could not run, you are asked
+    in the same way.
+* **Always off.** For its own Git calls Treeline switches off two settings that would run a program just by looking at a
+  repository: `core.fsmonitor` and external diff programs (and text-conversion drivers when showing a diff). In ordinary
+  repositories you will notice nothing; in a very large repository that relies on Git's built-in file-system monitor,
+  refreshing can be a little slower.
+* **Cloning.** A destination you choose with **Browse** is trusted. If you type the destination instead, a window of the
+  operating system asks you to confirm *“Clone … into …”* first.
+
 If a clone succeeds but a *submodule* can't be downloaded (for example no access to it), the repository still opens and a
 message explains what to do; the submodule appears greyed-out in the sidebar and can be initialised later.
 
@@ -83,7 +109,7 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 
 ```
 ┌ Tabs ─────────────────────────────────────────────────────  ⌘ palette · ☀ theme ┐
-│ Repo name · branch chip · ★   [Commit][Fetch][Pull▾][Push] [Branch][Merge][Stash][Tag] [Terminal][Explorer][Refresh] │
+│ Repo name · branch chip · ★   [Commit][Fetch][Pull▾][Push] [Branch][Sync subs][Merge][Merge to many][Stash][Tag] [Terminal][Explorer][Refresh] │
 ├──────────────┬──────────────────────────────────────────────────────────────────┤
 │  Sidebar     │  Main area: File status  — or —  History                         │
 │  • File status│                                                                  │
@@ -101,6 +127,10 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 * **Toolbar badges:** the number on *Commit* is how many files changed; on *Push* how many commits you haven't pushed; on
   *Pull* how many commits are waiting on the server.
 * **Branch chip** `main ↑1 ↓2` – you are 1 commit ahead of and 2 commits behind the remote branch.
+* **Sync subs** appears when the repository has submodules (section 9). **Merge to many** merges one branch into several at
+  once, with a conflict check first (section 10).
+* **Hover for hints.** The buttons in the conflict resolver (Use ours, Keep theirs, Mark resolved …) explain exactly what
+  they do and name the branches involved.
 * **Right-click** almost anything (branches, tags, stashes, files, commits, submodules) for its actions.
 * **Drag the thin dividers** between panels to resize them; sizes are remembered.
 * **Theme:** the ☀ button switches light/dark (or choose “follow system” in the command palette).
@@ -152,7 +182,11 @@ Open **History** (sidebar).
 * Each row is a commit: graph lines on the left, then message, author, date, short ID. Coloured tags are branches
   (green), remote branches (purple), tags (amber) and where you are (blue = current branch).
 * The top row **Uncommitted changes** appears when you have local changes; click it to jump to File status.
-* Click a commit to see its details and the files it changed; click a file to see that file's diff.
+* Click a commit to see its details in the panel below the list: the full message, author, date and parents, the **Changed
+  files**, and the diff of the selected file. The panel always keeps room, so a tall list can never push it off the screen,
+  even in a small window. Drag the divider between the list and the panel to resize it.
+* Drag the thin bar between the **message box** and **Changed files** to make the message taller; double-click it to go back
+  to automatic height. Both boxes scroll on their own when their content does not fit.
 * **Search** box: finds commits whose *message* contains your text (plain text, not a pattern). Untick **All branches** to
   show only the current branch's history.
 * **Highlight a branch:** click a branch, remote branch or tag in the sidebar — the graph scrolls to its tip and
@@ -181,6 +215,8 @@ Open **History** (sidebar).
   tracking branches. If you have uncommitted changes that would be overwritten, the app tells you and offers to stash.
 * **Rename / delete:** right-click the branch. Deleting a branch that isn't fully merged requires ticking the box
   *Delete even if it is not fully merged*. Remote branches can be deleted from the server via *Delete from server…*.
+* **Merge one branch into several:** right-click a branch → *Merge this into multiple branches…* (section 10). If the
+  repository has submodules, *Check out + switch submodules* also moves them (section 9).
 * **Tags:** toolbar **Tag** (or right-click a commit). Add a message to create an *annotated* tag. Right-click a tag to push
   it to the server or delete it (locally).
 
@@ -214,6 +250,16 @@ A submodule is another repository embedded inside this one (the sidebar's **Subm
 * A grey (not-initialised) submodule is downloaded for you when you open it (*Initialise & open*).
 * **Update all submodules** (right-click any submodule, or the palette) checks out every submodule at the commit the parent
   expects.
+* **Switch the submodules to the same branch.** When the submodules have a branch with the same name as the one you use in
+  the parent (for example `release-2`), right-click the branch → **Check out + switch submodules**, or **Switch submodules to
+  this branch** for the branch that is already checked out, or press **Sync subs** in the toolbar (it uses the current
+  branch).
+  * Each downloaded submodule moves to the branch of that name if it exists there, either locally or as a remote branch (a
+    local tracking branch is created). Submodules that are not downloaded, or that do not have that branch, are skipped.
+  * A submodule that cannot switch (for example because it has uncommitted changes) is reported, and the others still
+    switch. Nothing is forced.
+  * Treeline does not fetch first. If the branch exists only on the server, **Fetch** inside that submodule.
+  * The parent then shows the submodules as changed (amber); commit that to record their new versions.
 * After you commit inside a submodule, the **parent** shows the submodule as changed (it now points to a new commit).
   Stage and commit that in the parent to record the new version.
 
@@ -224,6 +270,41 @@ A submodule is another repository embedded inside this one (the sidebar's **Subm
 ### Merge
 Toolbar **Merge** (or right-click a branch → *Merge into …*). Options: always create a merge commit (`--no-ff`), or squash
 everything into one uncommitted change.
+
+### Merge one branch into several (Merge to many)
+Use this when the same change must reach several branches, for example a bug fix that belongs in `release-1`, `release-2`,
+`release-3` and `release-4`. You do it once instead of four times, and you see the conflicts **before** anything changes.
+
+1. Toolbar **Merge to many** (or right-click a branch → *Merge this into multiple branches…*).
+2. **Choose.** *Merge from* is the current branch unless you change it. Tick the branches that should receive it
+   (**Select all** is there too), then **Next: check for conflicts**. Nothing has changed yet.
+3. **Review.** Treeline test-merges into every branch without touching your files and shows one result for each:
+   *Fast-forward*, *Clean merge*, *Already up to date*, *Conflict* (with the files that conflict) or *Cannot merge* (for
+   example the branch is checked out in another worktree). Safe branches are ticked; conflicting ones cannot be ticked.
+   Press **Merge into N branches**.
+4. **Done.** You get one line per branch. Nothing is pushed: push each branch yourself afterwards.
+
+How the merges are made: a branch that is not checked out is updated directly, without switching to it, with a merge commit
+named *Merge branch 'X' into Y*. The branch you have checked out gets a normal merge, so commit or stash your uncommitted
+changes first if Git refuses. Every branch is checked again right before merging, and one that has become conflicting is
+skipped, never forced.
+
+**A branch with conflicts.** Press **Resolve…** next to it. The dialog hides, Treeline checks that branch out and starts the
+merge, and you resolve the conflicts in File status as usual (see *Conflicts* below) and press **Continue**. A bar at the
+bottom of the window then offers **Resume**: Treeline re-tests every branch, and the one you finished shows as *Already up to
+date*. **Cancel** closes everything.
+
+**Reuse my resolution.** The first time you press **Resolve…**, Treeline turns on Git's *rerere* (“reuse recorded
+resolution”) for this repository, which is a setting in its `.git/config`, and tells you so. Git then remembers how you
+resolved the conflict. Afterwards, branches that still conflict get **Apply my earlier resolution to N**. For each one
+Treeline checks the branch out, lets Git replay your fix, and commits only if every conflict was covered; otherwise it
+aborts and leaves the branch untouched and says so. This needs a clean working tree and returns you to the branch you were
+on. It works when the conflict is identical, which is typical for the same fix going to several release branches.
+
+**“Merged, but changes dropped.”** If a merge ended up with a branch's own version of a file (for example you chose **Keep
+ours** where you should have combined), the change you wanted is missing there. Treeline checks this when you press
+**Resume** and after replaying a resolution, and shows a red banner naming the branch and files. To fix it, **Revert** that
+merge commit and merge again.
 
 ### Rebase
 Right-click a branch → *Rebase current onto this…* replays your commits on top of another branch for a linear history.
@@ -242,6 +323,15 @@ A conflict means both sides changed the same lines. The operation **pauses** —
    the **Result** box by hand.
 3. Click **Mark resolved** (enabled when every conflict is decided). Repeat for each file.
 4. When no conflicts remain, press **Continue** in the banner. **Abort** cancels and restores the state from before.
+
+**Hover any button** in the resolver for a hint that says exactly what it does and what it throws away. The hints and the
+column headings (*Ours · release-4*, *Theirs · bugfix*) name the real branches. **Use this result** and **Mark resolved**
+stage the file but do not commit; you commit the merge afterwards with **Continue**.
+
+**“Filled in from your earlier resolution.”** When Git already applied a resolution it remembered (see *Reuse my
+resolution* above), the file has no conflict markers although it is still unresolved. The resolver then shows the result and
+a **Use this result** button. Review it and press that. **Keep ours** or **Keep theirs** would throw the remembered
+resolution away.
 
 *Ours* = the branch you are on; *theirs* = the one being merged in (for a rebase these are swapped in meaning, which is
 normal Git behaviour). If one side deleted the file you get **Keep ours / Keep theirs** instead.
@@ -303,6 +393,11 @@ Common situations:
 | *This branch isn't linked to a remote branch yet* | No upstream | Push with **Track this remote branch** |
 | *Git is not installed (or not on PATH)* | The app could not start Git — programs opened from the Start menu or Finder do not always see your terminal's `PATH` | **Locate Git…** and pick `git.exe`, or install Git (section 1) |
 | *A file or folder is in use or protected* | Another program (editor, antivirus, OneDrive) holds a file | Close it; move the repo out of OneDrive |
+| *That folder has not been opened in Treeline* | Treeline only works on folders you chose or that are inside one | Use **Open repository…** (`Ctrl+O`) to pick it (section 2) |
+| *This repository can run programs* | The folder's own settings or hooks can make Git run programs | Press **Open anyway** only if you trust where the folder came from (section 2) |
+| *Your Git is older than the July 2025 security fixes* | An old Git has known clone and submodule bugs | Update Git (section 1) |
+| *'…' is not a valid branch, tag, remote or commit name* | A name that starts with `-` would be read by Git as an option | Choose a different name |
+| *Merged, but changes dropped* (Merge to many) | A branch kept its own version of a file | **Revert** that merge commit and merge again (section 10) |
 
 If the **same** problem keeps appearing, press **Refresh** (`Ctrl+R`), and try the command in the **Terminal** to see Git's
 full output.
@@ -337,6 +432,8 @@ full output.
   editor.
 * Very large histories load 400 commits at a time; keep scrolling to load more.
 * Add `node_modules`, `dist` and build output to `.gitignore` so Git doesn't scan them.
+* **Fix once, release everywhere.** Put the fix on one branch, then use **Merge to many** to bring it to every release
+  branch in one go, with the conflicts listed before anything changes.
 
 ---
 
@@ -356,3 +453,6 @@ full output.
 * **Stash** – a shelf for temporarily saving uncommitted work.
 * **Submodule** – a repository nested inside another.
 * **Fast-forward** – moving a branch forward along a straight line of commits, no merge needed.
+* **Hook** – a script in a repository that Git runs automatically at certain moments (before a commit, after a checkout …).
+* **Rerere** (“reuse recorded resolution”) – a Git feature that remembers how you resolved a conflict and can apply the same
+  fix when the identical conflict appears again.

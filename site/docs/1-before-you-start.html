@@ -55,6 +55,9 @@ You can change this later in <strong>Settings</strong> (the gear icon in the top
 <li><strong>Version and updates.</strong> The version number is at the bottom right of the window and in <strong>Settings</strong>. The app checks
 for a newer version when it starts and tells you if there is one. You can also use <strong>Settings → Check for updates</strong>.
 Nothing is installed until you press <strong>Install and restart</strong>.</li>
+<li><strong>Keep Git up to date.</strong> Treeline runs your Git, so it is only as safe as that Git. If yours is older than the July 2025
+security fixes for cloning and submodules, a notice appears once at start-up. Update Git (see above) before cloning or
+updating submodules of a repository you do not fully trust.</li>
 <li><strong>Tell Git who you are</strong> once per computer, otherwise commits are refused:<pre><code>git config --global user.name  &quot;Your Name&quot;
 git config --global user.email &quot;you@example.com&quot;
 </code></pre>

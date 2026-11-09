@@ -118,6 +118,31 @@ opens this page of the guide.</li>
 <td>Another program (editor, antivirus, OneDrive) holds a file</td>
 <td>Close it; move the repo out of OneDrive</td>
 </tr>
+<tr>
+<td><em>That folder has not been opened in Treeline</em></td>
+<td>Treeline only works on folders you chose or that are inside one</td>
+<td>Use <strong>Open repository…</strong> (<code>Ctrl+O</code>) to pick it (section 2)</td>
+</tr>
+<tr>
+<td><em>This repository can run programs</em></td>
+<td>The folder&#39;s own settings or hooks can make Git run programs</td>
+<td>Press <strong>Open anyway</strong> only if you trust where the folder came from (section 2)</td>
+</tr>
+<tr>
+<td><em>Your Git is older than the July 2025 security fixes</em></td>
+<td>An old Git has known clone and submodule bugs</td>
+<td>Update Git (section 1)</td>
+</tr>
+<tr>
+<td><em>&#39;…&#39; is not a valid branch, tag, remote or commit name</em></td>
+<td>A name that starts with <code>-</code> would be read by Git as an option</td>
+<td>Choose a different name</td>
+</tr>
+<tr>
+<td><em>Merged, but changes dropped</em> (Merge to many)</td>
+<td>A branch kept its own version of a file</td>
+<td><strong>Revert</strong> that merge commit and merge again (section 10)</td>
+</tr>
 </tbody></table></div>
 <p>If the <strong>same</strong> problem keeps appearing, press <strong>Refresh</strong> (<code>Ctrl+R</code>), and try the command in the <strong>Terminal</strong> to see Git&#39;s
 full output.</p>

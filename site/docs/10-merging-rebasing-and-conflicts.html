@@ -48,6 +48,37 @@
 <h3 id="merge">Merge</h3>
 <p>Toolbar <strong>Merge</strong> (or right-click a branch → <em>Merge into …</em>). Options: always create a merge commit (<code>--no-ff</code>), or squash
 everything into one uncommitted change.</p>
+<h3 id="merge-one-branch-into-several-merge-to-many">Merge one branch into several (Merge to many)</h3>
+<p>Use this when the same change must reach several branches, for example a bug fix that belongs in <code>release-1</code>, <code>release-2</code>,
+<code>release-3</code> and <code>release-4</code>. You do it once instead of four times, and you see the conflicts <strong>before</strong> anything changes.</p>
+<ol>
+<li>Toolbar <strong>Merge to many</strong> (or right-click a branch → <em>Merge this into multiple branches…</em>).</li>
+<li><strong>Choose.</strong> <em>Merge from</em> is the current branch unless you change it. Tick the branches that should receive it
+(<strong>Select all</strong> is there too), then <strong>Next: check for conflicts</strong>. Nothing has changed yet.</li>
+<li><strong>Review.</strong> Treeline test-merges into every branch without touching your files and shows one result for each:
+<em>Fast-forward</em>, <em>Clean merge</em>, <em>Already up to date</em>, <em>Conflict</em> (with the files that conflict) or <em>Cannot merge</em> (for
+example the branch is checked out in another worktree). Safe branches are ticked; conflicting ones cannot be ticked.
+Press <strong>Merge into N branches</strong>.</li>
+<li><strong>Done.</strong> You get one line per branch. Nothing is pushed: push each branch yourself afterwards.</li>
+</ol>
+<p>How the merges are made: a branch that is not checked out is updated directly, without switching to it, with a merge commit
+named <em>Merge branch &#39;X&#39; into Y</em>. The branch you have checked out gets a normal merge, so commit or stash your uncommitted
+changes first if Git refuses. Every branch is checked again right before merging, and one that has become conflicting is
+skipped, never forced.</p>
+<p><strong>A branch with conflicts.</strong> Press <strong>Resolve…</strong> next to it. The dialog hides, Treeline checks that branch out and starts the
+merge, and you resolve the conflicts in File status as usual (see <em>Conflicts</em> below) and press <strong>Continue</strong>. A bar at the
+bottom of the window then offers <strong>Resume</strong>: Treeline re-tests every branch, and the one you finished shows as <em>Already up to
+date</em>. <strong>Cancel</strong> closes everything.</p>
+<p><strong>Reuse my resolution.</strong> The first time you press <strong>Resolve…</strong>, Treeline turns on Git&#39;s <em>rerere</em> (“reuse recorded
+resolution”) for this repository, which is a setting in its <code>.git/config</code>, and tells you so. Git then remembers how you
+resolved the conflict. Afterwards, branches that still conflict get <strong>Apply my earlier resolution to N</strong>. For each one
+Treeline checks the branch out, lets Git replay your fix, and commits only if every conflict was covered; otherwise it
+aborts and leaves the branch untouched and says so. This needs a clean working tree and returns you to the branch you were
+on. It works when the conflict is identical, which is typical for the same fix going to several release branches.</p>
+<p><strong>“Merged, but changes dropped.”</strong> If a merge ended up with a branch&#39;s own version of a file (for example you chose <strong>Keep
+ours</strong> where you should have combined), the change you wanted is missing there. Treeline checks this when you press
+<strong>Resume</strong> and after replaying a resolution, and shows a red banner naming the branch and files. To fix it, <strong>Revert</strong> that
+merge commit and merge again.</p>
 <h3 id="rebase">Rebase</h3>
 <p>Right-click a branch → <em>Rebase current onto this…</em> replays your commits on top of another branch for a linear history.
 Only rebase commits you haven&#39;t shared.</p>
@@ -65,6 +96,13 @@ the <strong>Result</strong> box by hand.</li>
 <li>Click <strong>Mark resolved</strong> (enabled when every conflict is decided). Repeat for each file.</li>
 <li>When no conflicts remain, press <strong>Continue</strong> in the banner. <strong>Abort</strong> cancels and restores the state from before.</li>
 </ol>
+<p><strong>Hover any button</strong> in the resolver for a hint that says exactly what it does and what it throws away. The hints and the
+column headings (<em>Ours · release-4</em>, <em>Theirs · bugfix</em>) name the real branches. <strong>Use this result</strong> and <strong>Mark resolved</strong>
+stage the file but do not commit; you commit the merge afterwards with <strong>Continue</strong>.</p>
+<p><strong>“Filled in from your earlier resolution.”</strong> When Git already applied a resolution it remembered (see <em>Reuse my
+resolution</em> above), the file has no conflict markers although it is still unresolved. The resolver then shows the result and
+a <strong>Use this result</strong> button. Review it and press that. <strong>Keep ours</strong> or <strong>Keep theirs</strong> would throw the remembered
+resolution away.</p>
 <p><em>Ours</em> = the branch you are on; <em>theirs</em> = the one being merged in (for a rebase these are swapped in meaning, which is
 normal Git behaviour). If one side deleted the file you get <strong>Keep ours / Keep theirs</strong> instead.</p>
 <h3 id="cherry-pick-revert-reset">Cherry-pick, revert, reset</h3>
@@ -75,7 +113,7 @@ normal Git behaviour). If one side deleted the file you get <strong>Keep ours / 
 </ul>
 
 </article>
-<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#merge">Merge</a></li><li><a href="#rebase">Rebase</a></li><li><a href="#interactive-rebase-tidy-up-recent-commits">Interactive rebase (tidy up recent commits)</a></li><li><a href="#conflicts">Conflicts</a></li><li><a href="#cherry-pick-revert-reset">Cherry-pick, revert, reset</a></li></ul></aside>
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#merge">Merge</a></li><li><a href="#merge-one-branch-into-several-merge-to-many">Merge one branch into several (Merge to many)</a></li><li><a href="#rebase">Rebase</a></li><li><a href="#interactive-rebase-tidy-up-recent-commits">Interactive rebase (tidy up recent commits)</a></li><li><a href="#conflicts">Conflicts</a></li><li><a href="#cherry-pick-revert-reset">Cherry-pick, revert, reset</a></li></ul></aside>
 <nav class="pager" aria-label="Previous and next page">
   <a class="prev" href="9-submodules.html"><small>Previous</small>9. Submodules</a>
   <a class="next" href="11-stash-put-work-aside.html"><small>Next</small>11. Stash: put work aside</a>

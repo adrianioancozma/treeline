@@ -34,12 +34,14 @@ Built with **Tauri 2** (Rust) and **React + TypeScript**.
 | **Tabs** | Many repositories open at once. Only the active tab is refreshed, and changes are picked up by a file watcher (no polling). Tabs are restored on start-up. |
 | **Bookmarks** | Star a repository to keep it one click away on the home tab and in the command palette. |
 | **Clone** | Any URL, live progress, optional submodules. A clone whose only failure is a submodule still opens, with a warning. |
-| **Submodules** | Shown in the sidebar with status, opened in their own tab beside the parent (double-click), initialised on demand, bulk update. |
+| **Submodules** | Shown in the sidebar with status, opened in their own tab beside the parent (double-click), initialised on demand, bulk update, and **one click to switch every submodule to the same branch name** as the parent (*Sync subs*). |
 | **Working copy** | Stage/unstage/discard per file, **per hunk, or per line**. Commit, amend, commit & push. |
-| **History** | Virtualised commit graph (smooth with 10k+ commits), search, all-branches toggle, **click a branch to highlight its history**, uncommitted-changes row, commit detail and per-file diff. |
+| **History** | Virtualised commit graph (smooth with 10k+ commits), search, all-branches toggle, **click a branch to highlight its history**, uncommitted-changes row, commit detail and per-file diff in a panel that always stays on screen, with a resizable message box. |
 | **Branches & tags** | Create, check out, rename, delete (local and remote), tag, push tag. Fetch / pull / push a single branch from its right-click menu. |
 | **Remotes** | Fetch, pull (merge / rebase / fast-forward only), push (upstream, tags, force-with-lease) with progress. |
-| **Merge tools** | Merge (`--no-ff`, squash), rebase, **interactive rebase** (pick/reword/edit/squash/fixup/drop, reorder), cherry-pick, revert, reset, stash, and a **conflict resolver** with per-conflict ours/theirs/both and an editable result. |
+| **Merge tools** | Merge (`--no-ff`, squash), rebase, **interactive rebase** (pick/reword/edit/squash/fixup/drop, reorder), cherry-pick, revert, reset, stash, and a **conflict resolver** with per-conflict ours/theirs/both and an editable result; buttons explain themselves on hover and name the real branches. |
+| **Merge to many** | Merge one branch (a bug fix, say) into several release branches at once. Every merge is test-run first, so you see which are clean and which would conflict, and in which files, before anything changes. Resolve a conflicting branch, resume, and **reuse your resolution** on the others; merges that silently dropped your change are flagged. |
+| **Security** | Asks before opening a repository whose own settings or hooks can run programs, works only on folders you opened, hides credentials in messages, refuses writes through symbolic links, uses a strict content policy and verifies signed updates. See [SECURITY.md](SECURITY.md). |
 | **Errors that help** | Every failure is explained in plain language with numbered fixes and one-click actions (Pull, Stash, Remove lock file …). Risky "force" options are offered last and always confirmed first. |
 | **UX** | Command palette, context menus, dark/light theme, resizable panes, keyboard shortcuts, and the full user guide built in (`F1`, works offline). |
 
@@ -164,10 +166,19 @@ Good places to start:
 * **macOS and Linux have not been built or tested** (see above). Windows 11 has not been checked either.
 * The Windows installers are **not code-signed**, so Windows SmartScreen shows an "unknown publisher" warning.
 * An in-progress `git am` is shown as a "rebase" (and its Abort will not work); stash actions use positional
-  `stash@{n}` references; the interactive-rebase editor command breaks if the repository's git directory path contains a
-  single quote.
+  `stash@{n}` references.
 * The app cannot type an SSH key passphrase for you: load passphrase-protected keys into `ssh-agent` first.
-* The app does not bundle Git — it needs a working `git` on your `PATH`.
+* The app does not bundle Git — it needs a working `git` on your `PATH`. Git's built-in file-system monitor
+  (`core.fsmonitor`) is switched off for the app's own Git calls for safety, so very large repositories may refresh a little
+  more slowly.
+* Hooks, filters, merge drivers, credential helpers and commit signing are **not** disabled, because normal workflows
+  (Git LFS, husky, signed commits) depend on them. Open repositories only from sources you trust.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how to report a vulnerability privately and what Treeline does to protect you, and
+[docs/SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) for the audit record: what was found, what was fixed, how it was verified
+and what is knowingly accepted.
 
 ## Website, documentation and presentation
 

@@ -69,11 +69,35 @@
 <td>Click its card under <strong>Bookmarks</strong> on the home screen, or use the command palette (<code>Ctrl+K</code>).</td>
 </tr>
 </tbody></table></div>
+<h3 id="opening-repositories-safely">Opening repositories safely</h3>
+<p>A folder handed to you with its own <code>.git</code> can carry settings or scripts that make Git run programs on your computer.
+Treeline protects you in a few ways:</p>
+<ul>
+<li><strong>Only folders you opened.</strong> Treeline works only on folders you chose with <strong>Open repository…</strong> or <strong>Clone…</strong>, folders
+you opened before (they come back when you restart), and folders inside those (a submodule, for example). Anything else is refused with
+<em>“That folder has not been opened in Treeline.”</em> A whole drive cannot be opened as a repository.</li>
+<li><strong>“This repository can run programs.”</strong> The first time you open a folder whose own settings or hooks can run programs, a
+window lists what it found: hook scripts, <code>core.hooksPath</code> (used by tools such as husky), <code>core.sshCommand</code>, filter, merge
+or diff drivers, credential helpers that run a program, signing programs, or an included settings file. Nothing in the
+repository has been run at that point.<ul>
+<li><strong>Open anyway</strong> opens it and remembers your answer for that folder. Closing the window opens nothing.</li>
+<li>Open only folders you made yourself or got from a source you trust. Git LFS and ordinary credential helpers
+(<code>manager</code>, <code>osxkeychain</code>) are normal and do not trigger the window. If the check itself could not run, you are asked
+in the same way.</li>
+</ul>
+</li>
+<li><strong>Always off.</strong> For its own Git calls Treeline switches off two settings that would run a program just by looking at a
+repository: <code>core.fsmonitor</code> and external diff programs (and text-conversion drivers when showing a diff). In ordinary
+repositories you will notice nothing; in a very large repository that relies on Git&#39;s built-in file-system monitor,
+refreshing can be a little slower.</li>
+<li><strong>Cloning.</strong> A destination you choose with <strong>Browse</strong> is trusted. If you type the destination instead, a window of the
+operating system asks you to confirm <em>“Clone … into …”</em> first.</li>
+</ul>
 <p>If a clone succeeds but a <em>submodule</em> can&#39;t be downloaded (for example no access to it), the repository still opens and a
 message explains what to do; the submodule appears greyed-out in the sidebar and can be initialised later.</p>
 
 </article>
-
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#opening-repositories-safely">Opening repositories safely</a></li></ul></aside>
 <nav class="pager" aria-label="Previous and next page">
   <a class="prev" href="1-before-you-start.html"><small>Previous</small>1. Before you start</a>
   <a class="next" href="3-tabs-and-bookmarks.html"><small>Next</small>3. Tabs and bookmarks</a>

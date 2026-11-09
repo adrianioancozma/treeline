@@ -54,6 +54,18 @@ parent&#39;s tab</strong>, where you can commit, branch and push as with any rep
 <li>A grey (not-initialised) submodule is downloaded for you when you open it (<em>Initialise &amp; open</em>).</li>
 <li><strong>Update all submodules</strong> (right-click any submodule, or the palette) checks out every submodule at the commit the parent
 expects.</li>
+<li><strong>Switch the submodules to the same branch.</strong> When the submodules have a branch with the same name as the one you use in
+the parent (for example <code>release-2</code>), right-click the branch → <strong>Check out + switch submodules</strong>, or <strong>Switch submodules to
+this branch</strong> for the branch that is already checked out, or press <strong>Sync subs</strong> in the toolbar (it uses the current
+branch).<ul>
+<li>Each downloaded submodule moves to the branch of that name if it exists there, either locally or as a remote branch (a
+local tracking branch is created). Submodules that are not downloaded, or that do not have that branch, are skipped.</li>
+<li>A submodule that cannot switch (for example because it has uncommitted changes) is reported, and the others still
+switch. Nothing is forced.</li>
+<li>Treeline does not fetch first. If the branch exists only on the server, <strong>Fetch</strong> inside that submodule.</li>
+<li>The parent then shows the submodules as changed (amber); commit that to record their new versions.</li>
+</ul>
+</li>
 <li>After you commit inside a submodule, the <strong>parent</strong> shows the submodule as changed (it now points to a new commit).
 Stage and commit that in the parent to record the new version.</li>
 </ul>

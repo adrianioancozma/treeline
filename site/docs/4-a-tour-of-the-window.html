@@ -46,7 +46,7 @@
 <article class="prose">
 <h1>4. A tour of the window</h1>
 <pre><code>┌ Tabs ─────────────────────────────────────────────────────  ⌘ palette · ☀ theme ┐
-│ Repo name · branch chip · ★   [Commit][Fetch][Pull▾][Push] [Branch][Merge][Stash][Tag] [Terminal][Explorer][Refresh] │
+│ Repo name · branch chip · ★   [Commit][Fetch][Pull▾][Push] [Branch][Sync subs][Merge][Merge to many][Stash][Tag] [Terminal][Explorer][Refresh] │
 ├──────────────┬──────────────────────────────────────────────────────────────────┤
 │  Sidebar     │  Main area: File status  — or —  History                         │
 │  • File status│                                                                  │
@@ -64,6 +64,10 @@
 <li><strong>Toolbar badges:</strong> the number on <em>Commit</em> is how many files changed; on <em>Push</em> how many commits you haven&#39;t pushed; on
 <em>Pull</em> how many commits are waiting on the server.</li>
 <li><strong>Branch chip</strong> <code>main ↑1 ↓2</code> – you are 1 commit ahead of and 2 commits behind the remote branch.</li>
+<li><strong>Sync subs</strong> appears when the repository has submodules (section 9). <strong>Merge to many</strong> merges one branch into several at
+once, with a conflict check first (section 10).</li>
+<li><strong>Hover for hints.</strong> The buttons in the conflict resolver (Use ours, Keep theirs, Mark resolved …) explain exactly what
+they do and name the branches involved.</li>
 <li><strong>Right-click</strong> almost anything (branches, tags, stashes, files, commits, submodules) for its actions.</li>
 <li><strong>Drag the thin dividers</strong> between panels to resize them; sizes are remembered.</li>
 <li><strong>Theme:</strong> the ☀ button switches light/dark (or choose “follow system” in the command palette).</li>
