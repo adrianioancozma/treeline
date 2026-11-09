@@ -106,7 +106,54 @@ pub(crate) fn git_cmd() -> Command {
     // Read-only commands (status, diff …) must not opportunistically rewrite `.git/index`:
     // that would trigger the file watcher and cause an endless refresh loop.
     cmd.env("GIT_OPTIONAL_LOCKS", "0");
+    // The `ext::` transport runs an arbitrary command as a "remote". Git leaves it off by default, but a
+    // repository's own config could switch it on; the command line wins over that.
+    cmd.args(["-c", "protocol.ext.allow=never"]);
     cmd
+}
+
+/// True when the repository's own `.git/config` sets `core.fsmonitor` to a program (anything other
+/// than a boolean). Git runs that program on every `status`, so a repository obtained from someone
+/// else could use it to run code just by being opened. A plain `true` selects git's built-in daemon
+/// and is left alone.
+pub(crate) fn fsmonitor_runs_a_program(repo: &str) -> bool {
+    let dot_git = Path::new(repo).join(".git");
+    let config = if dot_git.is_dir() {
+        dot_git.join("config")
+    } else if let Ok(text) = std::fs::read_to_string(&dot_git) {
+        // A submodule or linked worktree: `.git` is a file reading "gitdir: <path>".
+        match text.trim().strip_prefix("gitdir:") {
+            Some(dir) => Path::new(repo).join(dir.trim()).join("config"),
+            None => return false,
+        }
+    } else {
+        return false;
+    };
+    let Ok(text) = std::fs::read_to_string(config) else { return false };
+    let mut in_core = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_core = line.trim_start_matches('[').split(|c: char| c == ']' || c == ' ' || c == '"').next().map_or(false, |s| s.eq_ignore_ascii_case("core"));
+        } else if in_core {
+            if let Some((key, value)) = line.split_once('=') {
+                if key.trim().eq_ignore_ascii_case("fsmonitor") {
+                    let v = value.trim().trim_matches('"').to_ascii_lowercase();
+                    return !matches!(v.as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "1" | "0" | "");
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Per-repository `-c` options that switch off settings which would make git run a program found in
+/// the repository's own config.
+pub(crate) fn config_guards(repo: &str) -> Vec<&'static str> {
+    if fsmonitor_runs_a_program(repo) {
+        vec!["-c", "core.fsmonitor=false"]
+    } else {
+        Vec::new()
+    }
 }
 
 /// Start of the message produced when git itself could not be started (as opposed to git failing).
@@ -195,6 +242,7 @@ where
     S: AsRef<OsStr>,
 {
     let out = git_cmd()
+        .args(config_guards(repo))
         .arg("-C")
         .arg(repo)
         .args(args)
@@ -214,6 +262,7 @@ where
     S: AsRef<OsStr>,
 {
     let out = git_cmd()
+        .args(config_guards(repo))
         .arg("-C")
         .arg(repo)
         .args(args)
@@ -234,6 +283,7 @@ where
     S: AsRef<OsStr>,
 {
     let mut child = git_cmd()
+        .args(config_guards(repo))
         .arg("-C")
         .arg(repo)
         .args(args)
@@ -275,6 +325,7 @@ where
         cmd.env(k, v);
     }
     let out = cmd
+        .args(config_guards(repo))
         .arg("-C")
         .arg(repo)
         .args(args)
@@ -329,7 +380,7 @@ pub(crate) fn stream_git(
 ) -> Result<OpResult, String> {
     let mut cmd = git_cmd();
     if let Some(dir) = cwd {
-        cmd.arg("-C").arg(dir);
+        cmd.args(config_guards(dir)).arg("-C").arg(dir);
     }
     let mut child = cmd
         .args(args)
@@ -824,6 +875,45 @@ mod tests {
                 ("ccc".to_string(), "src/conflicted".to_string(), true),
             ]
         );
+    }
+
+    #[test]
+    fn a_repository_cannot_run_a_program_through_core_fsmonitor() {
+        let dir = std::env::temp_dir().join(format!("treeline-fsm-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let repo = dir.to_string_lossy().to_string();
+        let git = |args: &[&str]| {
+            run_git(&repo, ["-c", "user.name=t", "-c", "user.email=t@t"].iter().chain(args.iter()).copied()).unwrap()
+        };
+        git(&["init", "-q"]);
+        std::fs::write(dir.join("a.txt"), "x").unwrap();
+        git(&["add", "."]);
+        git(&["commit", "-qm", "one"]);
+
+        let marker = dir.join("marker.txt");
+        let hook = dir.join("hook.sh");
+        let fwd = |p: &Path| p.to_string_lossy().replace('\\', "/");
+        std::fs::write(&hook, format!("#!/bin/sh\necho ran > \"{}\"\n", fwd(&marker))).unwrap();
+        git(&["config", "core.fsmonitor", &fwd(&hook)]);
+        assert!(fsmonitor_runs_a_program(&repo));
+
+        // Control: plain git does run the program. If it does not on this machine the check proves nothing.
+        let _ = Command::new("git").arg("-C").arg(&repo).args(["status", "-s"]).output();
+        let control_ran = marker.exists();
+        let _ = std::fs::remove_file(&marker);
+
+        git(&["status", "-s"]);
+        assert!(!marker.exists(), "the hook must not run through the app's git calls");
+        if !control_ran {
+            eprintln!("note: plain git did not run the hook here, so this run could not show the difference");
+        }
+
+        git(&["config", "core.fsmonitor", "true"]);
+        assert!(!fsmonitor_runs_a_program(&repo), "a plain boolean selects the built-in daemon and is left alone");
+        git(&["config", "core.fsmonitor", "false"]);
+        assert!(!fsmonitor_runs_a_program(&repo));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
