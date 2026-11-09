@@ -1,0 +1,11 @@
+# Advisories that were reviewed and are knowingly accepted. Revisit when Tauri moves off GTK3 (Tauri 3).
+[advisories]
+ignore = [
+  # glib 0.18.5: unsoundness in glib::VariantStrIter. glib is only built on Linux, comes in through
+  # Tauri's GTK3 bindings (gtk 0.18 -> glib 0.18) and cannot be upgraded independently; the fix is glib
+  # 0.20. This app never touches VariantStrIter, so it is not reachable from our code.
+  "RUSTSEC-2024-0429",
+  # proc-macro-error 1.0.4: unmaintained. A build-time proc-macro helper used by the same GTK3 stack on
+  # Linux; it is not part of the shipped binary's runtime behaviour.
+  "RUSTSEC-2024-0370",
+]
