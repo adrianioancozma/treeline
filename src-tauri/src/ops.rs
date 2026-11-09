@@ -1637,8 +1637,21 @@ pub async fn save_resolution(path: String, file: String, content: String) -> Res
 // OS integration
 // ---------------------------------------------------------------------------
 
+/// The file manager and terminal launchers must only ever be given an existing folder. Explorer and
+/// `open` would otherwise *run* a program or shortcut they are handed, and a value starting with `-`
+/// would be read as an option. An absolute, existing directory rules both out.
+fn require_existing_folder(path: &str) -> Result<(), String> {
+    let p = Path::new(path);
+    if p.is_absolute() && p.is_dir() {
+        Ok(())
+    } else {
+        Err("That folder does not exist.".into())
+    }
+}
+
 #[tauri::command]
 pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    require_existing_folder(&path)?;
     #[cfg(target_os = "windows")]
     let mut cmd = {
         let mut c = std::process::Command::new("explorer");
@@ -1662,6 +1675,7 @@ pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_terminal(path: String) -> Result<(), String> {
+    require_existing_folder(&path)?;
     #[cfg(target_os = "windows")]
     let mut cmd = {
         use std::os::windows::process::CommandExt;
@@ -1817,6 +1831,19 @@ pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Resul
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn launchers_only_accept_existing_folders() {
+        let dir = std::env::temp_dir();
+        assert!(require_existing_folder(&dir.to_string_lossy()).is_ok());
+        let file = dir.join(format!("treeline-launch-{}.exe", std::process::id()));
+        fs::write(&file, "x").unwrap();
+        assert!(require_existing_folder(&file.to_string_lossy()).is_err(), "a program file must not be launched");
+        let _ = fs::remove_file(&file);
+        for bad in ["", "relative/folder", "-a", "--help", "C:/definitely/not/here"] {
+            assert!(require_existing_folder(bad).is_err(), "{bad:?}");
+        }
+    }
 
     #[test]
     fn rebase_todo_lines_cannot_be_injected() {
