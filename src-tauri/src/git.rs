@@ -209,9 +209,40 @@ pub async fn git_info() -> Result<GitInfo, String> {
     blocking(|| Ok(git_info_now())).await
 }
 
+/// Hides credentials embedded in URLs, for example `https://user:token@host/repo.git` or
+/// `https://token@host/repo.git`, so that git's error and progress messages never put a secret on
+/// screen, in a bug report or in a copied error. Only the user part is replaced; the host stays.
+/// For web URLs any user part is hidden (it is often a token); for other schemes only `user:password`.
+pub(crate) fn redact_urls(text: &str) -> String {
+    let single_quote = char::from(39);
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(i) = rest.find("://") {
+        let (head, tail) = rest.split_at(i + 3);
+        out.push_str(head);
+        let lower = head.to_ascii_lowercase();
+        let web = lower.ends_with("http://") || lower.ends_with("https://");
+        // The authority part ends at the first '/', whitespace or quote.
+        let end = tail
+            .find(|c: char| c == '/' || c.is_whitespace() || c == single_quote || c == '"')
+            .unwrap_or(tail.len());
+        let authority = &tail[..end];
+        match authority.rfind('@') {
+            Some(at) if web || authority[..at].contains(':') => {
+                out.push_str("***");
+                out.push_str(&authority[at..]);
+            }
+            _ => out.push_str(authority),
+        }
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn combined(out: &std::process::Output) -> String {
-    let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-    let std = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    let err = redact_urls(String::from_utf8_lossy(&out.stderr).trim());
+    let std = redact_urls(String::from_utf8_lossy(&out.stdout).trim());
     match (std.is_empty(), err.is_empty()) {
         (_, true) => std,
         (true, false) => err,
@@ -404,7 +435,7 @@ pub(crate) fn stream_git(
     while reader.read(&mut byte).map_err(|e| e.to_string())? == 1 {
         if byte[0] == b'\r' || byte[0] == b'\n' {
             if !buf.is_empty() {
-                let line = String::from_utf8_lossy(&buf).trim().to_string();
+                let line = redact_urls(String::from_utf8_lossy(&buf).trim());
                 let _ = app.emit(
                     "op-progress",
                     OpProgress {
@@ -429,7 +460,7 @@ pub(crate) fn stream_git(
     }
     let status = child.wait().map_err(|e| e.to_string())?;
     let std = out_thread.join().unwrap_or_default();
-    let mut output = std.trim().to_string();
+    let mut output = redact_urls(std.trim());
     let err = lines.join("\n");
     if !err.is_empty() {
         if !output.is_empty() {
@@ -914,6 +945,24 @@ mod tests {
         git(&["config", "core.fsmonitor", "false"]);
         assert!(!fsmonitor_runs_a_program(&repo));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn credentials_in_urls_are_hidden() {
+        let cases = [
+            ("fatal: unable to access 'https://user:ghp_secret@github.com/a/b.git/': 403", "fatal: unable to access 'https://***@github.com/a/b.git/': 403"),
+            ("remote: https://ghp_tokenonly@github.com/a/b.git", "remote: https://***@github.com/a/b.git"),
+            ("cloning ssh://me:pw@host.example/repo", "cloning ssh://***@host.example/repo"),
+            ("pushing ssh://git@github.com/a/b.git", "pushing ssh://git@github.com/a/b.git"),
+            ("plain https://github.com/a/b.git here", "plain https://github.com/a/b.git here"),
+            ("two https://a:b@h1/x and https://c@h2/y", "two https://***@h1/x and https://***@h2/y"),
+            ("no urls at all", "no urls at all"),
+            ("trailing https://u:p@host", "trailing https://***@host"),
+            ("an email me@example.com stays", "an email me@example.com stays"),
+        ];
+        for (input, want) in cases {
+            assert_eq!(redact_urls(input), want, "{input}");
+        }
     }
 
     #[test]
