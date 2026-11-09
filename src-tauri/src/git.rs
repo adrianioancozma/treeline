@@ -112,38 +112,56 @@ pub(crate) fn git_cmd() -> Command {
     cmd
 }
 
-/// True when the repository's own `.git/config` sets `core.fsmonitor` to a program (anything other
-/// than a boolean). Git runs that program on every `status`, so a repository obtained from someone
-/// else could use it to run code just by being opened. A plain `true` selects git's built-in daemon
-/// and is left alone.
-pub(crate) fn fsmonitor_runs_a_program(repo: &str) -> bool {
-    let dot_git = Path::new(repo).join(".git");
-    let config = if dot_git.is_dir() {
-        dot_git.join("config")
-    } else if let Ok(text) = std::fs::read_to_string(&dot_git) {
-        // A submodule or linked worktree: `.git` is a file reading "gitdir: <path>".
-        match text.trim().strip_prefix("gitdir:") {
-            Some(dir) => Path::new(repo).join(dir.trim()).join("config"),
-            None => return false,
-        }
-    } else {
-        return false;
+/// How long a repository's `core.fsmonitor` answer is reused (it costs a process to ask).
+const CONFIG_CACHE_SECS: u64 = 15;
+
+fn config_cache() -> &'static std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, bool)>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, bool)>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+/// Forgets remembered answers (used after the config is known to have changed, and by tests).
+pub(crate) fn clear_config_cache() {
+    if let Ok(mut c) = config_cache().lock() {
+        c.clear();
+    }
+}
+
+/// Asks git for the `core.fsmonitor` value it would really use, with every include and per-worktree
+/// file already applied, and says whether it is a program. Git runs that program on every `status`,
+/// so a repository obtained from someone else could run code just by being opened. A boolean selects
+/// git's built-in daemon and is left alone; unset means nothing runs. `git config` itself never runs
+/// the program. If the answer cannot be obtained the result is "yes", so the safe option is applied.
+fn ask_fsmonitor(repo: &str) -> bool {
+    let out = match git_cmd().arg("-C").arg(repo).args(["config", "--get", "core.fsmonitor"]).output() {
+        Ok(o) => o,
+        Err(_) => return false, // git cannot even start; nothing else will run either
     };
-    let Ok(text) = std::fs::read_to_string(config) else { return false };
-    let mut in_core = false;
-    for line in text.lines().map(str::trim) {
-        if line.starts_with('[') {
-            in_core = line.trim_start_matches('[').split(|c: char| c == ']' || c == ' ' || c == '"').next().map_or(false, |s| s.eq_ignore_ascii_case("core"));
-        } else if in_core {
-            if let Some((key, value)) = line.split_once('=') {
-                if key.trim().eq_ignore_ascii_case("fsmonitor") {
-                    let v = value.trim().trim_matches('"').to_ascii_lowercase();
-                    return !matches!(v.as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "1" | "0" | "");
-                }
+    match out.status.code() {
+        Some(1) => false, // not set
+        Some(0) => {
+            let v = String::from_utf8_lossy(&out.stdout).trim().to_ascii_lowercase();
+            !matches!(v.as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "1" | "0" | "")
+        }
+        _ => true,
+    }
+}
+
+pub(crate) fn fsmonitor_runs_a_program(repo: &str) -> bool {
+    let now = std::time::Instant::now();
+    if let Ok(c) = config_cache().lock() {
+        if let Some((at, answer)) = c.get(repo) {
+            if now.duration_since(*at).as_secs() < CONFIG_CACHE_SECS {
+                return *answer;
             }
         }
     }
-    false
+    let answer = ask_fsmonitor(repo);
+    if let Ok(mut c) = config_cache().lock() {
+        c.insert(repo.to_string(), (now, answer));
+    }
+    answer
 }
 
 /// Per-repository `-c` options that switch off settings which would make git run a program found in
@@ -927,6 +945,7 @@ mod tests {
         let fwd = |p: &Path| p.to_string_lossy().replace('\\', "/");
         std::fs::write(&hook, format!("#!/bin/sh\necho ran > \"{}\"\n", fwd(&marker))).unwrap();
         git(&["config", "core.fsmonitor", &fwd(&hook)]);
+        clear_config_cache();
         assert!(fsmonitor_runs_a_program(&repo));
 
         // Control: plain git does run the program. If it does not on this machine the check proves nothing.
@@ -941,9 +960,23 @@ mod tests {
         }
 
         git(&["config", "core.fsmonitor", "true"]);
+        clear_config_cache();
         assert!(!fsmonitor_runs_a_program(&repo), "a plain boolean selects the built-in daemon and is left alone");
         git(&["config", "core.fsmonitor", "false"]);
+        clear_config_cache();
         assert!(!fsmonitor_runs_a_program(&repo));
+        git(&["config", "--unset", "core.fsmonitor"]);
+        clear_config_cache();
+        assert!(!fsmonitor_runs_a_program(&repo), "unset: nothing runs");
+
+        // The setting may also arrive through an included file: git resolves that, so the guard must too.
+        let extra = dir.join("extra.cfg");
+        std::fs::write(&extra, format!("[core]\n\tfsmonitor = {}\n", fwd(&hook))).unwrap();
+        git(&["config", "include.path", &fwd(&extra)]);
+        clear_config_cache();
+        assert!(fsmonitor_runs_a_program(&repo), "an included file can set it too");
+        git(&["status", "-s"]);
+        assert!(!marker.exists(), "the hook must not run when it comes from an included file");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -161,11 +161,11 @@ pub async fn file_diff(
         if untracked {
             return run_git_ok_codes(
                 &path,
-                [LITERAL, "diff", "--no-index", "--no-ext-diff", "--no-color", &ctx, "--", "/dev/null", &file],
+                [LITERAL, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", &ctx, "--", "/dev/null", &file],
                 &[1],
             );
         }
-        let mut args = vec![LITERAL, "diff", "--no-ext-diff", "--no-color", &ctx];
+        let mut args = vec![LITERAL, "diff", "--no-ext-diff", "--no-textconv", "--no-color", &ctx];
         if staged {
             args.push("--cached");
         }
@@ -239,8 +239,8 @@ pub async fn commit_diff(
             specs.push(o);
         }
         let mut args: Vec<String> = match &parent {
-            Some(p) => vec![LITERAL.into(), "diff".into(), "--no-ext-diff".into(), "--no-color".into(), "-M".into(), ctx, p.clone(), sha],
-            None => vec![LITERAL.into(), "show".into(), "--format=".into(), "--no-ext-diff".into(), "--no-color".into(), "--root".into(), ctx, sha],
+            Some(p) => vec![LITERAL.into(), "diff".into(), "--no-ext-diff".into(), "--no-textconv".into(), "--no-color".into(), "-M".into(), ctx, p.clone(), sha],
+            None => vec![LITERAL.into(), "show".into(), "--format=".into(), "--no-ext-diff".into(), "--no-textconv".into(), "--no-color".into(), "--root".into(), ctx, sha],
         };
         args.push("--".into());
         args.extend(specs);
