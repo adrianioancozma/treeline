@@ -141,6 +141,22 @@ export function repoActions(tabId: string) {
         ctx: { op: "checkout", target: name },
       }),
 
+    /** Puts every checked-out submodule on `branch` where a branch of that name exists. */
+    switchSubmodules: (branch: string) =>
+      run("Switching submodules…", () => api.switchSubmodulesBranch(path(), branch), {
+        quiet: false,
+        success: undefined,
+      }),
+
+    /** Checks out `name` in this repository, then moves the submodules onto the same branch name. */
+    async checkoutWithSubmodules(name: string): Promise<void> {
+      const ok = await run(`Checking out ${name}…`, () => api.checkout(path(), name), {
+        success: `Switched to ${name}`,
+        ctx: { op: "checkout", target: name },
+      });
+      if (ok) await a.switchSubmodules(name);
+    },
+
     // ---- last-resort "force" fixes: always explained and confirmed, never automatic ---------------
     forcePush: (ctx: Extract<ErrorCtx, { op: "push" }>) => {
       const ref = (data()?.refs ?? []).find((r) => r.kind === "branch" && r.name === ctx.branch);

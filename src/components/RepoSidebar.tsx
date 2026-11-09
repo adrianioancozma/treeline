@@ -161,6 +161,12 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
                 onContextMenu={(e) =>
                   openMenu(e, [
                     { label: "Check out", onClick: () => a.checkout(b.name), disabled: isCurrent },
+                    ...((d?.submodules.length ?? 0) > 0
+                      ? [{
+                          label: isCurrent ? "Switch submodules to this branch" : "Check out + switch submodules",
+                          onClick: () => void (isCurrent ? a.switchSubmodules(b.name) : a.checkoutWithSubmodules(b.name)),
+                        }]
+                      : []),
                     { separator: true },
                     { label: "Fetch", onClick: () => a.fetchBranch(b.name, "branch"), disabled: !b.upstream },
                     { label: isCurrent ? "Pull" : "Pull (fast-forward)", onClick: () => a.pullBranch(b.name), disabled: !b.upstream },

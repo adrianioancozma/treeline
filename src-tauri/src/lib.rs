@@ -75,6 +75,7 @@ pub fn run() {
             git::list_submodules,
             git::init_submodule,
             git::update_submodules,
+            git::switch_submodules_branch,
             git::clone_repo,
             ops::stage_files,
             ops::unstage_files,

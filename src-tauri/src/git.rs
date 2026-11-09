@@ -625,6 +625,69 @@ pub async fn init_submodule(path: String, submodule: String) -> Result<OpResult,
     .await
 }
 
+/// Picks the ref a submodule should check out for `branch`: the local branch if there is one,
+/// otherwise a remote-tracking branch of that name (`origin` preferred). `None` = no such branch.
+pub(crate) fn pick_branch_source(refs: &str, branch: &str) -> Option<(bool, String)> {
+    let mut remote: Option<String> = None;
+    for line in refs.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        if line == branch {
+            return Some((true, line.to_string()));
+        }
+        // Remote-tracking refs look like `origin/feature/x`; the remote name has no slash.
+        if let Some((r, rest)) = line.split_once('/') {
+            if rest == branch && !line.ends_with("/HEAD") && (remote.is_none() || r == "origin") {
+                remote = Some(line.to_string());
+            }
+        }
+    }
+    remote.map(|r| (false, r))
+}
+
+/// Switches every checked-out submodule to `branch` when a branch of that name exists there
+/// (locally, or as a remote-tracking branch, which gets a local tracking branch). Submodules that
+/// are not initialised or lack the branch are left alone. A submodule whose checkout fails (for
+/// example uncommitted changes) is reported but does not stop the others.
+#[tauri::command]
+pub async fn switch_submodules_branch(path: String, branch: String) -> Result<OpResult, String> {
+    blocking(move || {
+        let raw = run_git(&path, ["ls-files", "--stage", "-z"])?;
+        let root = PathBuf::from(&path);
+        let (mut ok, mut lines) = (true, Vec::new());
+        for (_, sub, _) in parse_gitlinks(&raw) {
+            let dir = root.join(&sub);
+            if !dir.join(".git").exists() {
+                lines.push(format!("{sub}: skipped (not initialised)"));
+                continue;
+            }
+            let dir_s = dir.to_string_lossy().into_owned();
+            let refs = run_git(
+                &dir_s,
+                ["for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes"],
+            )?;
+            let Some((local, source)) = pick_branch_source(&refs, &branch) else {
+                lines.push(format!("{sub}: skipped (no branch {branch})"));
+                continue;
+            };
+            let res = if local {
+                run_op(&dir_s, ["checkout", &branch], &[])?
+            } else {
+                run_op(&dir_s, ["checkout", "--track", "-b", &branch, &source], &[])?
+            };
+            if res.ok {
+                lines.push(format!("{sub}: switched to {branch}"));
+            } else {
+                ok = false;
+                lines.push(format!("{sub}: FAILED\n{}", res.output.trim()));
+            }
+        }
+        if lines.is_empty() {
+            lines.push("No submodules.".into());
+        }
+        Ok(OpResult { ok, output: lines.join("\n") })
+    })
+    .await
+}
+
 /// Updates every submodule to the commit recorded by the superproject.
 #[tauri::command]
 pub async fn update_submodules(path: String, remote: bool) -> Result<OpResult, String> {
@@ -744,6 +807,16 @@ mod tests {
                 ("ccc".to_string(), "src/conflicted".to_string(), true),
             ]
         );
+    }
+
+    #[test]
+    fn picks_submodule_branch_source() {
+        let refs = "main\nfeature/x\norigin/HEAD\norigin/main\nfork/dev\norigin/dev\norigin/feature/y\n";
+        assert_eq!(pick_branch_source(refs, "feature/x"), Some((true, "feature/x".into())));
+        assert_eq!(pick_branch_source(refs, "dev"), Some((false, "origin/dev".into())));
+        assert_eq!(pick_branch_source(refs, "feature/y"), Some((false, "origin/feature/y".into())));
+        assert_eq!(pick_branch_source(refs, "HEAD"), None);
+        assert_eq!(pick_branch_source(refs, "nope"), None);
     }
 
     #[test]

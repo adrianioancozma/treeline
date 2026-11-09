@@ -92,6 +92,15 @@ export function Toolbar({ tab }: { tab: Tab }) {
         <Btn icon="push" label="Push" badge={s?.ahead ? String(s.ahead) : undefined} disabled={busy} onClick={() => a.push()} />
         <span className="sep" />
         <Btn icon="branch" label="Branch" onClick={() => a.newBranch()} />
+        {(d?.submodules.length ?? 0) > 0 && (
+          <Btn
+            icon="submodule"
+            label="Sync subs"
+            disabled={busy || !s?.branch}
+            title={s?.branch ? `Switch submodules to ${s.branch} (where that branch exists)` : "Check out a branch first"}
+            onClick={() => s?.branch && void a.switchSubmodules(s.branch)}
+          />
+        )}
         <Btn icon="merge" label="Merge" onClick={() => a.merge()} />
         <Btn icon="stash" label="Stash" onClick={() => a.stash()} />
         <Btn icon="tag" label="Tag" onClick={() => a.newTag()} />

@@ -28,6 +28,8 @@ export const api = {
   submodules: (path: string) => invoke<Submodule[]>("list_submodules", { path }),
   initSubmodule: (path: string, submodule: string) =>
     invoke<OpResult>("init_submodule", { path, submodule }),
+  switchSubmodulesBranch: (path: string, branch: string) =>
+    invoke<OpResult>("switch_submodules_branch", { path, branch }),
   updateSubmodules: (path: string, remote: boolean) =>
     invoke<OpResult>("update_submodules", { path, remote }),
   clone: (id: string, url: string, dest: string, recursive: boolean) =>
