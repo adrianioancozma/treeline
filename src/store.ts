@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api, baseName, errorMessage } from "./api";
 import { gitNeedsSecurityUpdate, outdatedGitMessage } from "./lib/gitVersion";
 import { forgetSections } from "./uiStore";
+import { noFilters, type HistoryFilters } from "./lib/historyFilter";
 import { checkForUpdate } from "./updater";
 import type {
   Bookmark,
@@ -32,7 +33,8 @@ export interface RepoUi {
   /** A second commit picked with Ctrl+click; the history then shows the difference between the two. */
   compareCommit: string | null;
   historyAll: boolean;
-  query: string;
+  /** History filters (who, what, when). They highlight commits; the list and graph stay whole. */
+  filters: HistoryFilters;
   /** Unsent commit message, kept per tab. */
   draft: string;
   amend: boolean;
@@ -111,7 +113,7 @@ const emptyUi = (): RepoUi => ({
   selCommit: null,
   compareCommit: null,
   historyAll: true,
-  query: "",
+  filters: noFilters(),
   draft: "",
   amend: false,
   focusRef: null,
@@ -415,7 +417,7 @@ export const useApp = create<AppState>((set, get) => {
       patchRepo(id, { logLoading: true });
       try {
         const skip = reset ? 0 : d.log.length;
-        const page = await api.log(tab.path, skip, LOG_PAGE, d.ui.historyAll, d.ui.query || undefined);
+        const page = await api.log(tab.path, skip, LOG_PAGE, d.ui.historyAll);
         const cur = get().data[id];
         patchRepo(id, {
           log: reset ? page : [...cur.log, ...page],
@@ -442,8 +444,7 @@ export const useApp = create<AppState>((set, get) => {
       const next = { ...d.ui, ...patch };
       const filterChanged =
         patch.historyAll !== undefined && patch.historyAll !== d.ui.historyAll;
-      const queryChanged = patch.query !== undefined && patch.query !== d.ui.query;
-      if ((next.view === "history" && !d.logLoaded) || (next.view === "history" && (filterChanged || queryChanged))) {
+      if ((next.view === "history" && !d.logLoaded) || (next.view === "history" && filterChanged)) {
         void get().loadLog(id, true);
       }
     },

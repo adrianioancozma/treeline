@@ -17,6 +17,7 @@ const PATHS = {
   chevron: "M9 6l6 6-6 6",
   files: "M7 3h7l5 5v13H7zM14 3v5h5",
   history: "M12 7v5l3 2M4 12a8 8 0 108-8 8 8 0 00-6 2.7M4 4v4h4",
+  user: "M12 4a4 4 0 100 8 4 4 0 000-8zM4 20c0-4 3.6-6 8-6s8 2 8 6",
   search: "M11 4a7 7 0 100 14 7 7 0 000-14zm9 16l-4-4",
   undo: "M9 14L4 9l5-5M4 9h10a6 6 0 010 12h-3",
   warn: "M12 3l10 18H2zM12 10v5M12 18h.01",

@@ -4,6 +4,7 @@ import { repoActions } from "../actions";
 import { useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
 import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
+import { DATE_RANGES, authorsOf, dateFilterActive, dateWindow, filtersActive, noFilters, type DateRange } from "../lib/historyFilter";
 import { useApp } from "../store";
 import { openMenu, useUi } from "../uiStore";
 import type { Commit, CommitDetail, FileEntry, Tab } from "../types";
@@ -14,6 +15,28 @@ const ROW_H = 28;
 const LANE_W = 14;
 const PALETTE = ["#4c8dff", "#e5a23c", "#4cc38a", "#c678dd", "#ff6b6b", "#2bb5c8", "#d9822b", "#8fbf3f"];
 const WIP = "WIP";
+
+/** A text filter with its own X button. */
+function FilterField({ icon, value, onChange, placeholder, label, list }: {
+  icon: "search" | "user";
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  label: string;
+  list?: string;
+}) {
+  return (
+    <div className={`filter-row${value.trim() ? " on" : ""}`}>
+      <Icon name={icon} size={14} />
+      <input value={value} list={list} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={label} />
+      {value && (
+        <button className="icon-btn" aria-label={`Clear: ${label}`} title="Clear" onClick={() => onChange("")}>
+          <Icon name="x" size={12} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 function GraphCell({ row, width }: { row: GraphRow; width: number }) {
   const x = (lane: number) => lane * LANE_W + LANE_W / 2 + 2;
@@ -47,16 +70,13 @@ export function HistoryView({ tab }: { tab: Tab }) {
   // Leave room for the commit detail panel: a saved or dragged height may never push it off screen.
   const maxTop = historyH > 0 ? Math.max(140, Math.min(800, historyH - 6 - MIN_DETAIL_H)) : 800;
   const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.42), 140, maxTop, "y");
-  const [q, setQ] = useState(d.ui.query);
-  const dq = useDebounced(q, 350);
+  const filters = d.ui.filters;
+  const setFilters = (patch: Partial<typeof filters>) => setUi(tab.id, { filters: { ...filters, ...patch } });
+  const filtering = filtersActive(filters);
+  const dFilters = useDebounced(filters, 300);
   const scroller = useRef<HTMLDivElement>(null);
   const [scroll, setScroll] = useState(0);
   const [viewH, setViewH] = useState(400);
-
-  useEffect(() => {
-    if (dq !== d.ui.query) setUi(tab.id, { query: dq });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dq]);
 
   useEffect(() => {
     const el = scroller.current;
@@ -69,7 +89,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
 
   // Uncommitted changes appear as a pseudo-commit on top of HEAD, like Sourcetree.
   const wipCount = status?.files.length ?? 0;
-  const showWip = wipCount > 0 && !!status?.head && !d.ui.query;
+  const showWip = wipCount > 0 && !!status?.head;
   const rowsData: Commit[] = useMemo(() => {
     if (!showWip) return d.log;
     const wip: Commit = { sha: WIP, parents: [status!.head!], author: "", email: "", time: 0, refs: [], subject: "" };
@@ -77,6 +97,44 @@ export function HistoryView({ tab }: { tab: Tab }) {
   }, [d.log, showWip, status]);
 
   const graph = useMemo(() => computeGraph(rowsData), [rowsData]);
+
+  // Which commits match the filters. Asked of Git for the whole history; the list itself is never
+  // filtered, so the graph looks exactly as it does without filters.
+  const [matches, setMatches] = useState<Set<string> | null>(null);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const activeNow = filtersActive(dFilters);
+  useEffect(() => {
+    if (!activeNow || !tab.path) {
+      setMatches(null);
+      setMatchError(null);
+      return;
+    }
+    let stale = false;
+    const { since, until } = dateWindow(dFilters);
+    api
+      .logMatches(tab.path, d.ui.historyAll, { author: dFilters.author, text: dFilters.text, since, until })
+      .then((ids) => !stale && (setMatches(new Set(ids)), setMatchError(null)))
+      .catch((e) => !stale && (setMatches(new Set()), setMatchError(errorMessage(e))));
+    return () => {
+      stale = true;
+    };
+    // d.sig changes when the repository does, so the matches follow new commits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dFilters, activeNow, d.ui.historyAll, d.sig, tab.path]);
+  const authors = useMemo(() => authorsOf(d.log), [d.log]);
+  const matchIdx = useMemo(
+    () => (matches ? rowsData.flatMap((c, i) => (matches.has(c.sha) ? [i] : [])) : []),
+    [matches, rowsData],
+  );
+  /** Scrolls to the next (or previous) matching commit; loads more history when none is loaded below. */
+  const jumpMatch = (dir: 1 | -1) => {
+    const el = scroller.current;
+    if (!el) return;
+    const here = Math.round(el.scrollTop / ROW_H) + 2;
+    const next = dir > 0 ? matchIdx.find((i) => i > here) : [...matchIdx].reverse().find((i) => i < here);
+    if (next !== undefined) el.scrollTop = Math.max(0, next * ROW_H - ROW_H * 2);
+    else if (dir > 0 && !d.logDone && !d.logLoading) void loadLog(tab.id, false);
+  };
 
   // Highlight one branch/tag: everything reachable from its tip stays bright, the rest is dimmed.
   const focusRef = d.ui.focusRef;
@@ -134,7 +192,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
     openMenu(e, [
       { label: "Copy SHA", onClick: () => a.copy(c.sha) },
       { separator: true },
-      { label: "Check out this commit", onClick: () => a.checkout(c.sha), disabled: isHead },
+      { label: "Check out this commit", onClick: () => a.checkoutCommit(c), disabled: isHead },
       { label: "New branch here…", onClick: () => a.newBranch(c.sha) },
       { label: "New tag here…", onClick: () => a.newTag(c.sha) },
       { separator: true },
@@ -154,10 +212,6 @@ export function HistoryView({ tab }: { tab: Tab }) {
     <div className="history" ref={historyRef} style={{ gridTemplateRows: `${height}px 6px minmax(0, 1fr)` }}>
       <div className="history-top">
         <div className="history-bar">
-          <div className="filter-row grow">
-            <Icon name="search" size={14} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search commit messages…" aria-label="Search commits" />
-          </div>
           <label className="check inline">
             <input type="checkbox" checked={d.ui.historyAll} onChange={(e) => setUi(tab.id, { historyAll: e.target.checked })} />
             All branches
@@ -173,6 +227,63 @@ export function HistoryView({ tab }: { tab: Tab }) {
           )}
           <span className="muted small">{d.log.length}{d.logDone ? "" : "+"} commits</span>
         </div>
+        <div className="history-filters" role="group" aria-label="Filter commits">
+          <FilterField icon="search" value={filters.text} onChange={(text) => setFilters({ text })} placeholder="Commit: message or hash" label="Filter by commit message or hash" />
+          <FilterField icon="user" value={filters.author} onChange={(author) => setFilters({ author })} placeholder="Author: name or e-mail" label="Filter by author" list="history-authors" />
+          <datalist id="history-authors">
+            {authors.map((x) => (
+              <option key={x} value={x} />
+            ))}
+          </datalist>
+          <div className={`filter-row${dateFilterActive(filters) ? " on" : ""}`}>
+            <Icon name="history" size={14} />
+            <select value={filters.range} onChange={(e) => setFilters({ range: e.target.value as DateRange })} aria-label="Filter by date">
+              {DATE_RANGES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+            {filters.range === "custom" && (
+              <>
+                <input type="datetime-local" value={filters.from} max={filters.to || undefined} onChange={(e) => setFilters({ from: e.target.value })} aria-label="From (date and time)" title="From (date and time)" />
+                <span className="muted small">to</span>
+                <input type="datetime-local" value={filters.to} min={filters.from || undefined} onChange={(e) => setFilters({ to: e.target.value })} aria-label="To (date and time)" title="To (date and time)" />
+              </>
+            )}
+            {filters.range !== "" && (
+              <button className="icon-btn" aria-label="Clear the date filter" title="Clear the date filter" onClick={() => setFilters({ range: "", from: "", to: "" })}>
+                <Icon name="x" size={12} />
+              </button>
+            )}
+          </div>
+          {filtering && (
+            <span className="filter-summary" aria-live="polite">
+              {matchError ? (
+                <span className="behind" title={matchError}>Could not filter</span>
+              ) : matches ? (
+                <>
+                  <strong>{matches.size}</strong> matching commit{matches.size === 1 ? "" : "s"}
+                  {matchIdx.length > 0 && (
+                    <>
+                      <button className="icon-btn" aria-label="Previous match" title="Previous matching commit" onClick={() => jumpMatch(-1)}>
+                        <span aria-hidden="true">▲</span>
+                      </button>
+                      <button className="icon-btn" aria-label="Next match" title="Next matching commit" onClick={() => jumpMatch(1)}>
+                        <span aria-hidden="true">▼</span>
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                "Searching…"
+              )}
+              <button className="icon-btn" aria-label="Clear all filters" title="Clear all filters" onClick={() => setUi(tab.id, { filters: noFilters() })}>
+                <Icon name="x" size={14} />
+              </button>
+            </span>
+          )}
+        </div>
         <div className="history-head" style={{ gridTemplateColumns: `${graphW}px 1fr 150px 110px 64px` }}>
           <span>Graph</span>
           <span>Description</span>
@@ -181,7 +292,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
           <span>Commit</span>
         </div>
         <div className="vlist" ref={scroller} onScroll={(e) => setScroll(e.currentTarget.scrollTop)}>
-          {d.logLoaded && rowsData.length === 0 && <div className="empty">No commits{d.ui.query ? " match your search" : " yet"}.</div>}
+          {d.logLoaded && rowsData.length === 0 && <div className="empty">No commits yet.</div>}
           {!d.logLoaded && <div className="empty">Loading history…</div>}
           <div style={{ height: rowsData.length * ROW_H, position: "relative" }}>
             {rowsData.slice(first, last).map((c, k) => {
@@ -191,7 +302,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
               return (
                 <div
                   key={c.sha}
-                  className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha)) ? " dim" : ""}`}
+                  className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${(highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha))) || (filtering && matches && !matches.has(c.sha)) ? " dim" : ""}`}
                   style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: `${graphW}px 1fr 150px 110px 64px` }}
                   onClick={(e) => {
                     if (isWip) return setUi(tab.id, { view: "files" });
@@ -200,6 +311,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                       return setUi(tab.id, { compareCommit: compare === c.sha ? null : c.sha });
                     setUi(tab.id, { selCommit: c.sha, compareCommit: null });
                   }}
+                  onDoubleClick={() => !isWip && a.checkoutCommit(c)}
                   onContextMenu={(e) => !isWip && commitMenu(e, c)}
                 >
                   <GraphCell row={graph[i]} width={graphW} />
