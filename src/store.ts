@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api, baseName, errorMessage } from "./api";
+import { gitNeedsSecurityUpdate, outdatedGitMessage } from "./lib/gitVersion";
 import { forgetSections } from "./uiStore";
 import { checkForUpdate } from "./updater";
 import type {
@@ -225,6 +226,21 @@ export const useApp = create<AppState>((set, get) => {
         watchActive();
         void get().reload();
       }
+      // The app runs the system Git, so an old Git means old clone and submodule bugs. Say so once per version.
+      void api
+        .gitInfo()
+        .then((info) => {
+          const version = info.version;
+          if (!version || !gitNeedsSecurityUpdate(version)) return;
+          try {
+            if (localStorage.getItem("git-update-warned") === version) return;
+            localStorage.setItem("git-update-warned", version);
+          } catch {
+            /* storage unavailable: the notice may repeat on the next start */
+          }
+          get().notify("info", outdatedGitMessage(version));
+        })
+        .catch(() => undefined);
       // Quiet start-up check: only speaks up when a newer version exists; failures (offline, no release yet) stay silent.
       void checkForUpdate()
         .then((u) => u && get().notify("info", `Version ${u.version} is available. Open Settings (the gear icon) to install it.`))
