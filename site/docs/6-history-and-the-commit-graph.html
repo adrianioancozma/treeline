@@ -55,8 +55,16 @@ files</strong>, and the diff of the selected file. The panel always keeps room, 
 even in a small window. Drag the divider between the list and the panel to resize it.</li>
 <li>Drag the thin bar between the <strong>message box</strong> and <strong>Changed files</strong> to make the message taller; double-click it to go back
 to automatic height. Both boxes scroll on their own when their content does not fit.</li>
-<li><strong>Search</strong> box: finds commits whose <em>message</em> contains your text (plain text, not a pattern). Untick <strong>All branches</strong> to
-show only the current branch&#39;s history.</li>
+<li><strong>Filters</strong> above the list: <strong>Commit</strong> (text in the message, or the start of a commit ID), <strong>Author</strong> (name or e-mail; it
+suggests the authors in the loaded history) and <strong>date</strong>. The date offers quick choices counted back from now (last
+hour, 24 hours, 7 days, 30 days) or <strong>Custom range…</strong> with a <em>from</em> and a <em>to</em>, each with a date <strong>and a time</strong>. Text is
+matched as plain text in any letter case, and the filters combine (all must match). Commits that do not match are
+dimmed; the graph itself never changes. The summary shows how many commits match, with <strong>▲ ▼</strong> to jump between them
+(it loads more history when needed). Every filter has its own <strong>✕</strong>; the <strong>✕</strong> at the end of the summary clears them
+all. Untick <strong>All branches</strong> to show only the current branch&#39;s history.</li>
+<li><strong>Double-click a commit</strong> to check it out: its branch when it has one (a short list if several), the local copy of a
+remote branch when only that exists, otherwise the commit itself as a detached HEAD, after a confirmation. Uncommitted
+changes that would be overwritten stop the checkout with the usual explanation; nothing is discarded.</li>
 <li><strong>Highlight a branch:</strong> click a branch, remote branch or tag in the sidebar — the graph scrolls to its tip and
 highlights every commit reachable from it; everything else is dimmed. Click the <strong>✕</strong> on the “Highlighting …” chip to
 clear it.</li>

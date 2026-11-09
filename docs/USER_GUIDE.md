@@ -98,7 +98,8 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 * Each repository opens in its own **tab**. Switching tabs is instant; only the tab you are looking at is refreshed.
 * `Ctrl+T` new tab · `Ctrl+W` close tab · `Ctrl+Tab` / `Ctrl+Shift+Tab` next / previous · middle-click a tab to close it.
 * Your open tabs are **restored** next time you start the app.
-* **Drag a tab** left or right to put your tabs in the order you like; the order is remembered. Each tab also remembers which sidebar sections (Branches, Remotes, Tags, Stashes, Submodules) you opened or closed.
+* **Drag a tab** left or right to put your tabs in the order you like; the order is remembered. Each tab also remembers which sidebar sections (Branches, Remotes, Tags, Stashes, Submodules) you opened or closed. A repository starts with **every sidebar section collapsed**; open the ones you need and the tab keeps them open, also after a restart.
+* **Many tabs:** tabs get narrower as you open more (hover a tab for its full name and folder). When they no longer fit, turn the **mouse wheel** over the tab bar to scroll sideways. The selected tab is always scrolled into view.
 * A small orange dot on a tab means that repository has uncommitted changes.
 * **Bookmarks:** click the ☆ next to the repository name to bookmark it (★ = bookmarked). Remove it by clicking ★ again,
   or the ✕ on the bookmark card.
@@ -127,7 +128,7 @@ message explains what to do; the submodule appears greyed-out in the sidebar and
 * **Toolbar badges:** the number on *Commit* is how many files changed; on *Push* how many commits you haven't pushed; on
   *Pull* how many commits are waiting on the server.
 * **Branch chip** `main ↑1 ↓2` – you are 1 commit ahead of and 2 commits behind the remote branch.
-* **Sync subs** appears when the repository has submodules (section 9). **Merge to many** merges one branch into several at
+* **Sync subs** appears when the repository has submodules (section 9). Click it to switch the submodules to the current branch; the small arrow beside it offers **Sync** (the same) and **Sync and pull** (switch, then pull each one). **Merge to many** merges one branch into several at
   once, with a conflict check first (section 10).
 * **Hover for hints.** The buttons in the conflict resolver (Use ours, Keep theirs, Mark resolved …) explain exactly what
   they do and name the branches involved.
@@ -187,8 +188,16 @@ Open **History** (sidebar).
   even in a small window. Drag the divider between the list and the panel to resize it.
 * Drag the thin bar between the **message box** and **Changed files** to make the message taller; double-click it to go back
   to automatic height. Both boxes scroll on their own when their content does not fit.
-* **Search** box: finds commits whose *message* contains your text (plain text, not a pattern). Untick **All branches** to
-  show only the current branch's history.
+* **Filters** above the list: **Commit** (text in the message, or the start of a commit ID), **Author** (name or e-mail; it
+  suggests the authors in the loaded history) and **date**. The date offers quick choices counted back from now (last
+  hour, 24 hours, 7 days, 30 days) or **Custom range…** with a *from* and a *to*, each with a date **and a time**. Text is
+  matched as plain text in any letter case, and the filters combine (all must match). Commits that do not match are
+  dimmed; the graph itself never changes. The summary shows how many commits match, with **▲ ▼** to jump between them
+  (it loads more history when needed). Every filter has its own **✕**; the **✕** at the end of the summary clears them
+  all. Untick **All branches** to show only the current branch's history.
+* **Double-click a commit** to check it out: its branch when it has one (a short list if several), the local copy of a
+  remote branch when only that exists, otherwise the commit itself as a detached HEAD, after a confirmation. Uncommitted
+  changes that would be overwritten stop the checkout with the usual explanation; nothing is discarded.
 * **Highlight a branch:** click a branch, remote branch or tag in the sidebar — the graph scrolls to its tip and
   highlights every commit reachable from it; everything else is dimmed. Click the **✕** on the “Highlighting …” chip to
   clear it.
@@ -253,7 +262,9 @@ A submodule is another repository embedded inside this one (the sidebar's **Subm
 * **Switch the submodules to the same branch.** When the submodules have a branch with the same name as the one you use in
   the parent (for example `release-2`), right-click the branch → **Check out + switch submodules**, or **Switch submodules to
   this branch** for the branch that is already checked out, or press **Sync subs** in the toolbar (it uses the current
-  branch).
+  branch). The arrow beside the button also offers **Sync and pull**: after switching, each submodule that was switched is
+  pulled (fast-forward only, so nothing is ever left half-merged). A submodule without an upstream branch is switched but
+  not pulled, and a failed pull is reported while the others carry on.
   * Each downloaded submodule moves to the branch of that name if it exists there, either locally or as a remote branch (a
     local tracking branch is created). Submodules that are not downloaded, or that do not have that branch, are skipped.
   * A submodule that cannot switch (for example because it has uncommitted changes) is reported, and the others still

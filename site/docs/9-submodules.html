@@ -57,7 +57,9 @@ expects.</li>
 <li><strong>Switch the submodules to the same branch.</strong> When the submodules have a branch with the same name as the one you use in
 the parent (for example <code>release-2</code>), right-click the branch → <strong>Check out + switch submodules</strong>, or <strong>Switch submodules to
 this branch</strong> for the branch that is already checked out, or press <strong>Sync subs</strong> in the toolbar (it uses the current
-branch).<ul>
+branch). The arrow beside the button also offers <strong>Sync and pull</strong>: after switching, each submodule that was switched is
+pulled (fast-forward only, so nothing is ever left half-merged). A submodule without an upstream branch is switched but
+not pulled, and a failed pull is reported while the others carry on.<ul>
 <li>Each downloaded submodule moves to the branch of that name if it exists there, either locally or as a remote branch (a
 local tracking branch is created). Submodules that are not downloaded, or that do not have that branch, are skipped.</li>
 <li>A submodule that cannot switch (for example because it has uncommitted changes) is reported, and the others still
