@@ -305,7 +305,10 @@ export const useApp = create<AppState>((set, get) => {
       }
       // A folder handed to you with its own .git can carry settings or hooks that make git run programs.
       // Ask once before opening such a repository (nothing in it has been run yet at this point).
-      const risks = await api.repoRisks(top).catch(() => [] as string[]);
+      // If the check itself fails, ask anyway: opening silently would trust a repository we could not look at.
+      const risks = await api
+        .repoRisks(top)
+        .catch((e) => [`Treeline could not check this repository's settings (${errorMessage(e)}).`]);
       if (risks.length > 0 && !isTrustedRepo(top)) {
         const shown = risks.slice(0, 8).map((r) => `• ${r}`).join("\n");
         const more = risks.length > 8 ? `\n• …and ${risks.length - 8} more` : "";

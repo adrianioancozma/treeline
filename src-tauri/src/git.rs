@@ -615,6 +615,19 @@ pub(crate) fn risky_config_entry(key: &str, value: &str) -> Option<String> {
     if k.starts_with("remote.") && (k.ends_with(".vcs") || k.ends_with(".uploadpack") || k.ends_with(".receivepack")) {
         return program("runs a program for this remote");
     }
+    // Signing programs (gpg.program is above; also gpg.openpgp / gpg.x509 / gpg.ssh .program) run on every signed commit or tag.
+    if k.starts_with("gpg.") && (k.ends_with(".program") || k == "gpg.ssh.defaultkeycommand") {
+        return program("runs a program to sign commits and tags");
+    }
+    if (k.starts_with("difftool.") || k.starts_with("mergetool.") || k.starts_with("trailer."))
+        && (k.ends_with(".cmd") || k.ends_with(".command"))
+    {
+        return program("runs a command");
+    }
+    // pager.<command> may be true/false or a program to page that command's output with.
+    if k.starts_with("pager.") && !matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "false" | "yes" | "no" | "on" | "off" | "1" | "0" | "") {
+        return program("runs a program to page output");
+    }
     if k.starts_with("submodule.") && k.ends_with(".update") && value.starts_with('!') {
         return program("runs a command when updating this submodule");
     }
@@ -626,8 +639,16 @@ pub(crate) fn risky_config_entry(key: &str, value: &str) -> Option<String> {
 /// trust normally has none of this; a folder handed to you with its `.git` included can.
 pub(crate) fn repo_risks_now(path: &str) -> Result<Vec<String>, String> {
     let mut out = Vec::new();
-    let raw = run_git(path, ["config", "--local", "--list", "-z"])?;
-    for entry in raw.split('\0').filter(|e| !e.is_empty()) {
+    // Every entry git would use, with its origin, after following include.path. Only what the repository
+    // itself supplies counts: its .git/config, its per-worktree config and the files those include. With -z
+    // and --show-scope the output alternates "scope", "key<LF>value".
+    let raw = run_git(path, ["config", "--list", "--show-scope", "--includes", "-z"])?;
+    let mut tokens = raw.split('\0');
+    while let Some(scope) = tokens.next() {
+        let Some(entry) = tokens.next() else { break };
+        if !matches!(scope, "local" | "worktree") {
+            continue;
+        }
         let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
         if let Some(line) = risky_config_entry(key, value) {
             out.push(line);
@@ -1004,6 +1025,14 @@ mod tests {
             ("remote.origin.vcs", "ext"),
             ("submodule.a.update", "!calc"),
             ("core.editor", "vim"),
+            ("gpg.program", "x"),
+            ("gpg.openpgp.program", "x"),
+            ("gpg.x509.program", "x"),
+            ("gpg.ssh.program", "x"),
+            ("gpg.ssh.defaultKeyCommand", "x"),
+            ("mergetool.x.cmd", "x"),
+            ("trailer.t.command", "x"),
+            ("pager.log", "less -R"),
         ];
         for (k, v) in risky {
             assert!(risky_config_entry(k, v).is_some(), "{k}");
@@ -1019,6 +1048,9 @@ mod tests {
             ("alias.st", "!echo status"),
             ("remote.origin.url", "https://x"),
             ("branch.main.remote", "origin"),
+            ("pager.log", "true"),
+            ("gpg.format", "ssh"),
+            ("commit.gpgsign", "true"),
         ];
         for (k, v) in fine {
             assert!(risky_config_entry(k, v).is_none(), "{k}");
@@ -1041,6 +1073,17 @@ mod tests {
         assert!(risks.iter().any(|r| r.contains("Hook scripts") && r.contains("pre-commit")), "{risks:?}");
         assert!(risks.iter().any(|r| r.contains("merge.evil.driver")), "{risks:?}");
         assert!(!risks.iter().any(|r| r.contains("git-lfs")), "LFS is normal: {risks:?}");
+
+        // Per-worktree config is not part of --local, and an included file is not in the repository config
+        // itself: both must still be seen.
+        run_git(&repo, ["config", "extensions.worktreeConfig", "true"]).unwrap();
+        run_git(&repo, ["config", "--worktree", "core.hooksPath", ".evil-hooks"]).unwrap();
+        let extra = dir.join("extra.cfg");
+        std::fs::write(&extra, "[core]\n\tsshCommand = evil-ssh\n").unwrap();
+        run_git(&repo, ["config", "include.path", &extra.to_string_lossy().replace('\\', "/")]).unwrap();
+        let risks = repo_risks_now(&repo).unwrap();
+        assert!(risks.iter().any(|r| r.contains("core.hookspath") && r.contains(".evil-hooks")), "worktree config: {risks:?}");
+        assert!(risks.iter().any(|r| r.to_ascii_lowercase().contains("core.sshcommand") && r.contains("evil-ssh")), "included file: {risks:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -75,11 +75,14 @@ describe("opening a repository whose own settings can run programs", () => {
     expect(storage.get("trusted-repos")).toBeUndefined();
   });
 
-  it("does not block opening when the scan itself fails", async () => {
+  it("asks anyway when the scan itself fails, instead of opening silently", async () => {
     mocks.repoRisks.mockRejectedValue(new Error("boom"));
     await useApp.getState().openRepo("/work/unscannable");
-    expect(useApp.getState().dialog).toBeNull();
-    expect(useApp.getState().tabs).toHaveLength(1);
+    const dialog = useApp.getState().dialog;
+    expect(dialog?.title).toBe("This repository can run programs");
+    expect(dialog?.description).toContain("could not check this repository's settings");
+    expect(dialog?.description).toContain("boom");
+    expect(useApp.getState().tabs).toHaveLength(0);
   });
 
   it("lists at most eight findings and says how many more there are", async () => {
