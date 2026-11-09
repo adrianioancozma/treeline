@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { repoActions } from "../actions";
 import { parseTrack } from "../lib/format";
 import { buildRefTree, type RefFolder } from "../lib/refTree";
@@ -7,21 +7,28 @@ import { openMenu, setSectionOpen, useUi } from "../uiStore";
 import type { RefInfo, Tab } from "../types";
 import { Icon } from "./Icon";
 
+/** True while the sidebar filter has text: sections show open without changing the saved state. */
+const FilteringContext = createContext(false);
+
 /**
  * Open/closed state of a sidebar section: the user's own choice in this tab (each tab keeps its
  * own layout), else the given default.
  */
 function useSection(tabId: string, key: string, fallback: boolean) {
   const stored = useUi((s) => s.sections[tabId]?.[key]);
-  const open = stored ?? fallback;
+  // While the sidebar filter is typed, everything is shown open so matches are never hidden; that is
+  // not the user's choice and is not remembered.
+  const filtering = useContext(FilteringContext);
+  const open = filtering || (stored ?? fallback);
   // Fires for the user's click and when the `open` prop changes; only a real difference is a choice.
   const onToggle = (e: { currentTarget: HTMLDetailsElement }) => {
+    if (filtering) return;
     if (e.currentTarget.open !== open) setSectionOpen(tabId, key, e.currentTarget.open);
   };
   return { open, onToggle };
 }
 
-function Section({ tabId, title, count, children, open: fallback = true }: { tabId: string; title: string; count?: number; children: ReactNode; open?: boolean }) {
+function Section({ tabId, title, count, children, open: fallback = false }: { tabId: string; title: string; count?: number; children: ReactNode; open?: boolean }) {
   const { open, onToggle } = useSection(tabId, title, fallback);
   return (
     <details open={open} onToggle={onToggle} className="side-section">
@@ -36,7 +43,7 @@ function Section({ tabId, title, count, children, open: fallback = true }: { tab
 }
 
 function RemoteGroup({ tabId, remote, count, children }: { tabId: string; remote: string; count: number; children: ReactNode }) {
-  const { open, onToggle } = useSection(tabId, `remote:${remote}`, true);
+  const { open, onToggle } = useSection(tabId, `remote:${remote}`, false);
   return (
     <details open={open} onToggle={onToggle} className="side-sub">
       <summary>
@@ -80,7 +87,7 @@ function FolderNode<T>({ tabId, scope, folder, depth, base, renderItem }: {
   base: number;
   renderItem: (item: T, label: string, paddingLeft: number) => ReactNode;
 }) {
-  const { open, onToggle } = useSection(tabId, `folder:${scope}:${folder.path}`, true);
+  const { open, onToggle } = useSection(tabId, `folder:${scope}:${folder.path}`, false);
   return (
     <details open={open} onToggle={onToggle} className="side-folder">
       <summary style={{ paddingLeft: base - 2 + depth * INDENT }} title={folder.path}>
@@ -135,6 +142,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
         <Icon name="search" size={14} />
         <input placeholder="Filter branches, tags…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter sidebar" />
       </div>
+      <FilteringContext.Provider value={f !== ""}>
       <nav className="side-scroll">
         <div className="side-block">
           <button className={`side-item${view === "files" ? " active" : ""}`} onClick={() => setUi(tab.id, { view: "files" })}>
@@ -224,7 +232,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           {remoteGroups.length === 0 && <p className="muted small pad">No remote branches. Try Fetch.</p>}
         </Section>
 
-        <Section tabId={tab.id} title="Tags" count={tags.length} open={false}>
+        <Section tabId={tab.id} title="Tags" count={tags.length}>
           <RefTree tabId={tab.id} scope="tag" folder={tagTree} base={26} renderItem={(t, label, pad) => (
             <button
               key={t.name}
@@ -248,7 +256,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           {tags.length === 0 && <p className="muted small pad">No tags.</p>}
         </Section>
 
-        <Section tabId={tab.id} title="Stashes" count={d?.stashes.length ?? 0} open={(d?.stashes.length ?? 0) > 0}>
+        <Section tabId={tab.id} title="Stashes" count={d?.stashes.length ?? 0}>
           {d?.stashes.map((s) => (
             <button
               key={s.ref}
@@ -294,6 +302,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
           </Section>
         )}
       </nav>
+      </FilteringContext.Provider>
     </aside>
   );
 }
