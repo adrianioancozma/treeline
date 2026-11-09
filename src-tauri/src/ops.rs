@@ -819,6 +819,188 @@ pub async fn merge(path: String, rev: String, no_ff: bool, squash: bool) -> Resu
     .await
 }
 
+#[derive(Serialize, Debug, Clone)]
+pub struct MergePreview {
+    pub target: String,
+    /// `up-to-date`, `fast-forward`, `clean`, `conflict` or `error`.
+    pub status: String,
+    /// Files that would conflict (only for `conflict`).
+    pub files: Vec<String>,
+    /// Explanation for `error`, or a note such as "checked out in another worktree".
+    pub message: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct MergeApplied {
+    pub target: String,
+    pub ok: bool,
+    /// What happened: `merged`, `fast-forwarded`, `up-to-date`, `conflict` (left untouched) or `failed`.
+    pub status: String,
+    pub message: String,
+    /// Files where the merge result kept the target branch's own version and dropped the source's
+    /// change (for example "Keep ours" while resolving). Empty for a normal merge.
+    pub discarded: Vec<String>,
+}
+
+/// Parses `git merge-tree --write-tree --name-only --no-messages` output: the result tree id,
+/// then (only on conflict) the conflicted paths, one per line.
+pub(crate) fn parse_merge_tree(out: &str) -> (String, Vec<String>) {
+    let mut lines = out.lines();
+    let tree = lines.next().unwrap_or("").trim().to_string();
+    let mut files: Vec<String> = Vec::new();
+    for l in lines.map(str::trim).filter(|l| !l.is_empty()) {
+        if !files.iter().any(|f| f == l) {
+            files.push(l.to_string());
+        }
+    }
+    (tree, files)
+}
+
+/// Branches checked out in a worktree other than the one at `path` (updating them would desync it).
+fn other_worktree_branches(path: &str) -> Vec<String> {
+    let raw = run_git(path, ["worktree", "list", "--porcelain"]).unwrap_or_default();
+    let mut out = Vec::new();
+    let mut first = true;
+    for block in raw.split("\n\n") {
+        let branch = block.lines().find_map(|l| l.strip_prefix("branch refs/heads/"));
+        if !first {
+            if let Some(b) = branch {
+                out.push(b.to_string());
+            }
+        }
+        first = false;
+    }
+    out
+}
+
+/// Dry-runs merging `source_sha` into `target` without touching any working tree.
+fn classify_merge(path: &str, source_sha: &str, target: &str) -> MergePreview {
+    let mk = |status: &str, files: Vec<String>, message: &str| MergePreview {
+        target: target.to_string(),
+        status: status.into(),
+        files,
+        message: message.into(),
+    };
+    let target_ref = format!("refs/heads/{target}");
+    let target_sha = match run_git(path, ["rev-parse", "--verify", "--quiet", &target_ref]) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => return mk("error", vec![], "Branch not found."),
+    };
+    if run_git(path, ["merge-base", "--is-ancestor", source_sha, &target_sha]).is_ok() {
+        return mk("up-to-date", vec![], "");
+    }
+    if run_git(path, ["merge-base", "--is-ancestor", &target_sha, source_sha]).is_ok() {
+        return mk("fast-forward", vec![], "");
+    }
+    match run_git_ok_codes(
+        path,
+        ["merge-tree", "--write-tree", "--name-only", "--no-messages", &target_sha, source_sha],
+        &[1],
+    ) {
+        Ok(out) => {
+            let (_, files) = parse_merge_tree(&out);
+            if files.is_empty() { mk("clean", vec![], "") } else { mk("conflict", files, "") }
+        }
+        Err(e) => mk("error", vec![], &e),
+    }
+}
+
+/// Tests merging `source` into each target branch without changing anything, so the user can see
+/// which merges are clean and which would conflict (and in which files) before applying them.
+#[tauri::command]
+pub async fn preview_merge(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergePreview>, String> {
+    blocking(move || {
+        let sha = resolve_commit(&path, &source)?;
+        let busy = other_worktree_branches(&path);
+        let out = std::thread::scope(|scope| {
+            let handles: Vec<_> = targets
+                .iter()
+                .map(|t| {
+                    let (path, sha, busy) = (&path, &sha, &busy);
+                    scope.spawn(move || {
+                        let mut p = classify_merge(path, sha, t);
+                        if busy.contains(t) && matches!(p.status.as_str(), "clean" | "fast-forward") {
+                            p.status = "error".into();
+                            p.message = "Checked out in another worktree; merge it there.".into();
+                        }
+                        p
+                    })
+                })
+                .collect();
+            handles.into_iter().zip(&targets).map(|(h, t)| h.join().unwrap_or_else(|_| MergePreview {
+                target: t.clone(), status: "error".into(), files: vec![], message: "Preview crashed.".into(),
+            })).collect::<Vec<_>>()
+        });
+        Ok(out)
+    })
+    .await
+}
+
+/// Merges `source` into every target branch. Targets are re-checked first; any that would now
+/// conflict are left untouched. Branches that are not checked out are updated directly (no
+/// checkout, no working-tree changes); the checked-out branch gets a normal `git merge`.
+#[tauri::command]
+pub async fn merge_into_branches(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergeApplied>, String> {
+    blocking(move || {
+        let sha = resolve_commit(&path, &source)?;
+        let current = run_git(&path, ["symbolic-ref", "--quiet", "--short", "HEAD"]).map(|s| s.trim().to_string()).unwrap_or_default();
+        let busy = other_worktree_branches(&path);
+        let mut results = Vec::new();
+        for t in targets {
+            let r = |ok: bool, status: &str, message: String| MergeApplied { target: t.clone(), ok, status: status.into(), message, discarded: vec![] };
+            if busy.contains(&t) {
+                results.push(r(false, "failed", "Checked out in another worktree; merge it there.".into()));
+                continue;
+            }
+            let p = classify_merge(&path, &sha, &t);
+            let target_ref = format!("refs/heads/{t}");
+            let msg = format!("Merge branch '{source}' into {t}");
+            let res = match p.status.as_str() {
+                "up-to-date" => r(true, "up-to-date", "Already contains the source.".into()),
+                "conflict" => r(false, "conflict", format!("Would conflict in {} file(s); left unchanged.", p.files.len())),
+                "error" => r(false, "failed", p.message),
+                status => {
+                    let ff = status == "fast-forward";
+                    if t == current {
+                        let mut args = vec!["merge", "--no-edit"];
+                        if ff { args.push("--ff-only"); }
+                        args.push(&sha);
+                        match run_op(&path, args, &[("GIT_EDITOR", "true".into())]) {
+                            Ok(o) if o.ok => r(true, if ff { "fast-forwarded" } else { "merged" }, String::new()),
+                            Ok(o) => {
+                                let _ = run_git(&path, ["merge", "--abort"]);
+                                r(false, "failed", o.output.trim().to_string())
+                            }
+                            Err(e) => r(false, "failed", e),
+                        }
+                    } else {
+                        let old = run_git(&path, ["rev-parse", &target_ref]).map(|s| s.trim().to_string());
+                        let new = old.as_ref().map_err(|e| e.clone()).and_then(|old| {
+                            if ff {
+                                Ok(sha.clone())
+                            } else {
+                                let tree = run_git_ok_codes(&path, ["merge-tree", "--write-tree", "--no-messages", old, &sha], &[])
+                                    .map(|o| o.lines().next().unwrap_or("").trim().to_string())?;
+                                run_git(&path, ["commit-tree", &tree, "-p", old, "-p", &sha, "-m", &msg]).map(|s| s.trim().to_string())
+                            }
+                        });
+                        match (old, new) {
+                            (Ok(old), Ok(new)) => match run_git(&path, ["update-ref", "-m", &msg, &target_ref, &new, &old]) {
+                                Ok(_) => r(true, if ff { "fast-forwarded" } else { "merged" }, String::new()),
+                                Err(e) => r(false, "failed", e),
+                            },
+                            (Err(e), _) | (_, Err(e)) => r(false, "failed", e),
+                        }
+                    }
+                }
+            };
+            results.push(res);
+        }
+        Ok(results)
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn rebase(path: String, onto: String) -> Result<OpResult, String> {
     blocking(move || run_op(&path, ["rebase", "--autostash", &onto], &[("GIT_EDITOR", "true".into())])).await
@@ -1336,6 +1518,52 @@ pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Resul
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn parses_merge_tree_output() {
+        assert_eq!(parse_merge_tree("abc123\n"), ("abc123".into(), vec![]));
+        let (t, f) = parse_merge_tree("abc123\na.txt\nb/c.txt\na.txt\n");
+        assert_eq!(t, "abc123");
+        assert_eq!(f, vec!["a.txt", "b/c.txt"]);
+    }
+
+    #[test]
+    fn previews_merges_against_a_real_repo() {
+        let dir = std::env::temp_dir().join(format!("treeline-mp-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.to_string_lossy().to_string();
+        let g = |args: &[&str]| {
+            run_git(&p, ["-c", "user.name=t", "-c", "user.email=t@t"].iter().chain(args.iter()).copied()).unwrap()
+        };
+        g(&["init", "-q", "-b", "main"]);
+        fs::write(dir.join("a.txt"), "one\n").unwrap();
+        g(&["add", "."]);
+        g(&["commit", "-qm", "base"]);
+        for b in ["rel-ff", "rel-clean", "rel-conflict"] {
+            g(&["branch", b]);
+        }
+        g(&["checkout", "-q", "-b", "fix"]);
+        fs::write(dir.join("a.txt"), "fixed\n").unwrap();
+        g(&["commit", "-qam", "fix"]);
+        g(&["checkout", "-q", "rel-clean"]);
+        fs::write(dir.join("b.txt"), "other\n").unwrap();
+        g(&["add", "."]);
+        g(&["commit", "-qm", "b"]);
+        g(&["checkout", "-q", "rel-conflict"]);
+        fs::write(dir.join("a.txt"), "different\n").unwrap();
+        g(&["commit", "-qam", "c"]);
+        g(&["checkout", "-q", "fix"]);
+
+        let sha = resolve_commit(&p, "fix").unwrap();
+        assert_eq!(classify_merge(&p, &sha, "rel-ff").status, "fast-forward");
+        assert_eq!(classify_merge(&p, &sha, "rel-clean").status, "clean");
+        let c = classify_merge(&p, &sha, "rel-conflict");
+        assert_eq!((c.status.as_str(), c.files), ("conflict", vec!["a.txt".to_string()]));
+        assert_eq!(classify_merge(&p, &sha, "fix").status, "up-to-date");
+        assert_eq!(classify_merge(&p, &sha, "nope").status, "error");
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn parses_name_status_with_renames() {

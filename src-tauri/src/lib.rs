@@ -94,6 +94,8 @@ pub fn run() {
             ops::git_blame,
             ops::list_refs,
             ops::checkout,
+            ops::preview_merge,
+            ops::merge_into_branches,
             ops::checkout_remote,
             ops::create_branch,
             ops::rename_branch,
