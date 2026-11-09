@@ -13,6 +13,7 @@ import { CloneDialog } from "./components/CloneDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FileHistoryDialog } from "./components/FileHistoryDialog";
 import { MergedBranchesDialog } from "./components/MergedBranchesDialog";
+import { MultiMergeDialog } from "./components/MultiMergeDialog";
 import { CommandPalette } from "./components/CommandPalette";
 import { ContextMenuHost, FormDialogHost, Toasts } from "./components/Overlays";
 import { RebaseDialogHost } from "./components/RebaseDialog";
@@ -27,6 +28,7 @@ export default function App() {
   const settingsOpen = useUi((s) => s.settings);
   const fileHistory = useUi((s) => s.fileHistory);
   const mergedBranches = useUi((s) => s.mergedBranches);
+  const multiMerge = useUi((s) => s.multiMerge);
 
   useEffect(() => {
     void useApp.getState().init();
@@ -99,6 +101,7 @@ export default function App() {
       {fileHistory && (
         <FileHistoryDialog key={`${fileHistory.repo}:${fileHistory.file}:${fileHistory.mode}`} req={fileHistory} onClose={() => useUi.setState({ fileHistory: null })} />
       )}
+      {multiMerge && <MultiMergeDialog key={multiMerge.tabId} tabId={multiMerge.tabId} initialSource={multiMerge.source} onClose={() => useUi.setState({ multiMerge: null })} />}
       {mergedBranches && <MergedBranchesDialog key={mergedBranches.tabId} tabId={mergedBranches.tabId} onClose={() => useUi.setState({ mergedBranches: null })} />}
       {settingsOpen && <SettingsDialog onClose={() => useUi.setState({ settings: false })} />}
     </div>
