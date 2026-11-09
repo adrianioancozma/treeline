@@ -172,6 +172,22 @@ fn combined(out: &std::process::Output) -> String {
     }
 }
 
+/// Rejects a branch, tag, remote or commit name that git would read as an option (for example
+/// `--upload-pack=...`) or that contains a NUL byte. Git itself forbids ref names that start with `-`,
+/// so no legitimate name is refused.
+pub(crate) fn ref_arg(s: &str) -> Result<(), String> {
+    if s.starts_with('-') || s.contains('\0') {
+        let shown: String = s.chars().filter(|c| !c.is_control()).take(60).collect();
+        return Err(format!("'{shown}' is not a valid branch, tag, remote or commit name."));
+    }
+    Ok(())
+}
+
+/// `ref_arg` for an optional value (None and empty are fine).
+pub(crate) fn opt_ref_arg(s: &Option<String>) -> Result<(), String> {
+    s.as_deref().map_or(Ok(()), ref_arg)
+}
+
 /// Runs git and returns stdout; a non-zero exit becomes an `Err` with git's message.
 pub(crate) fn run_git<I, S>(repo: &str, args: I) -> Result<String, String>
 where
@@ -650,6 +666,7 @@ pub(crate) fn pick_branch_source(refs: &str, branch: &str) -> Option<(bool, Stri
 #[tauri::command]
 pub async fn switch_submodules_branch(path: String, branch: String) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&branch)?;
         let raw = run_git(&path, ["ls-files", "--stage", "-z"])?;
         let root = PathBuf::from(&path);
         let (mut ok, mut lines) = (true, Vec::new());
@@ -807,6 +824,19 @@ mod tests {
                 ("ccc".to_string(), "src/conflicted".to_string(), true),
             ]
         );
+    }
+
+    #[test]
+    fn option_like_names_are_refused() {
+        for bad in ["--upload-pack=calc.exe", "-D", "--orphan=x", "a\0b"] {
+            assert!(ref_arg(bad).is_err(), "{bad:?}");
+        }
+        for ok in ["main", "feature/x-1", "origin/develop", "v1.2.3", "HEAD~2", "abc123", "refs/heads/x", "stash@{0}", ""] {
+            assert!(ref_arg(ok).is_ok(), "{ok:?}");
+        }
+        assert!(opt_ref_arg(&None).is_ok());
+        assert!(opt_ref_arg(&Some("--x".into())).is_err());
+        assert!(opt_ref_arg(&Some("main".into())).is_ok());
     }
 
     #[test]

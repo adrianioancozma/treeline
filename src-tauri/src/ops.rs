@@ -2,7 +2,7 @@
 //! merge / rebase / cherry-pick, and conflict resolution.
 
 use crate::git::{
-    blocking, run_git, run_git_ok_codes, run_git_stdin, run_op, stream_git, OpResult, LITERAL,
+    blocking, opt_ref_arg, ref_arg, run_git, run_git_ok_codes, run_git_stdin, run_op, stream_git, OpResult, LITERAL,
 };
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -207,6 +207,8 @@ pub async fn commit_files(
     parent: Option<String>,
 ) -> Result<Vec<FileEntry>, String> {
     blocking(move || {
+        ref_arg(&sha)?;
+        opt_ref_arg(&parent)?;
         let raw = match &parent {
             Some(p) => run_git(&path, ["diff", "--name-status", "-M", "-z", p, &sha])?,
             None => run_git(
@@ -229,6 +231,8 @@ pub async fn commit_diff(
     context: u32,
 ) -> Result<String, String> {
     blocking(move || {
+        ref_arg(&sha)?;
+        opt_ref_arg(&parent)?;
         let ctx = format!("-U{context}");
         let mut specs = vec![file.clone()];
         if let Some(o) = old_file {
@@ -258,6 +262,7 @@ pub struct CommitDetail {
 #[tauri::command]
 pub async fn commit_detail(path: String, sha: String) -> Result<CommitDetail, String> {
     blocking(move || {
+        ref_arg(&sha)?;
         let raw = run_git(
             &path,
             ["show", "-s", "--format=%an%x1f%ae%x1f%at%x1f%cn%x1f%P%x1f%B", &sha],
@@ -442,6 +447,7 @@ pub async fn list_refs(path: String) -> Result<Vec<RefInfo>, String> {
 #[tauri::command]
 pub async fn checkout(path: String, target: String, force: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&target)?;
         // `git checkout <remote-branch-short-name>` DWIM-creates a tracking branch.
         let mut args = vec!["checkout"];
         if force {
@@ -457,6 +463,7 @@ pub async fn checkout(path: String, target: String, force: bool) -> Result<OpRes
 #[tauri::command]
 pub async fn checkout_remote(path: String, remote_branch: String) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&remote_branch)?;
         let local = remote_branch
             .split_once('/')
             .map(|(_, b)| b.to_string())
@@ -479,6 +486,8 @@ pub async fn create_branch(
     checkout: bool,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&name)?;
+        opt_ref_arg(&start)?;
         let mut args = if checkout {
             vec!["checkout".to_string(), "-b".into(), name]
         } else {
@@ -494,12 +503,19 @@ pub async fn create_branch(
 
 #[tauri::command]
 pub async fn rename_branch(path: String, old: String, new: String) -> Result<OpResult, String> {
-    blocking(move || run_op(&path, ["branch", "-m", &old, &new], &[])).await
+    blocking(move || {
+        ref_arg(&old)?;
+        ref_arg(&new)?;
+        run_op(&path, ["branch", "-m", &old, &new], &[])
+    }).await
 }
 
 #[tauri::command]
 pub async fn delete_branch(path: String, name: String, force: bool) -> Result<OpResult, String> {
-    blocking(move || run_op(&path, ["branch", if force { "-D" } else { "-d" }, &name], &[])).await
+    blocking(move || {
+        ref_arg(&name)?;
+        run_op(&path, ["branch", if force { "-D" } else { "-d" }, &name], &[])
+    }).await
 }
 
 // ---------------------------------------------------------------------------
@@ -640,6 +656,9 @@ pub async fn branch_history(path: String, name: String, target: String, limit: u
 #[tauri::command]
 pub async fn delete_merged_branches(path: String, target: String, names: Vec<String>) -> Result<Vec<BranchDeleteResult>, String> {
     blocking(move || {
+        for item in &names {
+            ref_arg(item)?;
+        }
         let target_sha = resolve_commit(&path, &target)?;
         let mut results = Vec::new();
         for name in names {
@@ -669,6 +688,8 @@ pub async fn create_tag(
     message: Option<String>,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&name)?;
+        opt_ref_arg(&rev)?;
         let mut args = vec!["tag".to_string()];
         if let Some(m) = message.filter(|m| !m.trim().is_empty()) {
             args.extend(["-a".to_string(), "-m".to_string(), m]);
@@ -684,7 +705,10 @@ pub async fn create_tag(
 
 #[tauri::command]
 pub async fn delete_tag(path: String, name: String) -> Result<OpResult, String> {
-    blocking(move || run_op(&path, ["tag", "-d", &name], &[])).await
+    blocking(move || {
+        ref_arg(&name)?;
+        run_op(&path, ["tag", "-d", &name], &[])
+    }).await
 }
 
 // ---------------------------------------------------------------------------
@@ -715,6 +739,8 @@ pub async fn fetch_ref(
     refspec: Option<String>,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&remote)?;
+        opt_ref_arg(&refspec)?;
         let mut args: Vec<String> = vec!["fetch".into(), "--progress".into(), remote];
         if let Some(r) = refspec.filter(|r| !r.is_empty()) {
             args.push(r);
@@ -752,6 +778,8 @@ pub async fn push(
     tags: bool,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        opt_ref_arg(&remote)?;
+        opt_ref_arg(&refspec)?;
         let mut args: Vec<String> = vec!["push".into(), "--progress".into()];
         if force {
             args.push("--force-with-lease".into());
@@ -794,6 +822,8 @@ pub async fn delete_remote_branch(
     branch: String,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&remote)?;
+        ref_arg(&branch)?;
         let args: Vec<String> = vec!["push".into(), remote, "--delete".into(), branch];
         stream_git(&app, &id, Some(&path), &args)
     })
@@ -807,6 +837,7 @@ pub async fn delete_remote_branch(
 #[tauri::command]
 pub async fn merge(path: String, rev: String, no_ff: bool, squash: bool) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&rev)?;
         let mut args = vec!["merge"];
         if squash {
             args.push("--squash");
@@ -942,6 +973,9 @@ pub async fn preview_merge(path: String, source: String, targets: Vec<String>) -
 #[tauri::command]
 pub async fn merge_into_branches(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergeApplied>, String> {
     blocking(move || {
+        for item in &targets {
+            ref_arg(item)?;
+        }
         let sha = resolve_commit(&path, &source)?;
         let current = run_git(&path, ["symbolic-ref", "--quiet", "--short", "HEAD"]).map(|s| s.trim().to_string()).unwrap_or_default();
         let busy = other_worktree_branches(&path);
@@ -1158,6 +1192,9 @@ fn merge_reusing_resolution(path: &str, source_sha: &str, target: &str) -> Merge
 #[tauri::command]
 pub async fn merge_reusing_resolutions(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergeApplied>, String> {
     blocking(move || {
+        for item in &targets {
+            ref_arg(item)?;
+        }
         let sha = resolve_commit(&path, &source)?;
         let busy = other_worktree_branches(&path);
         Ok(targets
@@ -1176,12 +1213,16 @@ pub async fn merge_reusing_resolutions(path: String, source: String, targets: Ve
 
 #[tauri::command]
 pub async fn rebase(path: String, onto: String) -> Result<OpResult, String> {
-    blocking(move || run_op(&path, ["rebase", "--autostash", &onto], &[("GIT_EDITOR", "true".into())])).await
+    blocking(move || {
+        ref_arg(&onto)?;
+        run_op(&path, ["rebase", "--autostash", &onto], &[("GIT_EDITOR", "true".into())])
+    }).await
 }
 
 #[tauri::command]
 pub async fn cherry_pick(path: String, sha: String, mainline: Option<u32>) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&sha)?;
         let mut args = vec!["cherry-pick".to_string()];
         if let Some(m) = mainline {
             args.extend(["-m".to_string(), m.to_string()]);
@@ -1195,6 +1236,7 @@ pub async fn cherry_pick(path: String, sha: String, mainline: Option<u32>) -> Re
 #[tauri::command]
 pub async fn revert(path: String, sha: String, mainline: Option<u32>) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&sha)?;
         let mut args = vec!["revert".to_string(), "--no-edit".to_string()];
         if let Some(m) = mainline {
             args.extend(["-m".to_string(), m.to_string()]);
@@ -1209,6 +1251,7 @@ pub async fn revert(path: String, sha: String, mainline: Option<u32>) -> Result<
 #[tauri::command]
 pub async fn reset(path: String, rev: String, mode: String) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&rev)?;
         let flag = match mode.as_str() {
             "soft" => "--soft",
             "hard" => "--hard",
@@ -1252,6 +1295,7 @@ pub struct RebaseCommit {
 #[tauri::command]
 pub async fn rebase_todo(path: String, base: Option<String>) -> Result<Vec<RebaseCommit>, String> {
     blocking(move || {
+        opt_ref_arg(&base)?;
         let mut args = vec![
             "log".to_string(),
             "--reverse".into(),
@@ -1301,6 +1345,7 @@ pub async fn rebase_interactive(
     steps: Vec<RebaseStep>,
 ) -> Result<OpResult, String> {
     blocking(move || {
+        opt_ref_arg(&base)?;
         // Keep the todo and reword messages inside the git dir: a paused rebase (conflict, `edit`)
         // runs the remaining `exec` lines later, so these files must outlive this call.
         let git_dir = PathBuf::from(run_git(&path, ["rev-parse", "--absolute-git-dir"])?.trim());
@@ -1401,6 +1446,7 @@ pub async fn stash_push(
 #[tauri::command]
 pub async fn stash_action(path: String, reference: String, action: String) -> Result<OpResult, String> {
     blocking(move || {
+        ref_arg(&reference)?;
         if !matches!(action.as_str(), "apply" | "pop" | "drop") {
             return Err(format!("Unknown stash action: {action}"));
         }
@@ -1743,6 +1789,7 @@ fn parse_blame(raw: &str) -> Vec<BlameLine> {
 #[tauri::command]
 pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Result<Vec<BlameLine>, String> {
     blocking(move || {
+        opt_ref_arg(&rev)?;
         let mut args: Vec<String> = vec![LITERAL.into(), "blame".into(), "--line-porcelain".into()];
         if let Some(r) = rev.filter(|r| !r.is_empty()) {
             args.push(r);
