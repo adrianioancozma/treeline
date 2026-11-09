@@ -61,7 +61,7 @@ pub fn run() {
         .manage(watcher::WatchState::default())
         .setup(|app| {
             store::apply_saved_settings(app.handle());
-            store::register_saved_repos(app.handle());
+            store::load_trusted_folders(app.handle());
             #[cfg(target_os = "macos")]
             app.set_menu(build_app_menu(app.handle())?)?;
             #[cfg(not(target_os = "macos"))]

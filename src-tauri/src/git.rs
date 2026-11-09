@@ -271,10 +271,53 @@ fn allow_key(p: &str) -> String {
     s
 }
 
-fn push_unique(list: &std::sync::Mutex<Vec<String>>, key: String) {
+/// Adds `key` unless it is already there; true when it was added.
+fn push_unique(list: &std::sync::Mutex<Vec<String>>, key: String) -> bool {
     if let Ok(mut g) = list.lock() {
         if !g.contains(&key) {
             g.push(key);
+            return true;
+        }
+    }
+    false
+}
+
+// The opened folders are remembered between runs in a file that only Rust writes, kept apart from the
+// tabs file the page can write. It stores resolved locations, so a link created later at a remembered
+// path cannot make that path lead somewhere else.
+static TRUST_FILE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+const TRUST_FILE_MAX: usize = 500;
+
+pub(crate) fn set_trust_file(path: PathBuf) {
+    let _ = TRUST_FILE.set(path);
+}
+
+pub(crate) fn write_trust_file(path: &Path, keys: &[String]) -> std::io::Result<()> {
+    let start = keys.len().saturating_sub(TRUST_FILE_MAX);
+    let body = serde_json::json!({ "repos": &keys[start..] }).to_string();
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, body)?;
+    std::fs::rename(&tmp, path)
+}
+
+pub(crate) fn read_trust_file(path: &Path) -> Option<Vec<String>> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
+    Some(value.get("repos")?.as_array()?.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+}
+
+/// Writes the current list of opened folders to the trust file (if one is set).
+pub(crate) fn persist_trusted() {
+    if let (Some(file), Ok(list)) = (TRUST_FILE.get(), opened_repos().lock()) {
+        let _ = write_trust_file(file, &list);
+    }
+}
+
+/// Loads folders that were trusted in an earlier run (already in resolved form).
+pub(crate) fn restore_allowed_keys(keys: &[String]) {
+    for key in keys {
+        if !is_filesystem_root(key) {
+            push_unique(opened_repos(), key.clone());
         }
     }
 }
@@ -288,8 +331,8 @@ fn is_filesystem_root(key: &str) -> bool {
 /// trusted this way.
 pub(crate) fn allow_repo(path: &str) {
     let key = allow_key(path);
-    if !is_filesystem_root(&key) {
-        push_unique(opened_repos(), key);
+    if !is_filesystem_root(&key) && push_unique(opened_repos(), key) {
+        persist_trusted();
     }
 }
 
@@ -695,22 +738,31 @@ fn repo_state(path: &str) -> Option<String> {
 }
 
 /// Returns the repository's top-level folder, or an error if `path` is not inside one.
-#[tauri::command]
-pub async fn git_toplevel(path: String) -> Result<String, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let out = run_git(&path, ["rev-parse", "--show-toplevel"])
+/// The top level of the repository `path` is in, checked against what the user opened and then trusted.
+fn resolve_toplevel(path: &str) -> Result<String, String> {
+        ensure_allowed(path)?;
+        let out = run_git(path, ["rev-parse", "--show-toplevel"])
             .map_err(|e| {
                 // Only blame the folder when git actually ran; "git could not start" must stay visible.
                 if e.starts_with(SPAWN_ERROR_PREFIX) { e } else { "This folder is not a Git repository.".to_string() }
             })?;
         let top = out.trim().to_string();
         // The folder the user picked may be inside a repository (or be a submodule of one they opened):
-        // the repository's own top level is the folder every later command will use.
+        // the repository's own top level is the folder every later command will use. Git computes it from
+        // the folder's own files, so it is only trusted when it is the folder itself or one above it. A
+        // crafted `.git` file or `core.worktree` can make git name a folder elsewhere; that must not widen
+        // what the app may touch.
+        let (here, there) = (allow_key(path), allow_key(&top));
+        if here != there && !here.starts_with(&format!("{there}/")) {
+            return Err("That repository's working folder lies outside the folder you opened, so it was not opened.".into());
+        }
         allow_repo(&top);
         Ok(top)
-    })
-    .await
+}
+
+#[tauri::command]
+pub async fn git_toplevel(path: String) -> Result<String, String> {
+    blocking(move || resolve_toplevel(&path)).await
 }
 
 /// Describes a repository config entry that makes git run a program, or `None` when it is harmless
@@ -1271,6 +1323,71 @@ mod tests {
         for (input, want) in cases {
             assert_eq!(redact_urls(input), want, "{input}");
         }
+    }
+
+    #[test]
+    fn git_cannot_widen_what_is_trusted_by_reporting_a_folder_elsewhere() {
+        let base = std::env::temp_dir().join(format!("treeline-top-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let opened = base.join("opened");
+        let outside = base.join("outside");
+        std::fs::create_dir_all(opened.join("sub")).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let s = |p: &Path| p.to_string_lossy().into_owned();
+        run_git(&s(&opened), ["init", "-q"]).unwrap();
+
+        // The ordinary case: a folder inside a repository resolves to the repository above it, which
+        // then becomes trusted too.
+        allow_repo(&s(&opened.join("sub")));
+        let top = resolve_toplevel(&s(&opened.join("sub"))).unwrap();
+        assert_eq!(allow_key(&top), allow_key(&s(&opened)));
+        assert!(ensure_allowed(&s(&opened)).is_ok(), "the repository's own top level is trusted");
+
+        // A repository whose config sends the working tree somewhere else must not make that place trusted.
+        allow_repo(&s(&opened));
+        run_git(&s(&opened), ["config", "core.worktree", &s(&outside)]).unwrap();
+        let result = resolve_toplevel(&s(&opened));
+        assert!(ensure_allowed(&s(&outside)).is_err(), "a folder git merely named is not trusted: {result:?}");
+        if let Ok(t) = &result {
+            assert_eq!(allow_key(t), allow_key(&s(&opened)), "if it answers at all it must be the folder itself");
+        }
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn trusted_folders_are_remembered_as_resolved_locations() {
+        let base = std::env::temp_dir().join(format!("treeline-trust-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let file = base.join("trusted-folders.json");
+        assert!(read_trust_file(&file).is_none(), "no file yet");
+
+        let keys: Vec<String> = vec!["c:/work/a".into(), "c:/work/b".into()];
+        write_trust_file(&file, &keys).unwrap();
+        assert_eq!(read_trust_file(&file).unwrap(), keys);
+        std::fs::write(&file, "not json").unwrap();
+        assert!(read_trust_file(&file).is_none(), "a damaged file is treated as absent, not trusted");
+
+        let many: Vec<String> = (0..600).map(|i| format!("c:/work/{i}")).collect();
+        write_trust_file(&file, &many).unwrap();
+        let back = read_trust_file(&file).unwrap();
+        assert_eq!(back.len(), 500);
+        assert_eq!(back.last().unwrap(), "c:/work/599", "the most recent are kept");
+
+        // What is remembered is the real location, so a link made later at the old path cannot redirect it.
+        let real = base.join("real");
+        let link = base.join("link");
+        std::fs::create_dir_all(&real).unwrap();
+        #[cfg(windows)]
+        let made = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(&link).arg(&real).output().map(|o| o.status.success()).unwrap_or(false);
+        #[cfg(unix)]
+        let made = std::os::unix::fs::symlink(&real, &link).is_ok();
+        if made {
+            assert_eq!(allow_key(&link.to_string_lossy()), allow_key(&real.to_string_lossy()), "stored as the real folder");
+        } else {
+            eprintln!("skipped link check: cannot create links here");
+        }
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

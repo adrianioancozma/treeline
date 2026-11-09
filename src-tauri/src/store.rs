@@ -21,8 +21,9 @@ pub fn load_state(app: AppHandle) -> Result<Option<String>, String> {
 }
 
 /// Removes tabs and bookmarks that point at a folder the user has not opened. The saved file is what
-/// the next start trusts (`register_saved_repos`), so the page must not be able to plant a folder in
-/// it: only folders that were already allowed can be written back.
+/// the next start restores, so the page must not be able to plant a folder in it: only folders that
+/// were already allowed can be written back. (What is trusted comes from `trusted-folders.json`, which
+/// only Rust writes; this file is only used once, to seed it after an update.)
 pub(crate) fn without_unopened_folders(json: &str) -> Result<String, String> {
     let mut state: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
     for list in ["tabs", "bookmarks"] {
@@ -84,9 +85,24 @@ mod tests {
     }
 }
 
-/// Trusts the repositories saved in the tabs and bookmarks, so a restart reopens them. It runs once at
-/// start-up, from Rust, before any page script exists; the page cannot call it.
-pub fn register_saved_repos(app: &AppHandle) {
+/// Loads the folders the user opened in earlier runs from `trusted-folders.json`, a file only Rust
+/// writes. The first time (no such file yet, as after an update) the tabs and bookmarks already saved
+/// are trusted once, so nothing the user had open is lost; after that the tabs file, which the page can
+/// write, is never used to decide what is trusted. Runs at start-up from Rust; the page cannot call it.
+pub fn load_trusted_folders(app: &AppHandle) {
+    let Ok(dir) = app.path().app_config_dir() else { return };
+    let _ = fs::create_dir_all(&dir);
+    let file = dir.join("trusted-folders.json");
+    crate::git::set_trust_file(file.clone());
+    if let Some(keys) = crate::git::read_trust_file(&file) {
+        crate::git::restore_allowed_keys(&keys);
+        return;
+    }
+    seed_from_saved_state(app);
+    crate::git::persist_trusted(); // creates the file even when nothing was seeded, so this runs only once
+}
+
+fn seed_from_saved_state(app: &AppHandle) {
     let Ok(path) = state_path(app) else { return };
     let Ok(text) = fs::read_to_string(path) else { return };
     let Ok(state) = serde_json::from_str::<serde_json::Value>(&text) else { return };

@@ -19,8 +19,9 @@ treats every repository, branch name, file name and commit message as untrusted 
   own configuration contains such settings or hook scripts, and runs nothing from it before you answer.
   Settings that would run a program on every `status` (`core.fsmonitor`) or when showing a diff
   (external diff programs) are always switched off for the app's own Git calls.
-- **Only folders you opened.** The backend accepts a folder only if you chose it with the folder picker,
-  it is in your saved tabs and bookmarks, or it lies inside one of those (for example a submodule).
+- **Only folders you opened.** The backend accepts a folder only if you chose it with the folder picker or
+  opened it before (remembered in a file only the app writes), or it lies inside one of those (for example
+  a submodule).
 - **No writing through links.** Conflict files are read and written only if neither the file nor any
   folder above it is a symbolic link or junction leading out of the repository.
 - **Names are names.** A branch, tag or commit name that Git would read as an option (it starts with

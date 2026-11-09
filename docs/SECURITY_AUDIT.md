@@ -44,9 +44,11 @@ Every command takes a folder path from the page. The backend keeps a list of fol
 actually opened and refuses anything else (`ensure_allowed`). The list can only be filled from Rust:
 
 - the **folder picker** (`pick_folder`), which the operating system shows;
-- the **saved tabs and bookmarks**, read once at start-up before any page script exists;
+- folders **opened in earlier runs**, remembered in `trusted-folders.json`, a file only the app writes (the
+  first start after an update trusts the saved tabs and bookmarks once to fill it);
 - the **top level** of a repository derived from an allowed folder (this covers submodules and a
-  sub-folder picked inside a repository);
+  sub-folder picked inside a repository). It is accepted only when it is the folder itself or a folder above
+  it, so a crafted `.git` file or `core.worktree` that makes git name a folder elsewhere cannot widen the list;
 - a **finished clone**.
 
 A clone destination must come from the picker. If the path was typed, the user confirms it in a window
@@ -54,9 +56,10 @@ of the operating system. Paths are compared after resolving links and junctions 
 not exist yet), `..` is refused, and a whole drive or the filesystem root is never trusted, because that
 would trust everything below it.
 
-The saved state is itself something the page can write, and the next start trusts it. So `save_state`
-drops any tab or bookmark whose folder is not already allowed: the page can write back folders the user
-opened, but cannot plant a new one for the next start.
+The tabs file is something the page can write, so it is **not** what start-up trusts: the list comes from
+`trusted-folders.json`, which only Rust writes and which stores the resolved real location of each folder, so a
+link created later at a remembered path cannot make it lead somewhere else. `save_state` also drops any tab or
+bookmark whose folder is not already allowed, so the page cannot plant a folder in the tabs file either.
 
 ## Verification
 
