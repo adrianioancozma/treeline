@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import { openGuide } from "../guide";
@@ -7,6 +7,26 @@ import { Icon } from "./Icon";
 export function TabBar() {
   const { tabs, activeId, setActive, closeTab, newTab, moveTab, data } = useApp();
   const bar = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // The mouse wheel scrolls the tabs sideways. A native listener, because React's wheel handler is
+  // passive and could not stop the page behind from scrolling.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // The selected (or newly opened) tab is always brought into view.
+  useEffect(() => {
+    scroller.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView?.({ inline: "nearest", block: "nearest" });
+  }, [activeId, tabs.length]);
   /** The tab being dragged and the slot (0 … tabs.length) it would drop into. */
   const [drag, setDrag] = useState<{ id: string; slot: number } | null>(null);
 
@@ -43,6 +63,7 @@ export function TabBar() {
 
   return (
     <div className="tabbar" role="tablist" ref={bar}>
+      <div className="tabs" ref={scroller}>
       {tabs.map((t, i) => {
         const s = data[t.id]?.status;
         const dirty = (s?.files.length ?? 0) > 0;
@@ -54,7 +75,8 @@ export function TabBar() {
             className={`tab${t.id === activeId ? " active" : ""}${drag?.id === t.id ? " dragging" : ""}${
               drag?.slot === i ? " drop-before" : ""
             }${drag && drag.slot === tabs.length && i === tabs.length - 1 ? " drop-after" : ""}`}
-            title={t.path ?? "New tab"}
+            title={t.path ? `${t.name}
+${t.path}` : "New tab"}
             onPointerDown={(e) => startDrag(e, t.id)}
             onClick={() => setActive(t.id)}
             onAuxClick={(e) => e.button === 1 && closeTab(t.id)}
@@ -75,6 +97,7 @@ export function TabBar() {
           </div>
         );
       })}
+      </div>
       <button className="icon-btn tab-new" aria-label="New tab (Ctrl+T)" title="New tab (Ctrl+T)" onClick={newTab}>
         <Icon name="plus" size={16} />
       </button>
