@@ -46,9 +46,11 @@ interface UiState {
   settings: boolean;
   /** The merged-branches dialog, open for this tab. */
   mergedBranches: { tabId: string } | null;
+  /** The merge-into-many dialog; `source` preselects the branch to merge from (default: current). */
+  multiMerge: { tabId: string; source?: string } | null;
 }
 
-export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false, mergedBranches: null }));
+export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false, mergedBranches: null, multiMerge: null }));
 
 export function openMenu(e: MouseEvent | { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }, items: MenuItem[]) {
   e.preventDefault?.();

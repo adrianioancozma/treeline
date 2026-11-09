@@ -78,6 +78,8 @@ export interface ConflictFile {
   ours: string | null;
   theirs: string | null;
   base: string | null;
+  /** Git filled the file in from a remembered resolution; it only needs review and staging. */
+  prefilled?: boolean;
 }
 
 export interface RebaseCommit {
@@ -171,6 +173,22 @@ export interface BranchHistory {
   /** The merge commit that took the branch into the target; null when it was fast-forwarded. */
   merge: Commit | null;
   truncated: boolean;
+}
+
+export interface MergePreview {
+  target: string;
+  status: "up-to-date" | "fast-forward" | "clean" | "conflict" | "error";
+  files: string[];
+  message: string;
+}
+
+export interface MergeApplied {
+  target: string;
+  ok: boolean;
+  status: "merged" | "fast-forwarded" | "up-to-date" | "conflict" | "failed";
+  message: string;
+  /** Files where the merge kept the branch's own version and dropped the source's change. */
+  discarded: string[];
 }
 
 export interface BranchDeleteResult {

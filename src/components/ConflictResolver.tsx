@@ -72,6 +72,38 @@ export function ConflictResolver({ tab, file }: { tab: Tab; file: string }) {
 
   const hasMarkersLeft = /^(<<<<<<<|=======|>>>>>>>)/m.test(result);
 
+  if (total === 0 && data.prefilled) {
+    return (
+      <div className="resolver">
+        <header className="resolver-head">
+          <div>
+            <h2>{file}</h2>
+            <span className="muted small">Filled in from your earlier resolution</span>
+          </div>
+          <button className="btn primary" title="Stage the file exactly as shown below" onClick={() => run(tab.id, "Saving resolution…", () => api.saveResolution(path, file, result), { success: `Resolved ${file}` })}>
+            Use this result
+          </button>
+        </header>
+        <div className="mm-banner info" style={{ margin: "0 12px" }}>
+          Git recognised this conflict and applied the way you resolved it before, so there are no conflict markers. Review the result below, then press{" "}
+          <strong>Use this result</strong>. <strong>Keep ours</strong> or <strong>Keep theirs</strong> would throw that resolution away.
+        </div>
+        <div className="result-pane">
+          <div className="side-title">Result (editable)</div>
+          <textarea value={result} onChange={(e) => setResult(e.target.value)} spellCheck={false} aria-label="Resolved file content" />
+        </div>
+        <div className="row center" style={{ padding: 12 }}>
+          <button className="btn" onClick={() => side("ours")}>
+            Keep ours instead
+          </button>
+          <button className="btn" onClick={() => side("theirs")}>
+            Keep theirs instead
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (total === 0) {
     return (
       <div className="resolver">

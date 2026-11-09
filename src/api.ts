@@ -3,6 +3,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import type {
   BlameLine,
   BranchDeleteResult,
+  MergeApplied,
+  MergePreview,
   BranchHistory,
   Commit,
   CommitDetail,
@@ -121,6 +123,16 @@ export const api = {
     invoke<OpResult>("delete_remote_branch", { id, path, remote, branch }),
 
   // merge family
+  previewMerge: (path: string, source: string, targets: string[]) =>
+    invoke<MergePreview[]>("preview_merge", { path, source, targets }),
+  mergeIntoBranches: (path: string, source: string, targets: string[]) =>
+    invoke<MergeApplied[]>("merge_into_branches", { path, source, targets }),
+  checkMergeResult: (path: string, source: string, target: string) =>
+    invoke<string[]>("check_merge_result", { path, source, target }),
+  prefilledConflicts: (path: string) => invoke<string[]>("prefilled_conflicts", { path }),
+  enableRerere: (path: string) => invoke<boolean>("enable_rerere", { path }),
+  mergeReusingResolutions: (path: string, source: string, targets: string[]) =>
+    invoke<MergeApplied[]>("merge_reusing_resolutions", { path, source, targets }),
   merge: (path: string, rev: string, noFf: boolean, squash: boolean) =>
     invoke<OpResult>("merge", { path, rev, noFf, squash }),
   rebase: (path: string, onto: string) => invoke<OpResult>("rebase", { path, onto }),

@@ -141,6 +141,15 @@ export function repoActions(tabId: string) {
         ctx: { op: "checkout", target: name },
       }),
 
+    /** Checks out `target` and merges `source` into it, leaving any conflicts for the normal resolver. */
+    async resolveMerge(target: string, source: string): Promise<void> {
+      const ok = await run(`Checking out ${target}…`, () => api.checkout(path(), target), {
+        ctx: { op: "checkout", target },
+        quiet: true,
+      });
+      if (ok) await run(`Merging ${source} into ${target}…`, () => api.merge(path(), source, false, false), { success: `Merged ${source} into ${target}` });
+    },
+
     /** Puts every checked-out submodule on `branch` where a branch of that name exists. */
     switchSubmodules: (branch: string) =>
       run("Switching submodules…", () => api.switchSubmodulesBranch(path(), branch), {

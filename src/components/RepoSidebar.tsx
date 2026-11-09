@@ -173,6 +173,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
                     { label: "Push", onClick: () => a.pushBranch(b.name) },
                     { separator: true },
                     { label: `Merge into ${current ?? "current"}…`, onClick: () => a.merge(b.name), disabled: isCurrent },
+                    { label: "Merge this into multiple branches…", onClick: () => useUi.setState({ multiMerge: { tabId: tab.id, source: b.name } }) },
                     { label: `Rebase ${current ?? "current"} onto this…`, onClick: () => a.rebaseOnto(b.name), disabled: isCurrent },
                     { separator: true },
                     { label: "New branch from here…", onClick: () => a.newBranch(b.name) },
