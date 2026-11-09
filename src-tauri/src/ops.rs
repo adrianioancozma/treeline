@@ -1070,6 +1070,106 @@ pub async fn prefilled_conflicts(path: String) -> Result<Vec<String>, String> {
     .await
 }
 
+/// Turns on `rerere` (reuse recorded resolution) for this repository so that git remembers how
+/// conflicts are resolved. Returns true when it was switched on now, false if already enabled.
+#[tauri::command]
+pub async fn enable_rerere(path: String) -> Result<bool, String> {
+    blocking(move || {
+        let current = run_git(&path, ["config", "--get", "rerere.enabled"]).unwrap_or_default();
+        if current.trim() == "true" {
+            return Ok(false);
+        }
+        run_git(&path, ["config", "--local", "rerere.enabled", "true"])?;
+        Ok(true)
+    })
+    .await
+}
+
+/// Merges `source` into `target` by checking `target` out and letting rerere replay recorded
+/// resolutions. Succeeds only when every conflict has a recorded resolution; otherwise the merge is
+/// aborted and the branch is left exactly as it was. Always returns to the branch that was checked out.
+fn merge_reusing_resolution(path: &str, source_sha: &str, target: &str) -> MergeApplied {
+    let res = |ok: bool, status: &str, message: &str| MergeApplied {
+        target: target.to_string(),
+        ok,
+        status: status.into(),
+        message: message.into(),
+        discarded: vec![],
+    };
+    let env = [("GIT_EDITOR", "true".to_string())];
+    if !run_git(path, ["status", "--porcelain", "--untracked-files=no"]).map(|s| s.trim().is_empty()).unwrap_or(false) {
+        return res(false, "failed", "Commit or stash your uncommitted changes first.");
+    }
+    let original = run_git(path, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+        .or_else(|_| run_git(path, ["rev-parse", "HEAD"]))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    match run_op(path, ["checkout", target], &[]) {
+        Ok(o) if o.ok => {}
+        Ok(o) => return res(false, "failed", o.output.trim()),
+        Err(e) => return res(false, "failed", &e),
+    }
+    let outcome = (|| -> MergeApplied {
+        let merged = match run_op(path, ["-c", "rerere.enabled=true", "merge", "--no-edit", source_sha], &env) {
+            Ok(o) => o,
+            Err(e) => return res(false, "failed", &e),
+        };
+        if merged.ok {
+            return res(true, "merged", "");
+        }
+        let in_merge = run_git(path, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_ok();
+        let remaining = run_git(path, ["-c", "rerere.enabled=true", "rerere", "remaining"]).unwrap_or_default();
+        let unmerged = run_git(path, ["diff", "--name-only", "--diff-filter=U"]).unwrap_or_default();
+        if !in_merge || !remaining.trim().is_empty() || unmerged.trim().is_empty() {
+            if in_merge {
+                let _ = run_git(path, ["merge", "--abort"]);
+                return res(false, "conflict", "No remembered resolution covers this conflict; left unchanged.");
+            }
+            return res(false, "failed", merged.output.trim());
+        }
+        let mut add: Vec<&str> = vec![LITERAL, "add", "--"];
+        add.extend(unmerged.lines().map(str::trim).filter(|l| !l.is_empty()));
+        let committed = run_git(path, add)
+            .and_then(|_| run_git(path, ["-c", "rerere.enabled=true", "commit", "--no-edit"]));
+        match committed {
+            Ok(_) => {
+                let mut done = res(true, "merged", "Applied your earlier conflict resolution.");
+                done.discarded = discarded_by_merge(path, source_sha, target);
+                done
+            }
+            Err(e) => {
+                let _ = run_git(path, ["merge", "--abort"]);
+                res(false, "failed", &e)
+            }
+        }
+    })();
+    if !original.is_empty() && original != target {
+        let _ = run_git(path, ["checkout", &original]);
+    }
+    outcome
+}
+
+/// For branches whose merge conflicts: replay the resolutions git recorded earlier (see
+/// `enable_rerere`). Branches whose conflicts are not all covered are left untouched.
+#[tauri::command]
+pub async fn merge_reusing_resolutions(path: String, source: String, targets: Vec<String>) -> Result<Vec<MergeApplied>, String> {
+    blocking(move || {
+        let sha = resolve_commit(&path, &source)?;
+        let busy = other_worktree_branches(&path);
+        Ok(targets
+            .iter()
+            .map(|t| {
+                if busy.contains(t) {
+                    MergeApplied { target: t.clone(), ok: false, status: "failed".into(), message: "Checked out in another worktree; merge it there.".into(), discarded: vec![] }
+                } else {
+                    merge_reusing_resolution(&path, &sha, t)
+                }
+            })
+            .collect())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn rebase(path: String, onto: String) -> Result<OpResult, String> {
     blocking(move || run_op(&path, ["rebase", "--autostash", &onto], &[("GIT_EDITOR", "true".into())])).await
@@ -1635,6 +1735,51 @@ mod tests {
         assert_eq!((c.status.as_str(), c.files), ("conflict", vec!["a.txt".to_string()]));
         assert_eq!(classify_merge(&p, &sha, "fix").status, "up-to-date");
         assert_eq!(classify_merge(&p, &sha, "nope").status, "error");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn replays_a_recorded_resolution_on_another_branch() {
+        let dir = std::env::temp_dir().join(format!("treeline-rr-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.to_string_lossy().to_string();
+        let g = |args: &[&str]| {
+            run_git(&p, ["-c", "user.name=t", "-c", "user.email=t@t"].iter().chain(args.iter()).copied())
+        };
+        g(&["init", "-q", "-b", "main"]).unwrap();
+        g(&["config", "rerere.enabled", "true"]).unwrap();
+        fs::write(dir.join("a.txt"), "one\n").unwrap();
+        g(&["add", "."]).unwrap();
+        g(&["commit", "-qm", "base"]).unwrap();
+        for b in ["rel-a", "rel-b", "rel-c"] {
+            g(&["checkout", "-q", "-b", b, "main"]).unwrap();
+            // rel-c conflicts differently, so the recorded resolution must not apply to it.
+            fs::write(dir.join("a.txt"), if b == "rel-c" { "another\n" } else { "different\n" }).unwrap();
+            g(&["commit", "-qam", b]).unwrap();
+        }
+        g(&["checkout", "-q", "-b", "fix", "main"]).unwrap();
+        fs::write(dir.join("a.txt"), "fixed\n").unwrap();
+        g(&["commit", "-qam", "fix"]).unwrap();
+        let sha = resolve_commit(&p, "fix").unwrap();
+
+        // The user resolves the conflict once, on rel-a.
+        g(&["checkout", "-q", "rel-a"]).unwrap();
+        assert!(g(&["merge", "--no-edit", "fix"]).is_err());
+        fs::write(dir.join("a.txt"), "resolved\n").unwrap();
+        g(&["add", "a.txt"]).unwrap();
+        g(&["commit", "-qm", "merge fix into rel-a"]).unwrap();
+        g(&["checkout", "-q", "fix"]).unwrap();
+
+        let ok = merge_reusing_resolution(&p, &sha, "rel-b");
+        assert!(ok.ok, "{}", ok.message);
+        assert_eq!(g(&["show", "rel-b:a.txt"]).unwrap().trim(), "resolved");
+        assert_eq!(g(&["symbolic-ref", "--short", "HEAD"]).unwrap().trim(), "fix", "returns to the original branch");
+
+        let no = merge_reusing_resolution(&p, &sha, "rel-c");
+        assert_eq!(no.status, "conflict", "{}", no.message);
+        assert_eq!(g(&["show", "rel-c:a.txt"]).unwrap().trim(), "another", "unresolvable branch is untouched");
+        assert!(g(&["status", "--porcelain"]).unwrap().trim().is_empty());
         let _ = fs::remove_dir_all(&dir);
     }
 
