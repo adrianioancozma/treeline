@@ -112,6 +112,11 @@ pub(crate) fn git_cmd() -> Command {
     // `core.fsmonitor` can name a program that git runs on every status. A repository's own config could
     // set it, so it is always switched off here (this also turns off git's built-in fsmonitor daemon).
     cmd.args(["-c", "core.fsmonitor=false"]);
+    // The app names the repository with -C. A GIT_DIR or GIT_WORK_TREE inherited from the environment would
+    // silently point git somewhere else.
+    for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"] {
+        cmd.env_remove(var);
+    }
     cmd
 }
 
@@ -753,8 +758,17 @@ fn resolve_toplevel(path: &str) -> Result<String, String> {
         // crafted `.git` file or `core.worktree` can make git name a folder elsewhere; that must not widen
         // what the app may touch.
         let (here, there) = (allow_key(path), allow_key(&top));
-        if here != there && !here.starts_with(&format!("{there}/")) {
-            return Err("That repository's working folder lies outside the folder you opened, so it was not opened.".into());
+        if here != there {
+            if !here.starts_with(&format!("{there}/")) {
+                return Err("That repository's working folder lies outside the folder you opened, so it was not opened.".into());
+            }
+            // Widening to a folder above the one that was opened is only done for the ordinary layout, where
+            // the repository's .git sits directly inside that top folder. A `core.worktree` (or any other
+            // redirect) can name an ancestor such as a home folder while the repository lives below it.
+            let git_dir = run_git(path, ["rev-parse", "--absolute-git-dir"]).map(|d| allow_key(d.trim())).unwrap_or_default();
+            if git_dir != allow_key(&format!("{top}/.git")) {
+                return Err("That folder is inside a repository with an unusual layout. Open the repository's own top folder instead.".into());
+            }
         }
         allow_repo(&top);
         Ok(top)
@@ -775,6 +789,7 @@ pub(crate) fn risky_config_entry(key: &str, value: &str) -> Option<String> {
     match k.as_str() {
         "core.sshcommand" => return program("runs a program to connect over SSH"),
         "core.hookspath" => return program("git hooks from that folder run when you commit, merge or check out"),
+        "core.worktree" => return program("points the repository's working folder somewhere else"),
         "core.editor" | "sequence.editor" | "core.pager" | "core.askpass" | "gpg.program" | "core.gitproxy" | "diff.external" => {
             return program("runs a program")
         }
@@ -1232,6 +1247,7 @@ mod tests {
     fn classifies_risky_repository_settings() {
         let risky = [
             ("core.hooksPath", ".husky"),
+            ("core.worktree", ".."),
             ("core.sshCommand", "ssh -i key"),
             ("filter.evil.smudge", "calc.exe"),
             ("merge.evil.driver", "calc %O %A %B"),
@@ -1351,6 +1367,14 @@ mod tests {
         if let Ok(t) = &result {
             assert_eq!(allow_key(t), allow_key(&s(&opened)), "if it answers at all it must be the folder itself");
         }
+
+        // core.worktree naming a folder ABOVE the opened one is an ancestor, but not the ordinary layout, so
+        // it must not widen trust to it either (think of a home folder).
+        run_git(&s(&opened), ["config", "core.worktree", &s(&base)]).unwrap();
+        let widened = resolve_toplevel(&s(&opened.join("sub")));
+        assert!(widened.is_err(), "an ancestor reached through core.worktree is refused: {widened:?}");
+        assert!(ensure_allowed(&s(&base)).is_err(), "the folder above is still not trusted");
+        assert!(ensure_allowed(&s(&outside)).is_err());
         let _ = std::fs::remove_dir_all(&base);
     }
 

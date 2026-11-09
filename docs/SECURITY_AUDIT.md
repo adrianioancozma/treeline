@@ -48,7 +48,9 @@ actually opened and refuses anything else (`ensure_allowed`). The list can only 
   first start after an update trusts the saved tabs and bookmarks once to fill it);
 - the **top level** of a repository derived from an allowed folder (this covers submodules and a
   sub-folder picked inside a repository). It is accepted only when it is the folder itself or a folder above
-  it, so a crafted `.git` file or `core.worktree` that makes git name a folder elsewhere cannot widen the list;
+  it, and a folder above only in the ordinary layout where the repository's `.git` sits directly inside it, so a
+  crafted `.git` file or `core.worktree` that makes git name a folder elsewhere (or a home folder above the
+  repository) cannot widen the list. `GIT_DIR` and `GIT_WORK_TREE` are removed from the app's git calls;
 - a **finished clone**.
 
 A clone destination must come from the picker. If the path was typed, the user confirms it in a window
