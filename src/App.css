@@ -482,3 +482,11 @@ body.resizing .splitter::after { background: var(--accent); }
 .mm-foot .count { font-size: 12px; color: var(--muted); }
 .mm-paused { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 10px; width: min(720px, 94vw); padding: 12px 14px; background: var(--bg-2); border: 1px solid var(--accent); border-radius: 10px; box-shadow: var(--shadow); font-size: 13px; line-height: 1.4; }
 .mm-paused .grow { flex: 1; min-width: 0; }
+
+/* Commit detail: draggable divider between the message box and the changed-files list */
+.detail-left > .splitter.h { flex: none; height: 6px; }
+.detail-meta { flex: 0 1 auto; }
+/* Both boxes scroll on their own when the panel is short: the files list may shrink to nothing instead of overflowing */
+.detail-left { overflow: hidden; }
+.detail-left .file-lists { min-height: 0; overflow-y: auto; }
+.detail-meta { overflow-y: auto; }

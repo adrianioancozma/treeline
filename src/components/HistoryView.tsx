@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { repoActions } from "../actions";
-import { useDebounced, useSplit } from "../hooks";
+import { useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
 import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
 import { useApp } from "../store";
@@ -33,13 +33,20 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
   );
 }
 
+/** The smallest the commit detail panel may be squeezed to by the splitter above it. */
+const MIN_DETAIL_H = 220;
+
 export function HistoryView({ tab }: { tab: Tab }) {
   const d = useApp((s) => s.data[tab.id])!;
   const { setUi, loadLog } = useApp.getState();
   const a = repoActions(tab.id);
   const status = d.status;
   const remotes = d.remotes;
-  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.42), 140, 800, "y");
+  const historyRef = useRef<HTMLDivElement>(null);
+  const historyH = useElementHeight(historyRef);
+  // Leave room for the commit detail panel: a saved or dragged height may never push it off screen.
+  const maxTop = historyH > 0 ? Math.max(140, Math.min(800, historyH - 6 - MIN_DETAIL_H)) : 800;
+  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.42), 140, maxTop, "y");
   const [q, setQ] = useState(d.ui.query);
   const dq = useDebounced(q, 350);
   const scroller = useRef<HTMLDivElement>(null);
@@ -144,7 +151,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
   };
 
   return (
-    <div className="history" style={{ gridTemplateRows: `${height}px 6px 1fr` }}>
+    <div className="history" ref={historyRef} style={{ gridTemplateRows: `${height}px 6px minmax(0, 1fr)` }}>
       <div className="history-top">
         <div className="history-bar">
           <div className="filter-row grow">
@@ -262,6 +269,12 @@ function CommitDetailPane({
   const [file, setFile] = useState<FileEntry | null>(null);
   const [diff, setDiff] = useState("");
   const [width, onSplit] = useSplit("detail-left", 380, 240, 700, "x");
+  const leftRef = useRef<HTMLDivElement>(null);
+  const metaRef = useRef<HTMLDivElement>(null);
+  const leftH = useElementHeight(leftRef);
+  // The message box may grow until only the "Changed files" header and a few rows remain.
+  const maxMeta = leftH > 0 ? Math.max(60, leftH - 6 - 36 - 80) : 600;
+  const [metaH, onMetaSplit, resetMeta] = useOptionalSplit("detail-meta", 60, maxMeta);
   const parent = base ?? detail?.parents[0] ?? null;
 
   useEffect(() => {
@@ -302,8 +315,8 @@ function CommitDetailPane({
   const [title, ...bodyLines] = (detail?.message ?? commit?.subject ?? "").split("\n");
   return (
     <div className="detail" style={{ gridTemplateColumns: `${width}px 6px 1fr` }}>
-      <div className="detail-left">
-        <div className="detail-meta">
+      <div className="detail-left" ref={leftRef}>
+        <div className="detail-meta" ref={metaRef} style={metaH === null ? undefined : { height: metaH, maxHeight: "none", flex: "none" }}>
           {base && (
             <div className="compare-bar">
               <strong>Comparing</strong> <code>{base.slice(0, 7)}</code> → <code>{sha.slice(0, 7)}</code>
@@ -332,6 +345,14 @@ function CommitDetailPane({
             </p>
           )}
         </div>
+        <div
+          className="splitter h"
+          role="separator"
+          aria-orientation="horizontal"
+          title="Drag to resize the message box. Double-click to reset."
+          onMouseDown={(e) => onMetaSplit(e, metaRef.current?.offsetHeight ?? 150)}
+          onDoubleClick={resetMeta}
+        />
         <h3 className="list-title">
           Changed files <span className="count">{files.length}</span>
         </h3>

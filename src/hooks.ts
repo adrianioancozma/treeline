@@ -25,7 +25,10 @@ function readSize(key: string, fallback: number, min: number, max: number): numb
  * `axis` "x" measures from the container's left edge, "y" from its top edge.
  */
 export function useSplit(key: string, initial: number, min: number, max: number, axis: "x" | "y") {
-  const [size, setSize] = useState(() => readSize(`split:${key}`, initial, min, max));
+  const [stored, setSize] = useState(() => readSize(`split:${key}`, initial, min, max));
+  // `max` can shrink (a smaller window), so the remembered size is always clamped to the current range:
+  // a stale value must never push the pane after it off screen.
+  const size = Math.min(max, Math.max(min, stored));
   const sizeRef = useRef(size);
   sizeRef.current = size;
 
@@ -65,4 +68,76 @@ export function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return v;
+}
+
+/** The live content height of an element, kept up to date as the window or panel is resized. */
+export function useElementHeight(ref: React.RefObject<HTMLElement | null>): number {
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setH(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return h;
+}
+
+/**
+ * A vertical divider for a box that normally sizes itself to its content. `size` is null until the
+ * user drags, then the remembered height (never more than `max`). `start` takes the box's current
+ * height so the first drag begins from what is on screen. `reset` goes back to automatic sizing.
+ */
+export function useOptionalSplit(key: string, min: number, max: number) {
+  const [size, setSize] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem(`split:${key}`));
+      return Number.isFinite(v) && v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  const shown = size === null ? null : Math.min(max, Math.max(min, size));
+
+  const start = useCallback(
+    (e: React.MouseEvent, current: number) => {
+      e.preventDefault();
+      const y0 = e.clientY;
+      const base = Math.min(max, Math.max(min, sizeRef.current ?? current));
+      let latest = base;
+      const move = (ev: MouseEvent) => {
+        latest = Math.min(max, Math.max(min, base + ev.clientY - y0));
+        setSize(latest);
+      };
+      const up = () => {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseup", up);
+        document.body.classList.remove("resizing");
+        try {
+          localStorage.setItem(`split:${key}`, String(latest));
+        } catch {
+          /* storage unavailable: the size just won't persist */
+        }
+      };
+      document.body.classList.add("resizing");
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    },
+    [key, min, max],
+  );
+
+  const reset = useCallback(() => {
+    setSize(null);
+    try {
+      localStorage.removeItem(`split:${key}`);
+    } catch {
+      /* ignore */
+    }
+  }, [key]);
+
+  return [shown, start, reset] as const;
 }
