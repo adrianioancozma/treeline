@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
-use treeline_core::remote::{Connection, Upload, helper_build_for, ssh_helper_command, valid_host};
+use treeline_core::remote::{Connection, Upload, helper_build_for, parse_ssh_hosts, ssh_helper_command, valid_host};
 
 use crate::git::blocking;
 
@@ -185,6 +185,33 @@ pub async fn remote_call(app: AppHandle, host: String, method: String, params: V
         connection(&app, &host)?.call(&method, params, CALL_TIMEOUT)
     })
     .await
+}
+
+/// Folders on `host`, to pick one without typing its path (folder names only; see `treeline_core::browse`).
+#[tauri::command]
+pub async fn remote_list(app: AppHandle, host: String, path: String, show_hidden: bool) -> Result<Value, String> {
+    blocking(move || {
+        if !valid_host(&host) {
+            return Err(format!("“{host}” is not a computer name ssh can use."));
+        }
+        connection(&app, &host)?.call("list_dir", json!({ "path": path, "show_hidden": show_hidden }), CALL_TIMEOUT)
+    })
+    .await
+}
+
+/// The computers named in `~/.ssh/config`, offered when opening a remote repository.
+#[tauri::command]
+pub fn ssh_hosts() -> Vec<String> {
+    std::env::var_os("HOME")
+        .and_then(|h| std::fs::read_to_string(PathBuf::from(h).join(".ssh/config")).ok())
+        .map(|c| parse_ssh_hosts(&c))
+        .unwrap_or_default()
+}
+
+/// Folders already opened on `host` (shown as "Recent on <host>").
+#[tauri::command]
+pub fn remote_recent(host: String) -> Vec<String> {
+    lock().opened.get(&host).cloned().unwrap_or_default()
 }
 
 #[tauri::command]

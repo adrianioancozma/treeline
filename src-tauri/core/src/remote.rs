@@ -268,9 +268,46 @@ pub fn ssh_helper_command(host: &str) -> Result<Command, String> {
     Ok(cmd)
 }
 
+/// The computer names an ssh config offers: the names after `Host`, in order, without patterns (`*`, `?`, `!`) and
+/// without anything ssh could not take as a computer name. (`Include`d files are not followed.)
+pub fn parse_ssh_hosts(config: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for line in config.lines() {
+        let line = line.trim(); // a comment line never starts with `Host`, so it is skipped below
+        let (key, rest) = match line.split_once(|c: char| c.is_whitespace() || c == '=') {
+            Some((k, r)) => (k, r.trim_start_matches(|c: char| c.is_whitespace() || c == '=')),
+            None => continue,
+        };
+        if !key.eq_ignore_ascii_case("host") {
+            continue;
+        }
+        for name in rest.split_whitespace().take_while(|n| !n.starts_with('#')) {
+            let name = name.trim_matches('"');
+            // valid_host also leaves out patterns (`*`, `?`, `!`) and option-like names.
+            if valid_host(name) && !out.iter().any(|n| n == name) {
+                out.push(name.to_string());
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn offers_the_computers_named_in_the_ssh_config() {
+        let config = "# my machines\nHost linux-box.local\n  User adrian\nHost build-server build\nhost=lowercase-key\n\
+                      Host *.internal !secret gateway # the jump host\nHost *\n  ServerAliveInterval 30\nMatch host x\n\
+                      Host linux-box.local\nHost \"quoted\"\nHost -oProxyCommand=evil\n";
+        assert_eq!(
+            parse_ssh_hosts(config),
+            ["linux-box.local", "build-server", "build", "lowercase-key", "gateway", "quoted"],
+            "patterns, comments, duplicates, Match blocks and option-like names are left out"
+        );
+        assert!(parse_ssh_hosts("").is_empty());
+    }
 
     #[test]
     fn accepts_computer_names_and_refuses_anything_else() {

@@ -147,6 +147,9 @@ pub fn run() {
             remote::remote_open,
             remote::remote_call,
             remote::remote_disconnect,
+            remote::remote_list,
+            remote::ssh_hosts,
+            remote::remote_recent,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Treeline");
