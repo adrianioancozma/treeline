@@ -1,6 +1,6 @@
 # Treeline
 
-A fast desktop Git client with a Sourcetree-style interface. It talks to the system `git` CLI, so it works
+A fast desktop Git client with styled interface. It talks to the system `git` CLI, so it works
 with **any Git remote** (self-hosted, GitLab, Gitea, Azure DevOps, a bare repo on a file share …). There are
 no provider integrations and no sign-in.
 
