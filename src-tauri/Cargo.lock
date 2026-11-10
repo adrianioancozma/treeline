@@ -4131,6 +4131,15 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "tempfile",
+ "treeline-core",
+]
+
+[[package]]
+name = "treeline-core"
+version = "0.3.2"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
