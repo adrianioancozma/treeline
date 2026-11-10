@@ -356,6 +356,9 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
 
+    /// Tests that run git share the process-wide git program setting; one of them swaps in a stand-in git.
+    static GIT_PROGRAM: Mutex<()> = Mutex::new(());
+
     #[derive(Default)]
     struct Recorder(Mutex<Vec<(String, String, Option<u8>)>>);
     impl ProgressSink for Recorder {
@@ -368,6 +371,7 @@ mod tests {
     #[test]
     fn progress_lines_reach_the_sink_tagged_and_without_secrets() {
         use std::os::unix::fs::PermissionsExt;
+        let _serial = GIT_PROGRAM.lock().unwrap_or_else(|e| e.into_inner());
         // A stand-in for git that prints what a real fetch can print: a progress line redrawn with '\r', then a URL
         // with a password (real git hides it in some messages, not in all; this layer must not rely on that).
         let dir = std::env::temp_dir().join(format!("treeline-core-stream-{}", std::process::id()));
@@ -393,5 +397,55 @@ mod tests {
         assert!(!res.output.contains("s3cr3t"), "nor in the final output (stdout and stderr): {}", res.output);
         assert!(res.output.contains("From https://***@example.com/x.git"), "stdout is kept, with the secret hidden");
         assert!(!res.output.contains("42%"), "only the last redraw of a progress line is kept in the output");
+    }
+
+    #[test]
+    fn every_git_command_carries_the_safety_settings() {
+        let cmd = git_cmd();
+        let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        for setting in ["protocol.ext.allow=never", "core.fsmonitor=false"] {
+            let at = args.iter().position(|a| a == setting).unwrap_or_else(|| panic!("missing -c {setting}: {args:?}"));
+            assert!(at > 0 && args[at - 1] == "-c", "{setting} must be passed with -c");
+        }
+        let envs: Vec<(String, Option<String>)> = cmd
+            .get_envs()
+            .map(|(k, v)| (k.to_string_lossy().into_owned(), v.map(|v| v.to_string_lossy().into_owned())))
+            .collect();
+        let value = |k: &str| envs.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone());
+        assert_eq!(value("GIT_TERMINAL_PROMPT"), Some(Some("0".into())), "never wait for a password on a terminal");
+        assert_eq!(value("GIT_OPTIONAL_LOCKS"), Some(Some("0".into())), "read-only commands must not rewrite the index");
+        for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"] {
+            assert_eq!(value(var), Some(None), "{var} inherited from the environment must be removed");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_repository_cannot_make_git_run_a_program() {
+        use std::os::unix::fs::PermissionsExt;
+        let _serial = GIT_PROGRAM.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("treeline-core-guard-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let repo = dir.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        let repo_s = repo.to_string_lossy().to_string();
+        run_git(&repo_s, ["init", "-q"]).unwrap();
+        // The repository's own config asks git to run a program on every status (fsmonitor) and allows the
+        // ext:: transport, which runs a command as a "remote". Both would create a marker file.
+        let fsmon_marker = dir.join("fsmonitor-ran");
+        let hook = dir.join("fsmonitor.sh");
+        std::fs::write(&hook, format!("#!/bin/sh\ntouch '{}'\n", fsmon_marker.display())).unwrap();
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+        run_git(&repo_s, ["config", "core.fsmonitor", &hook.to_string_lossy()]).unwrap();
+        run_git(&repo_s, ["config", "protocol.ext.allow", "always"]).unwrap();
+
+        run_git(&repo_s, ["status", "--porcelain"]).unwrap();
+        assert!(!fsmon_marker.exists(), "core.fsmonitor from the repository ran a program");
+
+        let ext_marker = dir.join("ext-ran");
+        let url = format!("ext::sh -c touch% {}", ext_marker.display());
+        let _ = run_git(&repo_s, ["ls-remote", &url]);
+        assert!(!ext_marker.exists(), "an ext:: remote ran a program");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
