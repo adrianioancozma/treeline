@@ -1,4 +1,4 @@
-//! Persists the UI state (open tabs and bookmarks) as one JSON file in the app config folder.
+//! Persists the UI state (open tabs, bookmarks and recent repositories) as one JSON file in the app config folder.
 
 use std::fs;
 use std::path::PathBuf;
@@ -20,13 +20,13 @@ pub fn load_state(app: AppHandle) -> Result<Option<String>, String> {
     }
 }
 
-/// Removes tabs and bookmarks that point at a folder the user has not opened. The saved file is what
+/// Removes tabs, bookmarks and recent entries that point at a folder the user has not opened. The saved file is what
 /// the next start restores, so the page must not be able to plant a folder in it: only folders that
 /// were already allowed can be written back. (What is trusted comes from `trusted-folders.json`, which
 /// only Rust writes; this file is only used once, to seed it after an update.)
 pub(crate) fn without_unopened_folders(json: &str) -> Result<String, String> {
     let mut state: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
-    for list in ["tabs", "bookmarks"] {
+    for list in ["tabs", "bookmarks", "recent"] {
         if let Some(items) = state.get_mut(list).and_then(|v| v.as_array_mut()) {
             items.retain(|item| match item.get("path").and_then(|v| v.as_str()) {
                 Some(p) => crate::git::ensure_allowed(p).is_ok(),
@@ -70,6 +70,10 @@ mod tests {
                 { "id": "b1", "path": kept.to_string_lossy() },
                 { "id": "b2", "path": "C:/Windows" }
             ],
+            "recent": [
+                { "path": planted.to_string_lossy(), "name": "planted" },
+                { "path": kept.to_string_lossy(), "name": "kept" }
+            ],
             "activeId": "2",
             "theme": "dark"
         });
@@ -79,6 +83,8 @@ mod tests {
         };
         assert_eq!(ids("tabs"), ["1", "3"], "the planted folder is dropped, the home tab stays");
         assert_eq!(ids("bookmarks"), ["b1"]);
+        let recent: Vec<&str> = cleaned["recent"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap()).collect();
+        assert_eq!(recent, ["kept"], "a recent folder the user never opened is dropped too");
         assert_eq!(cleaned["theme"], "dark", "everything else is kept");
         assert!(without_unopened_folders("not json").is_err());
         let _ = std::fs::remove_dir_all(&base);
