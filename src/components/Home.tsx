@@ -2,6 +2,7 @@ import { api, errorMessage } from "../api";
 import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import { Icon } from "./Icon";
+import { Shortcut } from "./Shortcut";
 
 export function pickAndOpenRepo(openRepo: (p: string) => Promise<void>, onError: (m: string) => void) {
   return api
@@ -55,8 +56,8 @@ export function Home() {
       )}
 
       <p className="muted small hint center-text">
-        <kbd>F1</kbd> user guide · <kbd>Ctrl</kbd>+<kbd>K</kbd> command palette · <kbd>Ctrl</kbd>+<kbd>T</kbd> new tab · <kbd>Ctrl</kbd>+<kbd>W</kbd> close tab ·{" "}
-        <kbd>Ctrl</kbd>+<kbd>Tab</kbd> next tab · <kbd>Ctrl</kbd>+<kbd>O</kbd> open
+        <Shortcut spec="F1" /> user guide · <Shortcut spec="Mod+K" /> command palette · <Shortcut spec="Mod+T" /> new tab ·{" "}
+        <Shortcut spec="Mod+W" /> close tab · <Shortcut spec="Ctrl+Tab" /> next tab · <Shortcut spec="Mod+O" /> open
       </p>
     </div>
   );

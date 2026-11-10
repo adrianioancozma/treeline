@@ -3,6 +3,7 @@ import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import { openGuide } from "../guide";
 import { Icon } from "./Icon";
+import { formatShortcut } from "../lib/shortcut";
 
 export function TabBar() {
   const { tabs, activeId, setActive, closeTab, newTab, moveTab, data } = useApp();
@@ -99,7 +100,7 @@ ${t.path}` : "New tab"}
         );
       })}
       </div>
-      <button className="icon-btn tab-new" aria-label="New tab (Ctrl+T)" title="New tab (Ctrl+T)" onClick={newTab}>
+      <button className="icon-btn tab-new" aria-label={`New tab (${formatShortcut("Mod+T")})`} title={`New tab (${formatShortcut("Mod+T")})`} onClick={newTab}>
         <Icon name="plus" size={16} />
       </button>
       <span className="grow" />
@@ -120,7 +121,7 @@ ${t.path}` : "New tab"}
         <Icon name="gear" size={16} />
         {update && <span className="update-badge" aria-hidden="true" />}
       </button>
-      <button className="icon-btn" aria-label="Command palette (Ctrl+K)" title="Command palette (Ctrl+K)" onClick={() => useApp.getState().setPalette(true)}>
+      <button className="icon-btn" aria-label={`Command palette (${formatShortcut("Mod+K")})`} title={`Command palette (${formatShortcut("Mod+K")})`} onClick={() => useApp.getState().setPalette(true)}>
         <Icon name="command" size={16} />
       </button>
       <button
