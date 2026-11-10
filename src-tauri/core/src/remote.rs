@@ -176,3 +176,64 @@ impl Drop for Connection {
         self.close();
     }
 }
+
+/// A computer name as ssh and the user's `~/.ssh/config` know it: letters, digits, `.`, `-`, `_`, optionally `user@` in
+/// front. Never starts with `-` (ssh would read it as an option, e.g. `-oProxyCommand=…`) and has nothing a shell would
+/// interpret.
+pub fn valid_host(host: &str) -> bool {
+    let (user, name) = match host.split_once('@') {
+        Some(("", _)) => return false, // "@host": an empty user name
+        Some(parts) => parts,
+        None => ("", host),
+    };
+    let ok = |s: &str| s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'));
+    !name.is_empty() && !name.starts_with('-') && !user.starts_with('-') && ok(name) && ok(user) && host.len() <= 255
+}
+
+/// The command that starts a fresh helper on `host` with the system ssh. The helper binary (`helper_len` bytes) must be
+/// written to its input first: the other side copies exactly that many bytes into a private file in /tmp, runs it, and
+/// the helper deletes the file at once. Only keys from the ssh agent are used for now (no password prompt).
+pub fn ssh_helper_command(host: &str, helper_len: usize) -> Result<Command, String> {
+    if !valid_host(host) {
+        return Err(format!("“{host}” is not a computer name ssh can use."));
+    }
+    let ssh = if cfg!(target_os = "macos") { "/usr/bin/ssh" } else { "ssh" };
+    // The only value put into the remote command is a number this code computed.
+    let script = format!(
+        r#"f=$(mktemp /tmp/treeline-helper.XXXXXX) && head -c {helper_len} > "$f" && chmod 700 "$f" && exec "$f" --stdio --self-delete"#
+    );
+    let mut cmd = Command::new(ssh);
+    cmd.args(["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3"])
+        .arg("--")
+        .arg(host)
+        .arg(script);
+    Ok(cmd)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_computer_names_and_refuses_anything_else() {
+        for ok in ["linux-box.local", "adrian@linux-box.local", "10.0.0.5", "build_server-2", "a"] {
+            assert!(valid_host(ok), "{ok}");
+        }
+        for bad in ["", "-oProxyCommand=touch x", "user@-oProxyCommand=x", "-l", "a b", "a;b", "$(id)", "a/b", "`id`", "@host", "a\nb"] {
+            assert!(!valid_host(bad), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn the_ssh_command_ends_options_before_the_host_and_uses_only_agent_keys() {
+        assert!(ssh_helper_command("-oProxyCommand=touch /tmp/x", 10).is_err());
+        let cmd = ssh_helper_command("adrian@linux-box.local", 994296).unwrap();
+        let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        let dd = args.iter().position(|a| a == "--").unwrap();
+        assert_eq!(args[dd + 1], "adrian@linux-box.local", "the host comes right after `--`");
+        assert_eq!(args.len(), dd + 3, "then only the remote command");
+        assert!(args[..dd].windows(2).any(|w| w[0] == "-o" && w[1] == "BatchMode=yes"));
+        assert!(args[dd + 2].contains("head -c 994296 "), "{}", args[dd + 2]);
+        assert!(args[dd + 2].ends_with("--stdio --self-delete"));
+    }
+}
