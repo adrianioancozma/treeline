@@ -4,7 +4,7 @@
 
 use serde_json::json;
 use std::time::{Duration, Instant};
-use treeline_core::remote::{Connection, ssh_helper_command};
+use treeline_core::remote::{Connection, Upload, ssh_helper_command};
 
 #[test]
 #[ignore]
@@ -13,7 +13,8 @@ fn opens_a_repository_on_another_computer() {
     let helper = std::fs::read(std::env::var("TREELINE_LIVE_HELPER").expect("TREELINE_LIVE_HELPER")).unwrap();
     let repo = std::env::var("TREELINE_LIVE_REPO").expect("TREELINE_LIVE_REPO");
     let t = Instant::now();
-    let conn = Connection::start(ssh_helper_command(&host, helper.len()).unwrap(), Some(&helper), Duration::from_secs(20), |_| {}).unwrap();
+    let pick = |computer: &str| { println!("computer: {computer}"); Ok(helper.clone()) };
+    let conn = Connection::start(ssh_helper_command(&host).unwrap(), Upload::ForComputer(&pick), Duration::from_secs(20), |_| {}).unwrap();
     let connect = t.elapsed();
     assert_eq!(conn.hello["treeline-helper"]["self_deleted"], json!(true), "{}", conn.hello);
     conn.call("init", json!({ "trusted": [repo] }), Duration::from_secs(10)).unwrap();

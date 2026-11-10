@@ -4,8 +4,8 @@
 //! add to it: opening a folder asks for confirmation in a native dialog. Every call is checked against that list and
 //! against the read-only methods before it goes to the helper, which checks again on its side.
 //!
-//! For now (first version): only keys from the ssh agent (no password prompt); the Linux helper is a file next to
-//! the app's settings (`treeline-helper-linux-x86_64`), or the path in `TREELINE_HELPER`; no automatic reconnect.
+//! For now (first version): only keys from the ssh agent (no password prompt); the static Linux helpers are files in
+//! the app's settings folder (see `helper_for`), or the path in `TREELINE_HELPER`; no automatic reconnect.
 
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
-use treeline_core::remote::{Connection, ssh_helper_command, valid_host};
+use treeline_core::remote::{Connection, Upload, helper_build_for, ssh_helper_command, valid_host};
 
 use crate::git::blocking;
 
@@ -23,7 +23,6 @@ pub const READ_METHODS: &[&str] = &[
     "commit_files", "commit_diff", "file_diff",
 ];
 
-const HELPER_FILE: &str = "treeline-helper-linux-x86_64";
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// An absolute folder path on the other computer: starts with `/`, no `..`, no control characters. Trailing `/` dropped.
@@ -84,12 +83,16 @@ pub fn load(app: &AppHandle) {
     s.file = Some(file);
 }
 
-fn helper_binary(app: &AppHandle) -> Result<Vec<u8>, String> {
+/// The helper built for `computer` (`<system> <machine>`, as the launch script reports it): a static build per
+/// architecture, so it runs on any Linux. For now the files sit in the app's settings folder
+/// (`treeline-helper-linux-x86_64`, `treeline-helper-linux-aarch64`), or `TREELINE_HELPER` names one.
+fn helper_for(app: &AppHandle, computer: &str) -> Result<Vec<u8>, String> {
+    let build = helper_build_for(computer).ok_or_else(|| format!("Treeline has no helper for {computer} yet."))?;
     let path = match std::env::var_os("TREELINE_HELPER") {
         Some(p) => PathBuf::from(p),
-        None => app.path().app_config_dir().map_err(|e| e.to_string())?.join(HELPER_FILE),
+        None => app.path().app_config_dir().map_err(|e| e.to_string())?.join(format!("treeline-helper-{build}")),
     };
-    std::fs::read(&path).map_err(|_| format!("The Linux helper is not in this build yet. Put it at {}.", path.display()))
+    std::fs::read(&path).map_err(|_| format!("The {build} helper is not in this build yet. Put it at {}.", path.display()))
 }
 
 /// The live connection to `host`, starting one (and handing it the opened folders) if there is none.
@@ -97,10 +100,10 @@ fn connection(app: &AppHandle, host: &str) -> Result<Arc<Connection>, String> {
     if let Some(c) = lock().conns.get(host).filter(|c| c.is_alive()).cloned() {
         return Ok(c);
     }
-    let helper = helper_binary(app)?;
-    let cmd = ssh_helper_command(host, helper.len())?;
+    let cmd = ssh_helper_command(host)?;
     let note_host = host.to_string();
-    let conn = Connection::start(cmd, Some(&helper), Duration::from_secs(20), move |note| {
+    let pick = |computer: &str| helper_for(app, computer);
+    let conn = Connection::start(cmd, Upload::ForComputer(&pick), Duration::from_secs(20), move |note| {
         if note["method"] == "trusted" {
             if let Some(key) = note["params"]["key"].as_str() {
                 remember(&note_host, key.to_string());
