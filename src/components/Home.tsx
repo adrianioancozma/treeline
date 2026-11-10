@@ -3,6 +3,7 @@ import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import { Icon } from "./Icon";
 import { Shortcut } from "./Shortcut";
+import { pathParts } from "../lib/format";
 
 export function pickAndOpenRepo(openRepo: (p: string) => Promise<void>, onError: (m: string) => void) {
   return api
@@ -40,9 +41,16 @@ export function Home() {
               <div key={b.id} className="card-wrap">
                 <button className="card" onClick={() => openRepo(b.path).catch((e) => onError(errorMessage(e)))}>
                   <strong>
-                    <Icon name="star" size={14} /> {b.name}
+                    <span className="star on">
+                      <Icon name="star" size={14} />
+                    </span>{" "}
+                    {b.name}
                   </strong>
-                  <span className="muted small">{b.path}</span>
+                  {/* The end of the path (repository and its parent folder) stays whole; the start is shortened. */}
+                  <span className="muted small path-mid" title={b.path}>
+                    <span className="path-head">{pathParts(b.path).head}</span>
+                    <span className="path-tail">{pathParts(b.path).tail}</span>
+                  </span>
                 </button>
                 <button className="icon-btn card-x" aria-label={`Remove bookmark ${b.name}`} onClick={() => removeBookmark(b.id)}>
                   <Icon name="x" size={14} />
