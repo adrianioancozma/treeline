@@ -170,9 +170,10 @@ export function HistoryView({ tab }: { tab: Tab }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seeking, focusTip, focusIndex, d.logLoaded, d.logDone, d.logLoading, d.ui.historyAll]);
-  // Up to 12 lanes by default; drag the Graph header edge to show every lane (P21).
+  // Up to 12 lanes by default; drag the Graph header edge to widen it (P21). The width is remembered per repository,
+  // so a column widened for a repository with many branches does not leave empty space in a small one.
   const graphRange = graphWidths(Math.max(1, ...graph.map((r) => r.lanes)), LANE_W);
-  const [graphW, onGraphSplit, resetGraph] = useAutoSplit("history-col-graph", graphRange.auto, graphRange.min, graphRange.max);
+  const [graphW, onGraphSplit, resetGraph] = useAutoSplit(`history-col-graph:${tab.path}`, graphRange.auto, graphRange.min, graphRange.max);
   // Right-hand columns resize from their left edge, so dragging left widens them. Sizes are remembered.
   // Minimums only (P26): columns can grow freely; when they no longer fit, the list scrolls sideways.
   const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, COL_MIN, Infinity, "x", true);

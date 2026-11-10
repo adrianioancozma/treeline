@@ -20,9 +20,9 @@ describe("graphWidths", () => {
     expect(graphWidths(3, LANE).auto).toBe(3 * LANE + 8);
     expect(graphWidths(20, LANE).auto).toBe(12 * LANE + 8);
   });
-  it("lets the column grow to show every lane, and no wider", () => {
-    expect(graphWidths(20, LANE).max).toBe(20 * LANE + 8);
-    expect(graphWidths(3, LANE).max).toBe(3 * LANE + 8);
+  it("has no maximum: the user decides how wide the column is", () => {
+    expect(graphWidths(20, LANE).max).toBe(Infinity);
+    expect(graphWidths(3, LANE).max).toBe(Infinity);
   });
   it("can shrink to a single lane", () => {
     expect(graphWidths(20, LANE).min).toBe(1 * LANE + 8);

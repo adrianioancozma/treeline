@@ -66,11 +66,16 @@ export function useAutoSplit(key: string, auto: number, min: number, max: number
       e.preventDefault();
       const start = e.clientX;
       const startSize = sizeRef.current;
+      // The last value the pointer produced: on a quick release the render for the last move may not have happened yet.
+      let latest = startSize;
       trackDrag(
-        (ev) => setStored(Math.min(max, Math.max(min, startSize + ev.clientX - start))),
+        (ev) => {
+          latest = Math.min(max, Math.max(min, startSize + ev.clientX - start));
+          setStored(latest);
+        },
         () => {
           try {
-            localStorage.setItem(`split:${key}`, String(sizeRef.current));
+            localStorage.setItem(`split:${key}`, String(latest));
           } catch {
             /* storage unavailable: the size just won't persist */
           }
@@ -108,14 +113,16 @@ export function useSplit(key: string, initial: number, min: number, max: number,
       e.preventDefault();
       const start = axis === "x" ? e.clientX : e.clientY;
       const startSize = sizeRef.current;
+      let latest = startSize;
       trackDrag(
         (ev) => {
           const delta = (axis === "x" ? ev.clientX : ev.clientY) - start;
-          setSize(Math.min(max, Math.max(min, startSize + (invert ? -delta : delta))));
+          latest = Math.min(max, Math.max(min, startSize + (invert ? -delta : delta)));
+          setSize(latest);
         },
         () => {
           try {
-            localStorage.setItem(`split:${key}`, String(sizeRef.current));
+            localStorage.setItem(`split:${key}`, String(latest));
           } catch {
             /* storage unavailable: the size just won't persist */
           }
