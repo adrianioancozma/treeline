@@ -91,6 +91,8 @@ export const api = {
     invoke<OpResult>("checkout_remote", { path, remoteBranch }),
   createBranch: (path: string, name: string, start: string | null, checkout: boolean) =>
     invoke<OpResult>("create_branch", { path, name, start, checkout }),
+  setUpstream: (path: string, branch: string, upstream: string | null) =>
+    invoke<OpResult>("set_upstream", { path, branch, upstream }),
   renameBranch: (path: string, old: string, name: string) =>
     invoke<OpResult>("rename_branch", { path, old, new: name }),
   deleteBranch: (path: string, name: string, force: boolean) =>

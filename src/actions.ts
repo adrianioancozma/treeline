@@ -307,6 +307,33 @@ export function repoActions(tabId: string) {
       );
     },
 
+    /** Pick which remote branch a local branch tracks (or none). */
+    setUpstream: (name: string) => {
+      const ref = (data()?.refs ?? []).find((r) => r.kind === "branch" && r.name === name);
+      const remotes = remoteBranches();
+      if (remotes.length === 0) return st().notify("error", "There are no remote branches. Fetch first.");
+      const NONE = "";
+      st().openDialog({
+        title: `Tracking branch for ${name}`,
+        fields: [
+          {
+            key: "upstream",
+            label: "Track remote branch",
+            type: "select",
+            value: ref?.upstream ?? remotes.find((r) => r.endsWith("/" + name)) ?? remotes[0],
+            options: [{ value: NONE, label: "(none — don't track)" }, ...remotes.map((r) => ({ value: r, label: r }))],
+          },
+        ],
+        submitLabel: "Set",
+        onSubmit: (v) => {
+          const u = String(v.upstream);
+          void run("Updating tracking…", () => api.setUpstream(path(), name, u || null), {
+            success: u ? `${name} now tracks ${u}` : `${name} no longer tracks a branch`,
+          });
+        },
+      });
+    },
+
     renameBranch: (name: string) =>
       st().openDialog({
         title: `Rename ${name}`,

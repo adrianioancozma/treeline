@@ -105,6 +105,7 @@ pub fn run() {
             ops::prefilled_conflicts,
             ops::merge_reusing_resolutions,
             ops::checkout_remote,
+            ops::set_upstream,
             ops::create_branch,
             ops::rename_branch,
             ops::delete_branch,

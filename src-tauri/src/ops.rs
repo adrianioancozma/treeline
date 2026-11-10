@@ -575,9 +575,30 @@ pub async fn checkout_remote(path: String, remote_branch: String) -> Result<OpRe
             .unwrap_or_else(|| remote_branch.clone());
         let exists = run_git(&path, ["rev-parse", "--verify", "-q", &format!("refs/heads/{local}")]).is_ok();
         if exists {
-            run_op(&path, ["checkout", &local], &[])
+            let out = run_op(&path, ["checkout", &local], &[])?;
+            // An existing local branch with no upstream starts tracking the one it was checked out from.
+            let has_upstream = run_op(&path, ["rev-parse", "--abbrev-ref", &format!("{local}@{{u}}")], &[])?.ok;
+            if out.ok && !has_upstream {
+                run_op(&path, ["branch", "--set-upstream-to", &remote_branch, &local], &[])?;
+            }
+            Ok(out)
         } else {
             run_op(&path, ["checkout", "--track", "-b", &local, &remote_branch], &[])
+        }
+    })
+    .await
+}
+
+/// Sets which remote branch a local branch tracks; `upstream: None` stops it tracking anything.
+#[tauri::command]
+pub async fn set_upstream(path: String, branch: String, upstream: Option<String>) -> Result<OpResult, String> {
+    blocking(move || {
+        ensure_allowed(&path)?;
+        ref_arg(&branch)?;
+        opt_ref_arg(&upstream)?;
+        match upstream.filter(|u| !u.is_empty()) {
+            Some(u) => run_op(&path, ["branch", "--set-upstream-to", &u, &branch], &[]),
+            None => run_op(&path, ["branch", "--unset-upstream", &branch], &[]),
         }
     })
     .await

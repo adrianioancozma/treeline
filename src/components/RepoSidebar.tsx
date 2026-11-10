@@ -179,6 +179,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
                     { label: "Fetch", onClick: () => a.fetchBranch(b.name, "branch"), disabled: !b.upstream },
                     { label: isCurrent ? "Pull" : "Pull (fast-forward)", onClick: () => a.pullBranch(b.name), disabled: !b.upstream },
                     { label: "Push", onClick: () => a.pushBranch(b.name) },
+                    { label: "Set tracking branch…", onClick: () => a.setUpstream(b.name) },
                     { separator: true },
                     { label: `Merge into ${current ?? "current"}…`, onClick: () => a.merge(b.name), disabled: isCurrent },
                     { label: "Merge this into multiple branches…", onClick: () => useUi.setState({ multiMerge: { tabId: tab.id, source: b.name } }) },
