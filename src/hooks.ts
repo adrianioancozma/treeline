@@ -152,6 +152,21 @@ export function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+/** The live width of an element, kept up to date as the window is resized (0 until measured). */
+export function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return w;
+}
+
 /** The live content height of an element, kept up to date as the window or panel is resized. */
 export function useElementHeight(ref: React.RefObject<HTMLElement | null>): number {
   const [h, setH] = useState(0);

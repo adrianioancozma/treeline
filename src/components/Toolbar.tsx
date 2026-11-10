@@ -1,4 +1,7 @@
+import { useRef } from "react";
 import { repoActions } from "../actions";
+import { useElementWidth } from "../hooks";
+import { fileManagerName, toolbarLayout } from "../lib/toolbarLayout";
 import { useApp } from "../store";
 import { openMenu, useUi } from "../uiStore";
 import type { Tab } from "../types";
@@ -39,9 +42,32 @@ export function Toolbar({ tab }: { tab: Tab }) {
   const busy = !!d?.busy;
   const bookmark = bookmarks.find((b) => b.path === tab.path);
   const changes = s?.files.length ?? 0;
+  const ref = useRef<HTMLDivElement>(null);
+  const layout = toolbarLayout(useElementWidth(ref));
+  const shown = (action: "branch" | "merge" | "stash" | "tag") => !layout.overflow.includes(action);
+
+  // Rare actions live in More; actions that no longer fit the toolbar join them at the top (P10).
+  const openMore = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const moved = [
+      !shown("branch") && { label: "New branch…", onClick: () => a.newBranch() },
+      !shown("merge") && { label: "Merge…", onClick: () => a.merge() },
+      !shown("stash") && { label: "Stash…", onClick: () => a.stash() },
+      !shown("tag") && { label: "New tag…", onClick: () => a.newTag() },
+    ].filter((x): x is { label: string; onClick: () => void } => !!x);
+    openMenu({ clientX: r.right - 220, clientY: r.bottom + 4 }, [
+      ...moved,
+      ...(moved.length ? [{ separator: true as const }] : []),
+      { label: "Merge into several branches…", onClick: () => useUi.setState({ multiMerge: { tabId: tab.id } }) },
+      { label: "Clean up merged branches…", onClick: () => useUi.setState({ mergedBranches: { tabId: tab.id } }) },
+      { separator: true },
+      { label: "Open in Terminal", onClick: () => a.terminal() },
+      { label: `Show in ${fileManagerName()}`, onClick: () => a.reveal() },
+    ]);
+  };
 
   return (
-    <div className="toolbar">
+    <div className={`toolbar${layout.labels ? "" : " icons-only"}`} ref={ref}>
       <div className="repo-id">
         <strong className="repo-name">{tab.name}</strong>
         <span className="chip" title={s?.upstream ? `Tracking ${s.upstream}` : "No upstream branch"}>
@@ -68,7 +94,7 @@ export function Toolbar({ tab }: { tab: Tab }) {
           label="Pull"
           badge={s?.behind ? String(s.behind) : undefined}
           disabled={busy}
-          title="Pull (merge). Right-click for more options"
+          title="Pull (merge). The arrow next to it offers rebase and fast-forward only."
           onClick={(e) => {
             if (e.shiftKey) return;
             a.pull("merge");
@@ -91,7 +117,7 @@ export function Toolbar({ tab }: { tab: Tab }) {
         </button>
         <Btn icon="push" label="Push" badge={s?.ahead ? String(s.ahead) : undefined} disabled={busy} onClick={() => a.push()} />
         <span className="sep" />
-        <Btn icon="branch" label="Branch" onClick={() => a.newBranch()} />
+        {shown("branch") && <Btn icon="branch" label="Branch" onClick={() => a.newBranch()} />}
         {(d?.submodules.length ?? 0) > 0 && (
           <Btn
             icon="submodule"
@@ -119,14 +145,11 @@ export function Toolbar({ tab }: { tab: Tab }) {
             <Icon name="down" size={12} />
           </button>
         )}
-        <Btn icon="merge" label="Merge" onClick={() => a.merge()} />
-        <Btn icon="merge" label="Merge to many" title="Merge one branch into several branches at once, with a conflict check first" onClick={() => useUi.setState({ multiMerge: { tabId: tab.id } })} />
-        <Btn icon="stash" label="Stash" onClick={() => a.stash()} />
-        <Btn icon="tag" label="Tag" onClick={() => a.newTag()} />
-        <Btn icon="trash" label="Cleanup" title="Find merged branches that are safe to delete" onClick={() => useUi.setState({ mergedBranches: { tabId: tab.id } })} />
+        {shown("merge") && <Btn icon="merge" label="Merge" onClick={() => a.merge()} />}
+        {shown("stash") && <Btn icon="stash" label="Stash" onClick={() => a.stash()} />}
+        {shown("tag") && <Btn icon="tag" label="Tag" onClick={() => a.newTag()} />}
         <span className="sep" />
-        <Btn icon="terminal" label="Terminal" onClick={() => a.terminal()} />
-        <Btn icon="folder" label="Explorer" onClick={() => a.reveal()} />
+        <Btn icon="more" label="More" title={`More actions: merge into several branches, clean up, Terminal, ${fileManagerName()}`} onClick={openMore} />
         <Btn icon="refresh" label="Refresh" disabled={d?.loading} onClick={() => void reload(tab.id)} />
       </div>
     </div>
