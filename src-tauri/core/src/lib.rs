@@ -4,6 +4,7 @@
 pub mod git;
 pub mod ops_parse;
 pub mod read;
+pub mod remote;
 pub mod status;
 pub mod trust;
 
