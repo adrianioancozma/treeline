@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { api, errorMessage } from "../api";
 import type { Update } from "@tauri-apps/plugin-updater";
 import { useAppVersion } from "../hooks";
-import { checkForUpdate, installUpdate } from "../updater";
+import { checkForUpdate, installUpdate, UPDATES_ENABLED } from "../updater";
 import type { GitInfo } from "../types";
 import { FETCH_SECOND_CHOICES, fetchSecondsLabel, loadFetchSeconds, saveFetchSeconds } from "../lib/autoFetch";
 
@@ -151,6 +151,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             </div>
             <span className="muted small">{upd.percent === null ? "Downloading…" : `Downloading… ${upd.percent}%`}</span>
           </div>
+        ) : !UPDATES_ENABLED ? (
+          <p className="muted small">Automatic updates are turned off in this build.</p>
         ) : (
           <>
             <div className="row">

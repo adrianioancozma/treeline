@@ -3,7 +3,8 @@ import type { Update } from "@tauri-apps/plugin-updater";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn() }));
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: vi.fn() }));
-import { createUpdateWatch } from "./updater";
+import { check } from "@tauri-apps/plugin-updater";
+import { checkForUpdate, createUpdateWatch, UPDATES_ENABLED } from "./updater";
 
 const upd = { version: "9.9.9" } as Update;
 
@@ -30,5 +31,14 @@ describe("background update watch", () => {
     expect(await tick()).toBe(false);
     expect(await tick()).toBe(true);
     expect(onAvailable).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("updates in this build", () => {
+  // This fork has no update server of its own yet; the upstream one would replace it with a build without remote support.
+  it("are turned off: no request to an update server, never an update", async () => {
+    expect(UPDATES_ENABLED).toBe(false);
+    await expect(checkForUpdate()).resolves.toBeNull();
+    expect(check).not.toHaveBeenCalled();
   });
 });

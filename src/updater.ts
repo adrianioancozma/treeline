@@ -1,9 +1,15 @@
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-/** Asks the update server whether a newer version exists; null means this is the latest. */
+/**
+ * Off in this fork until it has its own update server: the configured one is upstream's, whose builds lack the fork's
+ * features, so an "update" would replace this app with a different one.
+ */
+export const UPDATES_ENABLED = false;
+
+/** Asks the update server whether a newer version exists; null means this is the latest (or updates are off). */
 export function checkForUpdate(): Promise<Update | null> {
-  return check();
+  return UPDATES_ENABLED ? check() : Promise.resolve(null);
 }
 
 /**
