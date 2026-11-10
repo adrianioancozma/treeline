@@ -362,7 +362,10 @@ body.resizing .splitter::after { background: var(--accent); }
 .col-head { position: relative; }
 .col-grip { position: absolute; left: -8px; top: -6px; bottom: -6px; width: 8px; cursor: col-resize; }
 .col-grip::after { content: ""; position: absolute; left: 3px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+/* Handles show on the whole header row, so the resizable columns can be found (P22); the Graph handle sits on its right edge. */
+.history-head:hover .col-grip::after { background: var(--border-strong); width: 2px; }
 .col-grip:hover::after { background: var(--accent); width: 2px; left: 3px; }
+.col-grip.end { left: auto; right: -8px; }
 .vlist { flex: 1; overflow: auto; min-height: 0; position: relative; }
 .crow { position: absolute; left: 0; right: 0; cursor: default; font-size: var(--fs-s); }
 .crow .subject { font-size: var(--fs-m); }

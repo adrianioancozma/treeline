@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { autoSize } from "./lib/paneSize";
 
 /** The installed app version, or null until it is known (or if it cannot be read). */
 export function useAppVersion(): string | null {
@@ -18,6 +19,56 @@ function readSize(key: string, fallback: number, min: number, max: number): numb
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Like useSplit for a column whose natural width depends on its content (`auto`): it follows `auto` until the user
+ * drags the handle, remembers the dragged width, and goes back to automatic on reset (double-click).
+ */
+export function useAutoSplit(key: string, auto: number, min: number, max: number) {
+  const [stored, setStored] = useState<number | null>(() => {
+    try {
+      const v = Number(localStorage.getItem(`split:${key}`));
+      return Number.isFinite(v) && v > 0 ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const size = autoSize(stored, auto, min, max);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const start = e.clientX;
+      const startSize = sizeRef.current;
+      const move = (ev: MouseEvent) => setStored(Math.min(max, Math.max(min, startSize + ev.clientX - start)));
+      const up = () => {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseup", up);
+        document.body.classList.remove("resizing");
+        try {
+          localStorage.setItem(`split:${key}`, String(sizeRef.current));
+        } catch {
+          /* storage unavailable: the size just won't persist */
+        }
+      };
+      document.body.classList.add("resizing");
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    },
+    [key, min, max],
+  );
+  const reset = useCallback(() => {
+    setStored(null);
+    try {
+      localStorage.removeItem(`split:${key}`);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [key]);
+  return [size, onMouseDown, reset] as const;
 }
 
 /**

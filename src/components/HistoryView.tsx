@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { repoActions } from "../actions";
-import { useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
+import { useAutoSplit, useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
 import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
+import { graphWidths } from "../lib/paneSize";
 import { DATE_RANGES, authorsOf, dateFilterActive, dateWindow, filtersActive, noFilters, type DateRange } from "../lib/historyFilter";
 import { useApp } from "../store";
 import { openMenu, useUi } from "../uiStore";
@@ -167,8 +168,9 @@ export function HistoryView({ tab }: { tab: Tab }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seeking, focusTip, focusIndex, d.logLoaded, d.logDone, d.logLoading, d.ui.historyAll]);
-  const maxLanes = Math.min(12, Math.max(1, ...graph.map((r) => r.lanes)));
-  const graphW = maxLanes * LANE_W + 8;
+  // Up to 12 lanes by default; drag the Graph header edge to show every lane (P21).
+  const graphRange = graphWidths(Math.max(1, ...graph.map((r) => r.lanes)), LANE_W);
+  const [graphW, onGraphSplit, resetGraph] = useAutoSplit("history-col-graph", graphRange.auto, graphRange.min, graphRange.max);
   // Right-hand columns resize from their left edge, so dragging left widens them. Sizes are remembered.
   const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, 60, 400, "x", true);
   const [dateW, onDateSplit, resetDate] = useSplit("history-col-date", 110, 50, 300, "x", true);
@@ -300,7 +302,10 @@ export function HistoryView({ tab }: { tab: Tab }) {
           )}
         </div>
         <div className="history-head" style={{ gridTemplateColumns: columns }}>
-          <span>Graph</span>
+          <span className="col-head">
+            Graph
+            <i className="col-grip end" onMouseDown={onGraphSplit} onDoubleClick={() => resetGraph()} role="separator" aria-orientation="vertical" title="Drag to show more branches. Double-click for the automatic width." />
+          </span>
           <span>Description</span>
           <span className="col-head">
             <i className="col-grip" onMouseDown={onAuthorSplit} onDoubleClick={() => resetAuthor()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
