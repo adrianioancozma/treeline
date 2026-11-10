@@ -14,7 +14,7 @@ You need a Mac (macOS 12 or newer) or a Linux machine with a desktop (Debian/Ubu
 | Linux | Run `bash scripts/setup-linux.sh` once, then `bash scripts/build-linux.sh` (it runs all tests first). To try without packaging: `pnpm tauri dev`. |
 
 **Please report if the build itself fails**, with the full error text and the output of `rustc --version`,
-`node --version` and `pnpm --version`. Also tell us if `cargo test --lib` (in `src-tauri`) fails, and which tests.
+`node --version` and `pnpm --version`. Also tell us if `cargo test --workspace --lib` (in `src-tauri`) fails, and which tests.
 
 ## 1. Smoke test
 

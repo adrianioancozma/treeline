@@ -75,7 +75,7 @@ bookmark whose folder is not already allowed, so the page cannot plant a folder 
 - `pnpm audit`: no known vulnerabilities. The Rust lockfile was checked against the OSV database; the
   only findings are item 13.
 
-To repeat: `cargo test --lib` in `src-tauri`, `pnpm test`, `pnpm audit`, and compare `src-tauri/Cargo.lock`
+To repeat: `cargo test --workspace --lib` in `src-tauri`, `pnpm test`, `pnpm audit`, and compare `src-tauri/Cargo.lock`
 against https://osv.dev (or run `cargo audit`).
 
 ## Knowingly not done

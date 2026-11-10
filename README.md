@@ -88,7 +88,7 @@ pnpm install
 pnpm tauri dev        # run the app with hot reload
 pnpm test             # TypeScript unit tests (diff/patch builder, graph, conflicts, errors, formatting)
 pnpm exec tsc --noEmit
-cd src-tauri && cargo test --lib   # Rust tests, including integration tests against real git
+cd src-tauri && cargo test --workspace --lib   # Rust tests (app + core), including integration tests against real git
 ```
 
 ## Build installers
@@ -232,10 +232,14 @@ src/                           React UI
   lib/explain.ts               turns git errors into explanations and fixes
   components/                  views and dialogs
 src-tauri/src/
-  git.rs                       process helpers, status, submodules, clone
+  git.rs                       status, submodules, clone, the allow-list
   ops.rs                       staging, commits, history, branches, remotes, merge/rebase, stash, conflicts
   watcher.rs                   file-system watcher for the active repo
   store.rs                     state persistence
+src-tauri/core/src/            git layer without Tauri (treeline-core), shared with a future remote helper
+  git.rs                       finding git, the hardened command builder, running git, progress sink
+  status.rs                    status / submodule parsing, hiding credentials in URLs
+  ops_parse.rs                 log, refs, stash, blame and other output parsers
 ```
 
 ## Notes

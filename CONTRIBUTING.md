@@ -25,7 +25,7 @@ pnpm install
 pnpm tauri dev                     # run the app with hot reload
 pnpm test                          # TypeScript tests
 pnpm exec tsc --noEmit             # type check
-cd src-tauri && cargo test --lib   # Rust tests (they run real git in temporary folders)
+cd src-tauri && cargo test --workspace --lib   # Rust tests of the app and core crates (real git in temporary folders)
 ```
 
 **Before you send a change, all three test commands must pass.**
@@ -47,7 +47,7 @@ cd src-tauri && cargo test --lib   # Rust tests (they run real git in temporary 
 ## Code conventions
 
 * **Tests with every change.** Pure logic goes in `src/lib/` with a `*.test.ts` file. Git behaviour is covered by Rust tests in
-  `src-tauri/src/*.rs` that create real repositories in temporary folders — copy an existing test as a starting point.
+  `src-tauri/src/*.rs` and `src-tauri/core/src/*.rs` that create real repositories in temporary folders — copy an existing test as a starting point.
 * Keep functions small and comment the *why* (especially around git quirks). No dead code or unused dependencies.
 * TypeScript is strict; no `any` without a reason. Rust code should build without warnings.
 * **User-facing text and documentation use British English** ("initialise", "colour", "licence").
