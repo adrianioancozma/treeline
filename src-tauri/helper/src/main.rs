@@ -12,6 +12,7 @@
 //!   top level of a sub-folder) are reported as `{"method": "trusted", "params": {"key": …}}`.
 //! - `{"method": "allow", "params": {"path": …}}` — one more folder the user confirmed in the app.
 //! - `{"method": "access", "params": {"path": …}}` — before opening: exists, readable, repository, writable, owner.
+//! - `{"method": "list_dir", "params": {"path": "~/dev", "show_hidden": false}}` — folder names, to pick one.
 //! - read requests (`repo_status`, `git_log`, …) with the same parameter names as the functions in
 //!   `treeline_core::read`; each runs on its own thread, so a slow one does not hold up the others.
 //! - answers: `{"id": …, "result": …}` or `{"id": …, "error": "…"}`.
@@ -50,11 +51,17 @@ fn access_of(path: String) -> Result<treeline_core::access::Access, String> {
     Ok(treeline_core::access::access(&path))
 }
 
+fn list_dir_of(path: String, show_hidden: Option<bool>) -> Result<treeline_core::browse::DirListing, String> {
+    treeline_core::browse::list_dir(&path, show_hidden.unwrap_or(false))
+}
+
 fn dispatch(method: &str, p: Value) -> Result<Value, String> {
     match method {
         "ping" => Ok(json!({})),
         // Before a folder is opened: what the user may do with it (not limited to opened folders; never writes).
         "access" => call!(p, access_of, path: String),
+        // Picking a folder: folder names only (and whether each is a repository), never file names or contents.
+        "list_dir" => call!(p, list_dir_of, path: String, show_hidden: Option<bool>),
         "repo_status" => call!(p, read::repo_status, path: String),
         "list_submodules" => call!(p, read::list_submodules, path: String),
         "list_refs" => call!(p, read::list_refs, path: String),

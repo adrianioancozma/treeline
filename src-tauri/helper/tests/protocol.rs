@@ -16,7 +16,18 @@ struct Helper {
 
 impl Helper {
     fn start_with(exe: &Path, args: &[&str]) -> Helper {
-        let mut child = Command::new(exe).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+        // A process another test starts at the same moment can hold a just-written executable open for a moment
+        // ("Text file busy" on Linux); trying again shortly after is the usual way around it.
+        let mut tries = 0;
+        let mut child = loop {
+            match Command::new(exe).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn() {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && tries < 50 => {
+                    tries += 1;
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                other => break other.unwrap(),
+            }
+        };
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().unwrap();
         let (tx, lines) = channel();
@@ -45,6 +56,13 @@ impl Helper {
         assert_eq!(v["id"], json!(id), "answer to {method}: {v}");
         v
     }
+}
+
+/// Tests that write an executable and then run it take turns: on Linux a process started meanwhile by another test can
+/// briefly hold the file open for writing, and running it then fails with "Text file busy".
+fn exe_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn temp(name: &str) -> PathBuf {
@@ -159,6 +177,7 @@ fn exits_when_the_connection_closes() {
 #[cfg(unix)]
 #[test]
 fn deletes_its_own_file_and_keeps_working() {
+    let _turn = exe_lock();
     let dir = temp("selfdelete");
     let copy = dir.join("treeline-helper");
     std::fs::copy(env!("CARGO_BIN_EXE_treeline-helper"), &copy).unwrap();
@@ -199,4 +218,35 @@ fn checks_a_folder_before_it_is_opened() {
     let missing = h.call(3, "access", json!({ "path": format!("{p}/nope") }))["result"].clone();
     assert!(missing["problem"].as_str().unwrap().contains("does not exist"));
     let _ = std::fs::remove_dir_all(&repo);
+}
+
+#[test]
+fn lists_folders_starting_from_home_on_that_computer() {
+    let _turn = exe_lock();
+    let home = temp("home");
+    for sub in ["dev/project/.git", "dev/notes", ".config"] {
+        std::fs::create_dir_all(home.join(sub)).unwrap();
+    }
+    let exe = std::env::temp_dir().join(format!("treeline-helper-launcher-{}", std::process::id()));
+    let _ = std::fs::remove_file(&exe);
+    // A launcher that starts the helper with HOME pointing at the test folder.
+    let script = format!("HOME='{}' exec '{}' --stdio", home.display(), env!("CARGO_BIN_EXE_treeline-helper"));
+    std::fs::write(&exe, format!("#!/bin/sh\n{script}\n")).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let mut h = Helper::start_with(&exe, &[]);
+    h.call(1, "init", json!({ "trusted": [] }));
+    let l = h.call(2, "list_dir", json!({ "path": "~" }))["result"].clone();
+    assert_eq!(l["path"], json!(home.to_string_lossy()), "{l}");
+    assert_eq!(l["entries"], json!([{ "name": "dev", "repo": false }]), "hidden folders left out");
+    let dev = h.call(3, "list_dir", json!({ "path": "~/dev" }))["result"].clone();
+    assert_eq!(dev["entries"], json!([{ "name": "notes", "repo": false }, { "name": "project", "repo": true }]));
+    let hidden = h.call(4, "list_dir", json!({ "path": "~", "show_hidden": true }))["result"].clone();
+    assert!(hidden["entries"].as_array().unwrap().iter().any(|e| e["name"] == ".config"));
+    assert!(h.call(5, "list_dir", json!({ "path": "~/nope" }))["error"].as_str().unwrap().contains("does not exist"));
+    let _ = std::fs::remove_file(&exe);
+    let _ = std::fs::remove_dir_all(&home);
 }

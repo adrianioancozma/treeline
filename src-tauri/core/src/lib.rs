@@ -2,6 +2,7 @@
 //! The desktop app uses it in process; a helper on another computer can use the same code.
 
 pub mod access;
+pub mod browse;
 pub mod git;
 pub mod ops_parse;
 pub mod read;
