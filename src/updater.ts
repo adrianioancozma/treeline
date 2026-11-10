@@ -22,3 +22,30 @@ export async function installUpdate(update: Update, onProgress: (percent: number
   });
   await relaunch();
 }
+
+export const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Checks for a newer version in the background. Failures (offline, no update server) are ignored:
+ * the Settings dialog's "Check for updates" button reports real errors. Stops looking once one is found.
+ */
+export function createUpdateWatch(deps: { check: () => Promise<Update | null>; onAvailable: (u: Update) => void }) {
+  let found = false;
+  let running = false;
+  return async function tick(): Promise<boolean> {
+    if (found || running) return found;
+    running = true;
+    try {
+      const u = await deps.check();
+      if (u) {
+        found = true;
+        deps.onAvailable(u);
+      }
+    } catch {
+      /* offline or no update server */
+    } finally {
+      running = false;
+    }
+    return found;
+  };
+}

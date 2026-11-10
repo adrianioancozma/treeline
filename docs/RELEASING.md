@@ -38,5 +38,6 @@ The installers are not code-signed, so Windows SmartScreen and macOS Gatekeeper 
    `src-tauri/target/release/bundle/release/` (the installer, its `.sig`, and `latest.json`). Publish it as the
    **latest** release.
 
-Running copies then offer the update at start-up and under Settings → Check for updates; the user confirms before
+Running copies then check a few seconds after start-up and every 6 hours, show a dot on the Settings (gear) button when a
+newer version exists, and offer it under Settings → Check for updates; the user confirms before
 anything is installed. Linux: build in WSL, copy the AppImage and its `.sig` to `bundle/linux/` first.

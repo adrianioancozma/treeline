@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useUi } from "../uiStore";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, errorMessage } from "../api";
 import type { Update } from "@tauri-apps/plugin-updater";
@@ -21,12 +22,14 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     | { kind: "installing"; percent: number | null }
     | { kind: "failed"; message: string };
   const [fetchSeconds, setFetchSeconds] = useState(loadFetchSeconds);
-  const [upd, setUpd] = useState<UpdateState>({ kind: "idle" });
+  const found = useUi((s) => s.update);
+  const [upd, setUpd] = useState<UpdateState>(found ? { kind: "available", update: found } : { kind: "idle" });
 
   const checkUpdates = async () => {
     setUpd({ kind: "checking" });
     try {
       const update = await checkForUpdate();
+      if (update) useUi.setState({ update });
       setUpd(update ? { kind: "available", update } : { kind: "latest" });
     } catch (e) {
       setUpd({ kind: "failed", message: errorMessage(e) });

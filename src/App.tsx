@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "./api";
+import { UPDATE_CHECK_INTERVAL_MS, checkForUpdate, createUpdateWatch } from "./updater";
 import { createAutoFetch, startAutoFetchTimer } from "./lib/autoFetch";
 import { useApp } from "./store";
 import { useUi } from "./uiStore";
@@ -82,6 +83,21 @@ export default function App() {
     return () => {
       stopTimer();
       void unfocus.then((f) => f());
+    };
+  }, []);
+
+  // Look for a newer version of Treeline shortly after start and then every few hours; a hit puts a
+  // badge on the Settings button. Nothing is downloaded or installed without the user's say-so.
+  useEffect(() => {
+    const tick = createUpdateWatch({
+      check: checkForUpdate,
+      onAvailable: (update) => useUi.setState({ update }),
+    });
+    const first = window.setTimeout(() => void tick(), 10_000);
+    const timer = window.setInterval(() => void tick(), UPDATE_CHECK_INTERVAL_MS);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(timer);
     };
   }, []);
 

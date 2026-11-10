@@ -1,3 +1,4 @@
+import type { Update } from "@tauri-apps/plugin-updater";
 import type { MouseEvent } from "react";
 import { create } from "zustand";
 
@@ -48,9 +49,11 @@ interface UiState {
   mergedBranches: { tabId: string } | null;
   /** The merge-into-many dialog; `source` preselects the branch to merge from (default: current). */
   multiMerge: { tabId: string; source?: string } | null;
+  /** A newer app version found by the background check; drives the badge on the Settings button. */
+  update: Update | null;
 }
 
-export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false, mergedBranches: null, multiMerge: null }));
+export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false, mergedBranches: null, multiMerge: null, update: null }));
 
 export function openMenu(e: MouseEvent | { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }, items: MenuItem[]) {
   e.preventDefault?.();

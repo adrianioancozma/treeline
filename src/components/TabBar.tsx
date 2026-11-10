@@ -6,6 +6,7 @@ import { Icon } from "./Icon";
 
 export function TabBar() {
   const { tabs, activeId, setActive, closeTab, newTab, moveTab, data } = useApp();
+  const update = useUi((s) => s.update);
   const bar = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -111,12 +112,13 @@ ${t.path}` : "New tab"}
         <Icon name="help" size={16} />
       </button>
       <button
-        className="icon-btn"
-        aria-label="Settings"
-        title="Settings (Git program)"
+        className="icon-btn has-badge"
+        aria-label={update ? `Settings (version ${update.version} is available)` : "Settings"}
+        title={update ? `Settings — version ${update.version} is available` : "Settings (Git program)"}
         onClick={() => useUi.setState({ settings: true })}
       >
         <Icon name="gear" size={16} />
+        {update && <span className="update-badge" aria-hidden="true" />}
       </button>
       <button className="icon-btn" aria-label="Command palette (Ctrl+K)" title="Command palette (Ctrl+K)" onClick={() => useApp.getState().setPalette(true)}>
         <Icon name="command" size={16} />

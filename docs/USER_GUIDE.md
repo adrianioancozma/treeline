@@ -62,8 +62,10 @@ If you would rather build it yourself, see the README's *Build installers* secti
   **Locate Git…**: choose the Git program (`git.exe`, normally in `C:\Program Files\Git\cmd`) and the app remembers it.
   You can change this later in **Settings** (the gear icon in the top bar, or the command palette).
 * **Version and updates.** The version number is at the bottom right of the window and in **Settings**. The app checks
-  for a newer version when it starts and tells you if there is one. You can also use **Settings → Check for updates**.
-  Nothing is installed until you press **Install and restart**.
+  for a newer version a few seconds after it starts, and again every few hours. When one is out, a small **blue dot appears on
+  the Settings (gear) button** in the top bar; hover it to see the version number. Open **Settings** to read what is new and
+  press **Install and restart**. You can also check by hand with **Settings → Check for updates**. Nothing is downloaded or
+  installed until you press **Install and restart**, and if you are offline the check just does nothing.
 * **Keep Git up to date.** Treeline runs your Git, so it is only as safe as that Git. If yours is older than the July 2025
   security fixes for cloning and submodules, a notice appears once at start-up. Update Git (see above) before cloning or
   updating submodules of a repository you do not fully trust.
