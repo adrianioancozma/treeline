@@ -168,6 +168,11 @@ export function HistoryView({ tab }: { tab: Tab }) {
   }, [seeking, focusTip, focusIndex, d.logLoaded, d.logDone, d.logLoading, d.ui.historyAll]);
   const maxLanes = Math.min(12, Math.max(1, ...graph.map((r) => r.lanes)));
   const graphW = maxLanes * LANE_W + 8;
+  // Right-hand columns resize from their left edge, so dragging left widens them. Sizes are remembered.
+  const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, 60, 400, "x", true);
+  const [dateW, onDateSplit, resetDate] = useSplit("history-col-date", 110, 50, 300, "x", true);
+  const [shaW, onShaSplit, resetSha] = useSplit("history-col-sha", 64, 50, 160, "x", true);
+  const columns = `${graphW}px minmax(0, 1fr) ${authorW}px ${dateW}px ${shaW}px`;
 
   const first = Math.max(0, Math.floor(scroll / ROW_H) - 6);
   const last = Math.min(rowsData.length, Math.ceil((scroll + viewH) / ROW_H) + 6);
@@ -284,12 +289,21 @@ export function HistoryView({ tab }: { tab: Tab }) {
             </span>
           )}
         </div>
-        <div className="history-head" style={{ gridTemplateColumns: `${graphW}px 1fr 150px 110px 64px` }}>
+        <div className="history-head" style={{ gridTemplateColumns: columns }}>
           <span>Graph</span>
           <span>Description</span>
-          <span>Author</span>
-          <span>Date</span>
-          <span>Commit</span>
+          <span className="col-head">
+            <i className="col-grip" onMouseDown={onAuthorSplit} onDoubleClick={() => resetAuthor()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+            Author
+          </span>
+          <span className="col-head">
+            <i className="col-grip" onMouseDown={onDateSplit} onDoubleClick={() => resetDate()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+            Date
+          </span>
+          <span className="col-head">
+            <i className="col-grip" onMouseDown={onShaSplit} onDoubleClick={() => resetSha()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+            Commit
+          </span>
         </div>
         <div className="vlist" ref={scroller} onScroll={(e) => setScroll(e.currentTarget.scrollTop)}>
           {d.logLoaded && rowsData.length === 0 && <div className="empty">No commits yet.</div>}
@@ -303,7 +317,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                 <div
                   key={c.sha}
                   className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${(highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha))) || (filtering && matches && !matches.has(c.sha)) ? " dim" : ""}`}
-                  style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: `${graphW}px 1fr 150px 110px 64px` }}
+                  style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
                   onClick={(e) => {
                     if (isWip) return setUi(tab.id, { view: "files" });
                     // Ctrl+click a second commit to compare it with the selected one.

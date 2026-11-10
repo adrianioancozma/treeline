@@ -285,6 +285,10 @@ body.resizing .splitter::after { background: var(--accent); }
 .filter-summary .icon-btn { width: 22px; height: 22px; font-size: 10px; }
 .history-head, .crow { display: grid; align-items: center; column-gap: 8px; padding: 0 12px 0 8px; }
 .history-head { height: 26px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+.col-head { position: relative; }
+.col-grip { position: absolute; left: -8px; top: -6px; bottom: -6px; width: 8px; cursor: col-resize; }
+.col-grip::after { content: ""; position: absolute; left: 3px; top: 6px; bottom: 6px; width: 1px; background: var(--border); }
+.col-grip:hover::after { background: var(--accent); width: 2px; left: 3px; }
 .vlist { flex: 1; overflow: auto; min-height: 0; position: relative; }
 .crow { position: absolute; left: 0; right: 0; cursor: default; }
 .crow:hover { background: var(--bg-3); }

@@ -23,8 +23,9 @@ function readSize(key: string, fallback: number, min: number, max: number): numb
 /**
  * A draggable divider. Returns the current size and a mouse-down handler for the handle.
  * `axis` "x" measures from the container's left edge, "y" from its top edge.
+ * `invert` is for a handle on the near edge of a pane that grows when dragged the other way (e.g. a right-hand column).
  */
-export function useSplit(key: string, initial: number, min: number, max: number, axis: "x" | "y") {
+export function useSplit(key: string, initial: number, min: number, max: number, axis: "x" | "y", invert = false) {
   const [stored, setSize] = useState(() => readSize(`split:${key}`, initial, min, max));
   // `max` can shrink (a smaller window), so the remembered size is always clamped to the current range:
   // a stale value must never push the pane after it off screen.
@@ -39,7 +40,7 @@ export function useSplit(key: string, initial: number, min: number, max: number,
       const startSize = sizeRef.current;
       const move = (ev: MouseEvent) => {
         const delta = (axis === "x" ? ev.clientX : ev.clientY) - start;
-        setSize(Math.min(max, Math.max(min, startSize + delta)));
+        setSize(Math.min(max, Math.max(min, startSize + (invert ? -delta : delta))));
       };
       const up = () => {
         window.removeEventListener("mousemove", move);
@@ -55,9 +56,17 @@ export function useSplit(key: string, initial: number, min: number, max: number,
       window.addEventListener("mousemove", move);
       window.addEventListener("mouseup", up);
     },
-    [axis, key, min, max],
+    [axis, key, min, max, invert],
   );
-  return [size, onMouseDown] as const;
+  const reset = useCallback(() => {
+    setSize(initial);
+    try {
+      localStorage.removeItem(`split:${key}`);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [initial, key]);
+  return [size, onMouseDown, reset] as const;
 }
 
 /** Debounces a fast-changing value (e.g. a search box). */
