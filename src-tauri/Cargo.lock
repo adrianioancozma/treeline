@@ -4143,6 +4143,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "treeline-helper"
+version = "0.3.2"
+dependencies = [
+ "serde",
+ "serde_json",
+ "treeline-core",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
