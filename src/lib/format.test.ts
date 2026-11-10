@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyRef, parseTrack, relativeTime, splitPath } from "./format";
+import { classifyRef, listDate, parseTrack, relativeTime, splitPath } from "./format";
 
 describe("format helpers", () => {
   it("formats relative time", () => {
@@ -31,5 +31,23 @@ describe("format helpers", () => {
     expect(classifyRef("origin/dev", ["origin"])?.kind).toBe("remote");
     expect(classifyRef("tag: v1", [])).toEqual({ label: "v1", kind: "tag" });
     expect(classifyRef("feature/x", ["origin"])?.kind).toBe("branch");
+  });
+});
+
+describe("listDate", () => {
+  const now = Date.UTC(2026, 10, 10, 12, 0, 0); // 10 Nov 2026, 12:00 UTC
+  const ago = (s: number) => now / 1000 - s;
+  it("stays relative for the last week", () => {
+    expect(listDate(ago(2 * 3600), now, "en-GB")).toBe("2 h ago");
+    expect(listDate(ago(6 * 86400), now, "en-GB")).toBe("6 d ago");
+  });
+  it("shows day and month for older commits of this year", () => {
+    expect(listDate(Date.UTC(2026, 0, 11, 9) / 1000, now, "en-GB")).toBe("11 Jan");
+  });
+  it("adds the year for commits from earlier years", () => {
+    expect(listDate(Date.UTC(2025, 10, 28, 9) / 1000, now, "en-GB")).toBe("28 Nov 2025");
+  });
+  it("switches to a date at exactly seven days", () => {
+    expect(listDate(ago(7 * 86400), now, "en-GB")).toBe("3 Nov");
   });
 });
