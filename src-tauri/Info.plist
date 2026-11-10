@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- macOS asks the user before the app (and the ssh it starts) may reach computers on the local network;
+	     without this text it does not even ask, and connections fail with "No route to host". -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Treeline connects over ssh to computers on your network to show repositories that are on them.</string>
+</dict>
+</plist>
