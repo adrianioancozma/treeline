@@ -4120,7 +4120,7 @@ dependencies = [
 
 [[package]]
 name = "treeline"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "notify-debouncer-mini",
  "serde",
