@@ -141,7 +141,7 @@ body { overflow: hidden; background: var(--bg); }
 body.resizing { user-select: none; cursor: col-resize; }
 /* Lists and chrome behave like a native app: dragging across them does not select their text (copy from the
    context menu instead). The diff, the commit message, errors and every input stay selectable. */
-.vlist, .history-head, .file-lists, .file-row, .tabbar, .toolbar, .repo-side { -webkit-user-select: none; user-select: none; }
+.vlist, .history-head, .file-lists, .file-row, .tabbar, .toolbar, .repo-side, .rb-list { -webkit-user-select: none; user-select: none; }
 input, textarea, select { -webkit-user-select: text; user-select: text; }
 h1, h2, h3 { margin: 0; font-weight: 600; }
 h1 { font-size: var(--fs-xl); }
