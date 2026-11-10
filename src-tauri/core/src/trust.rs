@@ -5,6 +5,11 @@
 //! filled only from Rust: the native folder picker (`pick_folder`), the saved tabs and bookmarks read at
 //! start-up, a repository derived from an allowed one (a submodule, the top level of a picked
 //! sub-folder) and a finished clone.
+//!
+//! The list belongs to the process: the desktop app keeps one for the repositories on this computer, and a helper
+//! started on another computer keeps its own for the repositories there, filled from what the user opened in the
+//! app. Folders added on the helper's side (see `set_grant_observer`) are reported back, so the app can remember
+//! them for the next connection.
 
 use std::path::{Path, PathBuf};
 
@@ -118,9 +123,22 @@ pub fn is_filesystem_root(key: &str) -> bool {
 /// trusted this way.
 pub fn allow_repo(path: &str) {
     let key = allow_key(path);
-    if !is_filesystem_root(&key) && push_unique(opened_repos(), key) {
+    if !is_filesystem_root(&key) && push_unique(opened_repos(), key.clone()) {
         persist_trusted();
+        if let Some(observe) = GRANT_OBSERVER.get() {
+            observe(&key);
+        }
     }
+}
+
+/// Told about every folder newly added to the list, including the ones added as a side effect (the top level of a
+/// picked sub-folder, a submodule, a finished clone). The desktop app does not need it (it saves the list itself);
+/// a helper running next to remote repositories uses it to report each new folder to the app that started it.
+static GRANT_OBSERVER: std::sync::OnceLock<Box<dyn Fn(&str) + Send + Sync>> = std::sync::OnceLock::new();
+
+/// Sets the observer of new folders, once per process; false if one was already set.
+pub fn set_grant_observer(observe: impl Fn(&str) + Send + Sync + 'static) -> bool {
+    GRANT_OBSERVER.set(Box::new(observe)).is_ok()
 }
 
 /// Marks a folder as one the user has chosen to clone into.
@@ -148,5 +166,54 @@ pub fn ensure_allowed(path: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(NOT_OPENED.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    fn temp(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("treeline-core-trust-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn dot_dot_cannot_climb_out_of_an_opened_folder() {
+        // A missing folder stops link resolution, so the rest of the path is kept as written; without the `..`
+        // rule, "<opened>/missing/../../x" would still start with the opened folder and pass.
+        let base = temp("dotdot");
+        let opened = base.join("opened");
+        std::fs::create_dir_all(&opened).unwrap();
+        // The real location (on macOS the temp folder is behind a link), so only the `..` rule can refuse.
+        let opened = std::fs::canonicalize(&opened).unwrap();
+        allow_repo(&opened.to_string_lossy());
+        assert!(ensure_allowed(&opened.to_string_lossy()).is_ok());
+        let escape = format!("{}/missing/../../outside", opened.to_string_lossy());
+        assert!(ensure_allowed(&escape).is_err(), "{escape} climbs out of the opened folder");
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_observer_hears_each_new_folder_once() {
+        let heard = Arc::new(Mutex::new(Vec::<String>::new()));
+        let sink = Arc::clone(&heard);
+        assert!(set_grant_observer(move |key| sink.lock().unwrap().push(key.to_string())));
+        assert!(!set_grant_observer(|_| {}), "only one observer per process");
+
+        let base = temp("observer");
+        let repo = base.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        allow_repo(&repo.to_string_lossy());
+        allow_repo(&repo.to_string_lossy()); // already there: not reported again
+        allow_repo("/"); // a filesystem root is never trusted, so never reported
+        let key = allow_key(&repo.to_string_lossy());
+        let mine: Vec<String> = heard.lock().unwrap().iter().filter(|k| k.starts_with(&allow_key(&base.to_string_lossy()))).cloned().collect();
+        assert_eq!(mine, vec![key]);
+        assert!(!heard.lock().unwrap().iter().any(|k| k == "/"));
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

@@ -63,6 +63,14 @@ The tabs file is something the page can write, so it is **not** what start-up tr
 link created later at a remembered path cannot make it lead somewhere else. `save_state` also drops any tab or
 bookmark whose folder is not already allowed, so the page cannot plant a folder in the tabs file either.
 
+The list lives in the `treeline-core` crate (`src-tauri/core/src/trust.rs`) and belongs to the process: the app keeps
+one for the folders on this computer, and a helper that runs git next to repositories on another computer will keep
+its own, filled from what the user opened in the app. Folders the list gains as a side effect (the top level of a
+picked sub-folder, a submodule, a finished clone) are reported to an observer, which that helper uses to tell the app.
+A path with `..` in it is refused even when it starts with an allowed folder: below a folder that does not exist,
+links cannot be resolved and the rest of the path is compared as written, so `<allowed>/missing/../../x` would
+otherwise pass (covered by `dot_dot_cannot_climb_out_of_an_opened_folder`).
+
 ## Verification
 
 - Rust unit and integration tests, including real-git tests for the symlink/junction check, the hostile
