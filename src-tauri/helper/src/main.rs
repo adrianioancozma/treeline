@@ -11,6 +11,7 @@
 //!   app for this computer. Nothing else is answered before it. Folders added later on this side (a submodule, the
 //!   top level of a sub-folder) are reported as `{"method": "trusted", "params": {"key": …}}`.
 //! - `{"method": "allow", "params": {"path": …}}` — one more folder the user confirmed in the app.
+//! - `{"method": "access", "params": {"path": …}}` — before opening: exists, readable, repository, writable, owner.
 //! - read requests (`repo_status`, `git_log`, …) with the same parameter names as the functions in
 //!   `treeline_core::read`; each runs on its own thread, so a slow one does not hold up the others.
 //! - answers: `{"id": …, "result": …}` or `{"id": …, "error": "…"}`.
@@ -45,9 +46,15 @@ macro_rules! call {
     }};
 }
 
+fn access_of(path: String) -> Result<treeline_core::access::Access, String> {
+    Ok(treeline_core::access::access(&path))
+}
+
 fn dispatch(method: &str, p: Value) -> Result<Value, String> {
     match method {
         "ping" => Ok(json!({})),
+        // Before a folder is opened: what the user may do with it (not limited to opened folders; never writes).
+        "access" => call!(p, access_of, path: String),
         "repo_status" => call!(p, read::repo_status, path: String),
         "list_submodules" => call!(p, read::list_submodules, path: String),
         "list_refs" => call!(p, read::list_refs, path: String),

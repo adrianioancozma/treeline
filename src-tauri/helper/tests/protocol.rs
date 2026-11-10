@@ -186,3 +186,17 @@ fn a_folder_allowed_later_is_answered_and_reported_back() {
     assert!(h.call(4, "repo_status", json!({ "path": p }))["result"].is_object());
     let _ = std::fs::remove_dir_all(&repo);
 }
+
+#[test]
+fn checks_a_folder_before_it_is_opened() {
+    let repo = sample_repo("access");
+    let p = repo.to_string_lossy().to_string();
+    let mut h = Helper::start();
+    h.call(1, "init", json!({ "trusted": [] }));
+    let a = h.call(2, "access", json!({ "path": p }))["result"].clone();
+    assert_eq!((a["exists"].clone(), a["repo"].clone(), a["readable"].clone()), (json!(true), json!(true), json!(true)), "{a}");
+    assert!(a["problem"].is_null());
+    let missing = h.call(3, "access", json!({ "path": format!("{p}/nope") }))["result"].clone();
+    assert!(missing["problem"].as_str().unwrap().contains("does not exist"));
+    let _ = std::fs::remove_dir_all(&repo);
+}

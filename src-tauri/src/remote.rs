@@ -126,19 +126,28 @@ pub async fn remote_connect(app: AppHandle, host: String) -> Result<Value, Strin
 }
 
 /// Opens a folder on `host` after the user confirms it in a native dialog (the page cannot widen the list itself).
+/// The folder is checked on that computer first, so a wrong path, an unreadable folder or one git refuses is reported
+/// before anything is confirmed. Returns the path and whether the user may write to the repository there.
 #[tauri::command]
-pub async fn remote_open(app: AppHandle, host: String, path: String) -> Result<String, String> {
+pub async fn remote_open(app: AppHandle, host: String, path: String) -> Result<Value, String> {
     blocking(move || {
         if !valid_host(&host) {
             return Err(format!("“{host}” is not a computer name ssh can use."));
         }
         let path = clean_remote_path(&path)?;
+        let conn = connection(&app, &host)?;
+        let access = conn.call("access", json!({ "path": path }), CALL_TIMEOUT)?;
+        if let Some(problem) = access["problem"].as_str() {
+            return Err(problem.to_string());
+        }
+        let writable = access["tree_writable"] != json!(false) && access["git_writable"] != json!(false);
         let already = lock().opened.get(&host).is_some_and(|l| is_opened(l, &path));
         if !already {
             use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+            let note = if writable { "" } else { "\n\nYou cannot write to this repository there; it opens read-only." };
             let sure = app
                 .dialog()
-                .message(format!("Open\n{path}\n\non {host}?\n\nTreeline reads this repository over ssh. Nothing is installed there."))
+                .message(format!("Open\n{path}\n\non {host}?\n\nTreeline reads this repository over ssh. Nothing is installed there.{note}"))
                 .title("Open remote repository")
                 .kind(MessageDialogKind::Info)
                 .buttons(MessageDialogButtons::OkCancelCustom("Open".into(), "Cancel".into()))
@@ -148,9 +157,8 @@ pub async fn remote_open(app: AppHandle, host: String, path: String) -> Result<S
             }
             remember(&host, path.clone());
         }
-        let conn = connection(&app, &host)?;
         conn.call("allow", json!({ "path": path }), CALL_TIMEOUT)?;
-        Ok(path)
+        Ok(json!({ "path": path, "writable": writable, "toplevel": access["toplevel"] }))
     })
     .await
 }
