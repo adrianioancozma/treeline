@@ -15,6 +15,11 @@ describe("format helpers", () => {
     expect(splitPath("README.md")).toEqual({ dir: "", name: "README.md" });
   });
 
+  it("names a folder (git reports untracked folders with a trailing slash)", () => {
+    expect(splitPath("src/components/very/")).toEqual({ dir: "src/components/", name: "very/" });
+    expect(splitPath("docs/")).toEqual({ dir: "", name: "docs/" });
+  });
+
   it("parses tracking info", () => {
     expect(parseTrack("[ahead 2, behind 1]")).toEqual({ ahead: 2, behind: 1, gone: false });
     expect(parseTrack("[gone]").gone).toBe(true);

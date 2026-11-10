@@ -31,7 +31,9 @@ export function fullDate(unixSeconds: number): string {
 }
 
 export function splitPath(p: string): { dir: string; name: string } {
-  const i = p.lastIndexOf("/");
+  // Git reports an untracked folder as "a/b/" : name it "b/" inside "a/" instead of an empty name.
+  const end = p.endsWith("/") ? p.length - 1 : p.length;
+  const i = p.lastIndexOf("/", end - 1);
   return i < 0 ? { dir: "", name: p } : { dir: p.slice(0, i + 1), name: p.slice(i + 1) };
 }
 
