@@ -3,7 +3,9 @@
 Planned work that is not built yet. Newest first. Move an item out of here (into the user guide and the
 changelog) when it ships.
 
-Nothing is waiting at the moment.
+* **Work on a repository on another computer over SSH** (low priority). Run git on the other machine through
+  `ssh host git -C <path> …` so the app can open its working tree directly. Today an SSH *remote* plus a local clone
+  works; this would add remote execution, polling instead of the file watcher, and handling of latency.
 
 ## Shipped
 

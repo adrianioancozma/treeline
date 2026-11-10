@@ -211,9 +211,10 @@ fetched — use it after rewriting history (rebase/amend), never casually.
 ## 6. History and the commit graph
 
 Open **History** (sidebar).
+* Drag the left edge of the **Author**, **Date** or **Commit** column header to resize it (double-click to reset).
 * Each row is a commit: graph lines on the left, then message, author, date, short ID. Coloured tags are branches
   (green), remote branches (purple), tags (amber) and where you are (blue = current branch).
-* The top row **Uncommitted changes** appears when you have local changes; click it to jump to File status.
+* The top row **Uncommitted changes** appears when you have local changes; click it to see the staged and unstaged changes in the panel below (read-only; use the Files view to stage and commit).
 * Click a commit to see its details in the panel below the list: the full message, author, date and parents, the **Changed
   files**, and the diff of the selected file. The panel always keeps room, so a tall list can never push it off the screen,
   even in a small window. Drag the divider between the list and the panel to resize it.
@@ -253,6 +254,8 @@ Open **History** (sidebar).
   from where you are. Tick *Check out* to switch to it immediately.
 * **Switch branch:** double-click it in the sidebar (or right-click → *Check out*). Remote branches are checked out as local
   tracking branches. If you have uncommitted changes that would be overwritten, the app tells you and offers to stash.
+* **Tracking branch:** right-click a local branch → *Set tracking branch…* to choose which remote branch it follows (or none).
+  Checking out a remote branch also makes an existing local branch of the same name track it when it had no upstream.
 * **Rename / delete:** right-click the branch. Deleting a branch that isn't fully merged requires ticking the box
   *Delete even if it is not fully merged*. Remote branches can be deleted from the server via *Delete from server…*.
 * **Merge one branch into several:** right-click a branch → *Merge this into multiple branches…* (section 10). If the
