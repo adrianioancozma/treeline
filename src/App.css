@@ -223,6 +223,9 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 .card:hover { border-color: var(--accent); background: var(--bg-3); }
 .card strong { display: flex; align-items: center; gap: 6px; }
 .card .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-mid { display: flex; min-width: 0; }
+.path-head { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-tail { flex: 0 0 auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-x { position: absolute; top: 6px; right: 6px; visibility: hidden; }
 .card-wrap:hover .card-x { visibility: visible; }
 

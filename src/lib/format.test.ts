@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyRef, listDate, parseTrack, relativeTime, splitPath } from "./format";
+import { classifyRef, listDate, parseTrack, pathParts, relativeTime, splitPath } from "./format";
 
 describe("format helpers", () => {
   it("formats relative time", () => {
@@ -49,5 +49,19 @@ describe("listDate", () => {
   });
   it("switches to a date at exactly seven days", () => {
     expect(listDate(ago(7 * 86400), now, "en-GB")).toBe("3 Nov");
+  });
+});
+
+describe("pathParts", () => {
+  it("keeps the last two folders whole and leaves the rest to be shortened", () => {
+    expect(pathParts("/Users/me/dev/work/clients/acme-web")).toEqual({ head: "/Users/me/dev/work", tail: "/clients/acme-web" });
+  });
+  it("keeps a short path whole", () => {
+    expect(pathParts("/repo")).toEqual({ head: "", tail: "/repo" });
+    expect(pathParts("dev/repo")).toEqual({ head: "", tail: "dev/repo" });
+  });
+  it("handles Windows paths and a trailing separator", () => {
+    expect(pathParts("C:\\Users\\me\\src\\acme-web")).toEqual({ head: "C:\\Users\\me", tail: "\\src\\acme-web" });
+    expect(pathParts("/a/b/c/")).toEqual({ head: "/a", tail: "/b/c/" });
   });
 });

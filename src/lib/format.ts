@@ -21,6 +21,19 @@ export function relativeTime(unixSeconds: number, now = Date.now()): string {
 }
 
 /**
+ * Splits a folder path so the end that identifies it (the last two folders) can stay whole while the start is
+ * shortened with an ellipsis. The tail starts with its separator, so a shortened head reads "…/src/repo".
+ * Works with "/" and "\" separators; a trailing separator belongs to the tail.
+ */
+export function pathParts(path: string): { head: string; tail: string } {
+  const body = path.replace(/[\\/]+$/, "");
+  const seps = [...body.matchAll(/[\\/]/g)].map((m) => m.index!);
+  if (seps.length < 2) return { head: "", tail: path };
+  const cut = seps[seps.length - 2];
+  return cut < 1 ? { head: "", tail: path } : { head: path.slice(0, cut), tail: path.slice(cut) };
+}
+
+/**
  * The date for a list column: relative for the last week ("2 h ago", "6 d ago"), then the day and month ("11 Jan"),
  * with the year once it is not the current one ("28 Nov 2025"). `locale` is for tests; the app uses the system's.
  */
