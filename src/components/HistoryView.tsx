@@ -14,6 +14,8 @@ import { Icon } from "./Icon";
 
 const ROW_H = 22;
 const LANE_W = 14;
+/** Smallest width of a History text column (Description, Author, Date, Commit). */
+const COL_MIN = 50;
 // Lane colours are theme tokens (--lane-1 … --lane-8 in App.css); CSS variables only work as style properties in SVG.
 const PALETTE = Array.from({ length: 8 }, (_, i) => `var(--lane-${i + 1})`);
 const WIP = "WIP";
@@ -172,10 +174,13 @@ export function HistoryView({ tab }: { tab: Tab }) {
   const graphRange = graphWidths(Math.max(1, ...graph.map((r) => r.lanes)), LANE_W);
   const [graphW, onGraphSplit, resetGraph] = useAutoSplit("history-col-graph", graphRange.auto, graphRange.min, graphRange.max);
   // Right-hand columns resize from their left edge, so dragging left widens them. Sizes are remembered.
-  const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, 60, 400, "x", true);
-  const [dateW, onDateSplit, resetDate] = useSplit("history-col-date", 110, 50, 300, "x", true);
-  const [shaW, onShaSplit, resetSha] = useSplit("history-col-sha", 64, 50, 160, "x", true);
-  const columns = `${graphW}px minmax(0, 1fr) ${authorW}px ${dateW}px ${shaW}px`;
+  // Minimums only (P26): columns can grow freely; when they no longer fit, the list scrolls sideways.
+  const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, COL_MIN, Infinity, "x", true);
+  const [dateW, onDateSplit, resetDate] = useSplit("history-col-date", 110, COL_MIN, Infinity, "x", true);
+  const [shaW, onShaSplit, resetSha] = useSplit("history-col-sha", 64, COL_MIN, Infinity, "x", true);
+  const columns = `${graphW}px minmax(${COL_MIN}px, 1fr) ${authorW}px ${dateW}px ${shaW}px`;
+  // Width the five columns need at their current sizes: 4 gaps of 8px and the row padding (8px left, 12px right).
+  const rowMinW = graphW + COL_MIN + authorW + dateW + shaW + 4 * 8 + 20;
 
   const first = Math.max(0, Math.floor(scroll / ROW_H) - 6);
   const last = Math.min(rowsData.length, Math.ceil((scroll + viewH) / ROW_H) + 6);
@@ -301,29 +306,30 @@ export function HistoryView({ tab }: { tab: Tab }) {
             </span>
           )}
         </div>
-        <div className="history-head" style={{ gridTemplateColumns: columns }}>
-          <span className="col-head">
-            Graph
-            <i className="col-grip end" onMouseDown={onGraphSplit} onDoubleClick={() => resetGraph()} role="separator" aria-orientation="vertical" title="Drag to show more branches. Double-click for the automatic width." />
-          </span>
-          <span>Description</span>
-          <span className="col-head">
-            <i className="col-grip" onMouseDown={onAuthorSplit} onDoubleClick={() => resetAuthor()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
-            Author
-          </span>
-          <span className="col-head">
-            <i className="col-grip" onMouseDown={onDateSplit} onDoubleClick={() => resetDate()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
-            Date
-          </span>
-          <span className="col-head">
-            <i className="col-grip" onMouseDown={onShaSplit} onDoubleClick={() => resetSha()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
-            Commit
-          </span>
-        </div>
         <div className="vlist" ref={scroller} onScroll={(e) => setScroll(e.currentTarget.scrollTop)}>
+          {/* Inside the scroller, sticky: same width as the rows (scrollbar included) and scrolls sideways with them. */}
+          <div className="history-head" style={{ gridTemplateColumns: columns, minWidth: rowMinW }}>
+            <span className="col-head">
+              <span className="col-label">Graph</span>
+              <i className="col-grip end" onMouseDown={onGraphSplit} onDoubleClick={() => resetGraph()} role="separator" aria-orientation="vertical" title="Drag to show more branches. Double-click for the automatic width." />
+            </span>
+            <span className="col-label">Description</span>
+            <span className="col-head">
+              <i className="col-grip" onMouseDown={onAuthorSplit} onDoubleClick={() => resetAuthor()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+              <span className="col-label">Author</span>
+            </span>
+            <span className="col-head">
+              <i className="col-grip" onMouseDown={onDateSplit} onDoubleClick={() => resetDate()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+              <span className="col-label">Date</span>
+            </span>
+            <span className="col-head">
+              <i className="col-grip" onMouseDown={onShaSplit} onDoubleClick={() => resetSha()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+              <span className="col-label">Commit</span>
+            </span>
+          </div>
           {d.logLoaded && rowsData.length === 0 && <div className="empty">No commits yet.</div>}
           {!d.logLoaded && <div className="empty">Loading history…</div>}
-          <div style={{ height: rowsData.length * ROW_H, position: "relative" }}>
+          <div style={{ height: rowsData.length * ROW_H, position: "relative", minWidth: rowMinW }}>
             {rowsData.slice(first, last).map((c, k) => {
               const i = first + k;
               const isWip = c.sha === WIP;
@@ -332,7 +338,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                 <div
                   key={c.sha}
                   className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${(highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha))) || (filtering && matches && !matches.has(c.sha)) ? " dim" : ""}`}
-                  style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
+                  style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: columns, minWidth: rowMinW }}
                   onClick={(e) => {
                     if (isWip) return setUi(tab.id, { selCommit: WIP, compareCommit: null });
                     // Ctrl+click a second commit to compare it with the selected one.

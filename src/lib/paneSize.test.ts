@@ -24,8 +24,8 @@ describe("graphWidths", () => {
     expect(graphWidths(20, LANE).max).toBe(20 * LANE + 8);
     expect(graphWidths(3, LANE).max).toBe(3 * LANE + 8);
   });
-  it("never shrinks below two lanes, nor above the automatic width", () => {
-    expect(graphWidths(20, LANE).min).toBe(2 * LANE + 8);
+  it("can shrink to a single lane", () => {
+    expect(graphWidths(20, LANE).min).toBe(1 * LANE + 8);
     expect(graphWidths(1, LANE).min).toBe(1 * LANE + 8);
   });
 });
