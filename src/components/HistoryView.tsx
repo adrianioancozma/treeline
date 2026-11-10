@@ -11,9 +11,10 @@ import type { Commit, CommitDetail, FileEntry, Tab } from "../types";
 import { DiffView } from "./DiffView";
 import { Icon } from "./Icon";
 
-const ROW_H = 28;
+const ROW_H = 22;
 const LANE_W = 14;
-const PALETTE = ["#4c8dff", "#e5a23c", "#4cc38a", "#c678dd", "#ff6b6b", "#2bb5c8", "#d9822b", "#8fbf3f"];
+// Lane colours are theme tokens (--lane-1 … --lane-8 in App.css); CSS variables only work as style properties in SVG.
+const PALETTE = Array.from({ length: 8 }, (_, i) => `var(--lane-${i + 1})`);
 const WIP = "WIP";
 
 /** A text filter with its own X button. */
@@ -49,9 +50,9 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
         const d = straight
           ? `M${x(s.x1)} ${y(s.y1)}V${y(s.y2)}`
           : `M${x(s.x1)} ${y(s.y1)}C${x(s.x1)} ${y((s.y1 + s.y2) / 2)} ${x(s.x2)} ${y((s.y1 + s.y2) / 2)} ${x(s.x2)} ${y(s.y2)}`;
-        return <path key={i} d={d} stroke={color(s.color)} strokeWidth="2" fill="none" />;
+        return <path key={i} d={d} style={{ stroke: color(s.color) }} strokeWidth="1.75" fill="none" />;
       })}
-      <circle cx={x(row.lane)} cy={ROW_H / 2} r="4.5" fill={color(row.color)} stroke="var(--bg)" strokeWidth="1.5" />
+      <circle cx={x(row.lane)} cy={ROW_H / 2} r="4" style={{ fill: color(row.color), stroke: "var(--bg)" }} strokeWidth="1.5" />
     </svg>
   );
 }
@@ -69,7 +70,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
   const historyH = useElementHeight(historyRef);
   // Leave room for the commit detail panel: a saved or dragged height may never push it off screen.
   const maxTop = historyH > 0 ? Math.max(140, Math.min(800, historyH - 6 - MIN_DETAIL_H)) : 800;
-  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.42), 140, maxTop, "y");
+  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.6), 140, maxTop, "y");
   const filters = d.ui.filters;
   const setFilters = (patch: Partial<typeof filters>) => setUi(tab.id, { filters: { ...filters, ...patch } });
   const filtering = filtersActive(filters);
