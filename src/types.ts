@@ -1,3 +1,4 @@
+import type { RecentRepo } from "./lib/recent";
 export interface FileChange {
   path: string;
   /** Staged state letter, "." when unchanged. */
@@ -116,6 +117,8 @@ export interface PersistedState {
   tabs: Tab[];
   activeId: string | null;
   bookmarks: Bookmark[];
+  /** Repositories opened lately, newest first (older saved states have none). */
+  recent?: RecentRepo[];
   theme?: ThemeMode;
 }
 

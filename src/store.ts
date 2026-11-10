@@ -4,6 +4,7 @@ import { gitNeedsSecurityUpdate, outdatedGitMessage } from "./lib/gitVersion";
 import { forgetSections } from "./uiStore";
 import { noFilters, type HistoryFilters } from "./lib/historyFilter";
 import { checkForUpdate } from "./updater";
+import { addRecent, type RecentRepo } from "./lib/recent";
 import type {
   Bookmark,
   Commit,
@@ -138,6 +139,8 @@ interface AppState {
   tabs: Tab[];
   activeId: string | null;
   bookmarks: Bookmark[];
+  /** Repositories opened lately, newest first; Home shows the ones that are not bookmarked. */
+  recent: RecentRepo[];
   theme: ThemeMode;
   data: Record<string, RepoData>;
   toasts: Toast[];
@@ -166,6 +169,7 @@ interface AppState {
   ) => Promise<boolean>;
   addBookmark: (path: string) => void;
   removeBookmark: (id: string) => void;
+  removeRecent: (path: string) => void;
   setTheme: (t: ThemeMode) => void;
   notify: (kind: Toast["kind"], text: string, ctx?: ErrorCtx) => void;
   dismiss: (id: number) => void;
@@ -202,6 +206,7 @@ export const useApp = create<AppState>((set, get) => {
     tabs: [],
     activeId: null,
     bookmarks: [],
+    recent: [],
     theme: "system",
     data: {},
     toasts: [],
@@ -220,6 +225,7 @@ export const useApp = create<AppState>((set, get) => {
         tabs,
         activeId,
         bookmarks: saved?.bookmarks ?? [],
+        recent: saved?.recent ?? [],
         theme: saved?.theme ?? "system",
         ready: true,
       });
@@ -301,8 +307,10 @@ export const useApp = create<AppState>((set, get) => {
       const top = await api.toplevel(path); // throws a friendly message if not a repo
       const { tabs, activeId } = get();
       const existing = tabs.find((t) => t.path === top);
+      const remember = () => set((s) => ({ recent: addRecent(s.recent, { path: top, name: baseName(top) }) }));
       if (existing) {
         get().setActive(existing.id);
+        remember();
         return;
       }
       // A folder handed to you with its own .git can carry settings or hooks that make git run programs.
@@ -344,6 +352,7 @@ export const useApp = create<AppState>((set, get) => {
         const tab: Tab = { id: uid(), path: top, name };
         set({ tabs: [...tabs, tab], activeId: tab.id });
       }
+      remember();
       watchActive();
       await get().reload();
     },
@@ -482,6 +491,10 @@ export const useApp = create<AppState>((set, get) => {
       );
     },
 
+    removeRecent(path) {
+      set((s) => ({ recent: s.recent.filter((r) => r.path !== path) }));
+    },
+
     removeBookmark(id) {
       set((s) => ({ bookmarks: s.bookmarks.filter((b) => b.id !== id) }));
     },
@@ -515,13 +528,14 @@ useApp.subscribe((s, prev) => {
     s.tabs === prev.tabs &&
     s.activeId === prev.activeId &&
     s.bookmarks === prev.bookmarks &&
+    s.recent === prev.recent &&
     s.theme === prev.theme
   )
     return;
   clearTimeout(timer);
   timer = setTimeout(() => {
     void api
-      .saveState({ tabs: s.tabs, activeId: s.activeId, bookmarks: s.bookmarks, theme: s.theme })
+      .saveState({ tabs: s.tabs, activeId: s.activeId, bookmarks: s.bookmarks, recent: s.recent, theme: s.theme })
       .catch(() => undefined);
   }, 300);
 });
