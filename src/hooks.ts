@@ -47,8 +47,9 @@ function trackDrag(onMove: (ev: MouseEvent) => void, onEnd: () => void) {
 /**
  * Like useSplit for a column whose natural width depends on its content (`auto`): it follows `auto` until the user
  * drags the handle, remembers the dragged width, and goes back to automatic on reset (double-click).
+ * `axis` "y" is for a pane above a horizontal divider (its height).
  */
-export function useAutoSplit(key: string, auto: number, min: number, max: number) {
+export function useAutoSplit(key: string, auto: number, min: number, max: number, axis: "x" | "y" = "x") {
   const [stored, setStored] = useState<number | null>(() => {
     try {
       const v = Number(localStorage.getItem(`split:${key}`));
@@ -64,13 +65,14 @@ export function useAutoSplit(key: string, auto: number, min: number, max: number
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      const start = e.clientX;
+      const pos = (ev: { clientX: number; clientY: number }) => (axis === "x" ? ev.clientX : ev.clientY);
+      const start = pos(e);
       const startSize = sizeRef.current;
       // The last value the pointer produced: on a quick release the render for the last move may not have happened yet.
       let latest = startSize;
       trackDrag(
         (ev) => {
-          latest = Math.min(max, Math.max(min, startSize + ev.clientX - start));
+          latest = Math.min(max, Math.max(min, startSize + pos(ev) - start));
           setStored(latest);
         },
         () => {
@@ -82,7 +84,7 @@ export function useAutoSplit(key: string, auto: number, min: number, max: number
         },
       );
     },
-    [key, min, max],
+    [key, min, max, axis],
   );
   const reset = useCallback(() => {
     setStored(null);
