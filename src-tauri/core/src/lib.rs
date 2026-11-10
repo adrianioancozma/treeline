@@ -4,3 +4,4 @@
 pub mod git;
 pub mod ops_parse;
 pub mod status;
+pub mod trust;
