@@ -8,7 +8,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tauri::AppHandle;
-pub use treeline_core::ops_parse::{FileEntry, parse_name_status, Commit, parse_log, RefInfo, parse_refs, StashEntry, parse_stashes, parse_merge_tree, merge_msg_branch, FileCommit, parse_file_log, BlameLine, parse_blame};
+#[cfg(test)]
+use treeline_core::ops_parse::{parse_name_status, parse_refs, parse_stashes};
+pub use treeline_core::read::{LOG_FORMAT};
+pub use treeline_core::ops_parse::{FileEntry, Commit, parse_log, RefInfo, StashEntry, parse_merge_tree, merge_msg_branch, FileCommit, parse_file_log, BlameLine, parse_blame};
 
 fn nul_list(files: &[String]) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -147,14 +150,7 @@ pub async fn commit(path: String, message: String, amend: bool) -> Result<OpResu
 
 #[tauri::command]
 pub async fn head_message(path: String) -> Result<String, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        Ok(run_git(&path, ["log", "-1", "--format=%B"])
-            .unwrap_or_default()
-            .trim()
-            .to_string())
-    })
-    .await
+    blocking(move || treeline_core::read::head_message(path)).await
 }
 
 // ---------------------------------------------------------------------------
@@ -169,24 +165,7 @@ pub async fn file_diff(
     untracked: bool,
     context: u32,
 ) -> Result<String, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let ctx = format!("-U{context}");
-        if untracked {
-            return run_git_ok_codes(
-                &path,
-                [LITERAL, "diff", "--no-index", "--no-ext-diff", "--no-textconv", "--no-color", &ctx, "--", "/dev/null", &file],
-                &[1],
-            );
-        }
-        let mut args = vec![LITERAL, "diff", "--no-ext-diff", "--no-textconv", "--no-color", &ctx];
-        if staged {
-            args.push("--cached");
-        }
-        args.extend(["--", &file]);
-        run_git(&path, args)
-    })
-    .await
+    blocking(move || treeline_core::read::file_diff(path, file, staged, untracked, context)).await
 }
 
 /// Files changed by `sha` relative to `parent` (the first parent; `None` for a root commit).
@@ -196,20 +175,7 @@ pub async fn commit_files(
     sha: String,
     parent: Option<String>,
 ) -> Result<Vec<FileEntry>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        ref_arg(&sha)?;
-        opt_ref_arg(&parent)?;
-        let raw = match &parent {
-            Some(p) => run_git(&path, ["diff", "--name-status", "-M", "-z", p, &sha])?,
-            None => run_git(
-                &path,
-                ["diff-tree", "--root", "--no-commit-id", "--name-status", "-r", "-M", "-z", &sha],
-            )?,
-        };
-        Ok(parse_name_status(&raw))
-    })
-    .await
+    blocking(move || treeline_core::read::commit_files(path, sha, parent)).await
 }
 
 #[tauri::command]
@@ -221,24 +187,7 @@ pub async fn commit_diff(
     old_file: Option<String>,
     context: u32,
 ) -> Result<String, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        ref_arg(&sha)?;
-        opt_ref_arg(&parent)?;
-        let ctx = format!("-U{context}");
-        let mut specs = vec![file.clone()];
-        if let Some(o) = old_file {
-            specs.push(o);
-        }
-        let mut args: Vec<String> = match &parent {
-            Some(p) => vec![LITERAL.into(), "diff".into(), "--no-ext-diff".into(), "--no-textconv".into(), "--no-color".into(), "-M".into(), ctx, p.clone(), sha],
-            None => vec![LITERAL.into(), "show".into(), "--format=".into(), "--no-ext-diff".into(), "--no-textconv".into(), "--no-color".into(), "--root".into(), ctx, sha],
-        };
-        args.push("--".into());
-        args.extend(specs);
-        run_git(&path, args)
-    })
-    .await
+    blocking(move || treeline_core::read::commit_diff(path, sha, parent, file, old_file, context)).await
 }
 
 #[derive(Serialize)]
@@ -280,8 +229,6 @@ pub async fn commit_detail(path: String, sha: String) -> Result<CommitDetail, St
 // History
 // ---------------------------------------------------------------------------
 
-const LOG_FORMAT: &str = "--format=%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%D%x1f%s%x1e";
-
 #[tauri::command]
 pub async fn git_log(
     path: String,
@@ -291,44 +238,7 @@ pub async fn git_log(
     query: Option<String>,
     file: Option<String>,
 ) -> Result<Vec<Commit>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let mut args: Vec<String> = vec![
-            LITERAL.into(),
-            "log".into(),
-            "--topo-order".into(),
-            "--no-color".into(),
-            "--decorate=short".into(),
-            LOG_FORMAT.into(),
-            format!("--skip={skip}"),
-            format!("-n{limit}"),
-        ];
-        if all && file.is_none() {
-            // Stashes are shown in the sidebar; their internal commits would only clutter the graph.
-            args.push("--exclude=refs/stash".into());
-            args.push("--all".into());
-        }
-        if let Some(q) = query.filter(|q| !q.trim().is_empty()) {
-            // Plain text match: "[WIP]" or "a.b" must not be interpreted (or rejected) as a regex.
-            args.push("--fixed-strings".into());
-            args.push("-i".into());
-            args.push(format!("--grep={q}"));
-        }
-        if let Some(f) = file {
-            args.push("--follow".into());
-            args.push("--".into());
-            args.push(f);
-        }
-        // A repository with no commits yet makes `git log` fail; that is just "no history".
-        match run_git(&path, args) {
-            Ok(raw) => Ok(parse_log(&raw)),
-            Err(e) if e.contains("does not have any commits") || e.contains("bad default revision") => {
-                Ok(Vec::new())
-            }
-            Err(e) => Err(e),
-        }
-    })
-    .await
+    blocking(move || treeline_core::read::git_log(path, skip, limit, all, query, file)).await
 }
 
 /// Which commits the History filters select. Empty fields do not filter.
@@ -422,21 +332,7 @@ pub async fn git_log_matches(path: String, all: bool, filter: LogFilter) -> Resu
 
 #[tauri::command]
 pub async fn list_refs(path: String) -> Result<Vec<RefInfo>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let raw = run_git(
-            &path,
-            [
-                "for-each-ref",
-                "--format=%(refname)%1f%(refname:short)%1f%(objectname)%1f%(upstream:short)%1f%(upstream:track)%1f%(HEAD)%1f%(*objectname)",
-                "refs/heads",
-                "refs/remotes",
-                "refs/tags",
-            ],
-        )?;
-        Ok(parse_refs(&raw))
-    })
-    .await
+    blocking(move || treeline_core::read::list_refs(path)).await
 }
 
 #[tauri::command]
@@ -833,15 +729,7 @@ pub async fn push(
 
 #[tauri::command]
 pub async fn list_remotes(path: String) -> Result<Vec<String>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        Ok(run_git(&path, ["remote"])?
-            .lines()
-            .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty())
-            .collect())
-    })
-    .await
+    blocking(move || treeline_core::read::list_remotes(path)).await
 }
 
 #[tauri::command]
@@ -1437,14 +1325,7 @@ pub async fn rebase_interactive(
 
 #[tauri::command]
 pub async fn stash_list(path: String) -> Result<Vec<StashEntry>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        Ok(parse_stashes(&run_git(
-            &path,
-            ["stash", "list", "--format=%gd%x1f%gs%x1f%at"],
-        )?))
-    })
-    .await
+    blocking(move || treeline_core::read::stash_list(path)).await
 }
 
 #[tauri::command]

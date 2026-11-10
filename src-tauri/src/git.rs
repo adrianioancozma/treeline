@@ -24,7 +24,10 @@ pub use treeline_core::trust::{
 };
 #[cfg(test)]
 use treeline_core::trust::write_trust_file;
-pub use treeline_core::status::{RepoStatus, parse_status, parse_gitlinks, redact_urls};
+pub use treeline_core::read::{Submodule, ref_arg, opt_ref_arg};
+pub use treeline_core::status::{RepoStatus, parse_gitlinks, redact_urls};
+#[cfg(test)]
+pub(crate) use treeline_core::status::parse_status;
 
 // ---------------------------------------------------------------------------
 // Process helpers
@@ -60,22 +63,6 @@ pub async fn pick_folder(app: AppHandle, title: String, purpose: String) -> Resu
     Ok(Some(path))
 }
 
-/// Rejects a branch, tag, remote or commit name that git would read as an option (for example
-/// `--upload-pack=...`) or that contains a NUL byte. Git itself forbids ref names that start with `-`,
-/// so no legitimate name is refused.
-pub(crate) fn ref_arg(s: &str) -> Result<(), String> {
-    if s.starts_with('-') || s.contains('\0') {
-        let shown: String = s.chars().filter(|c| !c.is_control()).take(60).collect();
-        return Err(format!("'{shown}' is not a valid branch, tag, remote or commit name."));
-    }
-    Ok(())
-}
-
-/// `ref_arg` for an optional value (None and empty are fine).
-pub(crate) fn opt_ref_arg(s: &Option<String>) -> Result<(), String> {
-    s.as_deref().map_or(Ok(()), ref_arg)
-}
-
 pub(crate) async fn blocking<T, F>(f: F) -> Result<T, String>
 where
     T: Send + 'static,
@@ -109,35 +96,6 @@ impl ProgressSink for WindowProgress<'_> {
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
-
-#[derive(Serialize, Debug)]
-pub struct Submodule {
-    pub path: String,
-    pub sha: String,
-    /// `ok`, `uninitialized`, `modified` (checked-out commit differs) or `conflict`.
-    pub state: String,
-    pub describe: Option<String>,
-}
-
-/// Detects an in-progress merge / rebase / cherry-pick / revert from the git directory.
-fn repo_state(path: &str) -> Option<String> {
-    let dir = PathBuf::from(
-        run_git(path, ["rev-parse", "--absolute-git-dir"])
-            .ok()?
-            .trim(),
-    );
-    if dir.join("rebase-merge").exists() || dir.join("rebase-apply").exists() {
-        Some("rebase".into())
-    } else if dir.join("MERGE_HEAD").exists() {
-        Some("merge".into())
-    } else if dir.join("CHERRY_PICK_HEAD").exists() {
-        Some("cherry-pick".into())
-    } else if dir.join("REVERT_HEAD").exists() {
-        Some("revert".into())
-    } else {
-        None
-    }
-}
 
 /// Returns the repository's top-level folder, or an error if `path` is not inside one.
 /// The top level of the repository `path` is in, checked against what the user opened and then trusted.
@@ -288,73 +246,12 @@ pub async fn repo_risks(path: String) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 pub async fn repo_status(path: String) -> Result<RepoStatus, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let raw = run_git(
-            &path,
-            [
-                "status",
-                "--porcelain=v2",
-                "--branch",
-                "--untracked-files=normal",
-                "-z",
-            ],
-        )?;
-        let mut status = parse_status(&raw);
-        status.state = repo_state(&path);
-        Ok(status)
-    })
-    .await
+    blocking(move || treeline_core::read::repo_status(path)).await
 }
 
 #[tauri::command]
 pub async fn list_submodules(path: String) -> Result<Vec<Submodule>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        // A repo without a .gitmodules has none; skip the process entirely.
-        if !PathBuf::from(&path).join(".gitmodules").exists() {
-            return Ok(Vec::new());
-        }
-        // `git submodule status` costs 0.6–0.9 s on real repos. One `ls-files` for the recorded
-        // commits plus a parallel `rev-parse HEAD` per checked-out submodule is several times faster.
-        let raw = run_git(&path, ["ls-files", "--stage", "-z"])?;
-        let links = parse_gitlinks(&raw);
-        let root = PathBuf::from(&path);
-        let mut out: Vec<Submodule> = std::thread::scope(|scope| {
-            let handles: Vec<_> = links
-                .iter()
-                .map(|(sha, sub_path, conflicted)| {
-                    let dir = root.join(sub_path);
-                    scope.spawn(move || {
-                        let state = if *conflicted {
-                            "conflict"
-                        } else if !dir.join(".git").exists() {
-                            "uninitialized"
-                        } else {
-                            match run_git(&dir.to_string_lossy(), ["rev-parse", "HEAD"]) {
-                                Ok(head) if head.trim() != sha => "modified",
-                                _ => "ok",
-                            }
-                        };
-                        state
-                    })
-                })
-                .collect();
-            links
-                .iter()
-                .zip(handles)
-                .map(|((sha, sub_path, _), h)| Submodule {
-                    path: sub_path.clone(),
-                    sha: sha.clone(),
-                    state: h.join().unwrap_or("ok").to_string(),
-                    describe: None,
-                })
-                .collect()
-        });
-        out.sort_by(|a, b| a.path.cmp(&b.path));
-        Ok(out)
-    })
-    .await
+    blocking(move || treeline_core::read::list_submodules(path)).await
 }
 
 /// Initialises and checks out one submodule (and any nested ones) so it can be opened.
