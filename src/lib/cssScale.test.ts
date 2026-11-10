@@ -1,5 +1,8 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+// Same pattern as vite.config.ts: the project has no Node type definitions, and `pnpm build` type-checks tests.
+// (A `?raw` import is no alternative: vitest replaces CSS imports with an empty string.)
+// @ts-expect-error type error without @types/node package
+import { readFileSync } from "node:fs";
 
 // Guard for the design scale in App.css: sizes, radii and text-on-colour come from tokens defined in :root.
 // Allowed literals: the token definitions themselves, `0`, `50%` (circles) and the logo's 18px icon radius.
@@ -18,7 +21,11 @@ export function scaleViolations(css: string): string[] {
 
 describe("App.css design scale", () => {
   it("uses tokens for font sizes, radii and text on solid colours", () => {
-    const css = readFileSync(new URL("../App.css", import.meta.url), "utf8");
+    const css: string = readFileSync(new URL("../App.css", import.meta.url), "utf8");
+    // Never pass on an empty or wrong read: the stylesheet is large and defines the scale tokens.
+    expect(css.length).toBeGreaterThan(10_000);
+    expect(css).toContain("--fs-m:");
+    expect(css).toContain("--r-m:");
     // The logo mirrors the app icon (white glyph on a gradient); it is the one documented exception.
     const withoutLogo = css.replace(/\.logo \{[^}]*\}/, "");
     expect(scaleViolations(withoutLogo)).toEqual([]);
