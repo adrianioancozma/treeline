@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterFolders, intoFolder, splitInput, withTilde } from "./remotePath";
+import { filterFolders, intoFolder, openTarget, splitInput, withTilde } from "./remotePath";
 
 describe("the path typed in the remote folder picker", () => {
   it("is the folder to list plus what to filter its folders by", () => {
@@ -42,5 +42,21 @@ describe("filtering folders", () => {
   });
   it("keeps everything for an empty filter", () => {
     expect(filterFolders(all, "")).toEqual(all);
+  });
+});
+
+describe("what Open opens", () => {
+  const listing = { path: "/home/a/dev", repo: false };
+  it("is the folder the user selected, repository or not", () => {
+    expect(openTarget(listing, { name: "p-vs-np", repo: true })).toBe("/home/a/dev/p-vs-np");
+    expect(openTarget(listing, { name: "notes", repo: false })).toBe("/home/a/dev/notes");
+  });
+  it("is the listed folder itself when nothing is selected and it is a repository", () => {
+    expect(openTarget({ path: "/home/a/dev/p-vs-np", repo: true }, undefined)).toBe("/home/a/dev/p-vs-np");
+    expect(openTarget(listing, undefined)).toBeNull();
+    expect(openTarget(null, { name: "x", repo: true })).toBeNull();
+  });
+  it("joins at the root without a double slash", () => {
+    expect(openTarget({ path: "/", repo: false }, { name: "srv", repo: false })).toBe("/srv");
   });
 });

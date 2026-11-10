@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { useApp } from "../store";
 import { Modal } from "./Modal";
-import { filterFolders, intoFolder, splitInput, withTilde } from "../lib/remotePath";
+import { filterFolders, intoFolder, openTarget, splitInput, withTilde } from "../lib/remotePath";
 
 type Listing = Awaited<ReturnType<typeof api.remoteList>>;
 
@@ -38,7 +38,7 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
-  const [sel, setSel] = useState(0);
+  const [sel, setSel] = useState(-1); // nothing selected until a click or ↓
   const pathRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
   }, [host, dir, showHidden]);
 
   const shown = useMemo(() => filterFolders(listing?.entries ?? [], filter), [listing, filter]);
-  useEffect(() => setSel(0), [dir, filter]);
+  useEffect(() => setSel(-1), [dir, filter]);
   const here = listing ? withTilde(listing.path, listing.home) : dir;
 
   const open = async (path: string) => {
@@ -94,7 +94,7 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
   const choose = (i: number) => {
     const e = shown[i];
     if (!e || !listing) return;
-    if (e.repo) void open(`${listing.path}/${e.name}`);
+    if (e.repo) void open(openTarget(listing, e)!);
     else setInput(intoFolder(here, e.name));
   };
   const up = () => {
@@ -106,7 +106,9 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
     else if (e.key === "ArrowUp") (e.preventDefault(), setSel((s) => Math.max(s - 1, 0)));
     else if (e.key === "Enter") {
       e.preventDefault();
-      if (shown.length > 0) choose(sel);
+      // Without a selection: the first match of what was typed, else the listed folder if it is a repository.
+      const i = sel >= 0 ? sel : filter && shown.length > 0 ? 0 : -1;
+      if (i >= 0) choose(i);
       else if (listing?.repo) void open(listing.path);
     } else if (e.key === "Backspace" && filter === "" && input.endsWith("/") && dir !== "/" && dir !== "~") {
       e.preventDefault();
@@ -114,8 +116,8 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const selected = shown[sel];
-  const target = selected?.repo && listing ? `${listing.path}/${selected.name}` : listing?.repo ? listing.path : null;
+  // A click selects (hovering does not), and Open opens the selected folder.
+  const target = openTarget(listing, shown[sel]);
 
   return (
     <Modal title="Open remote repository" onClose={onClose} busy={busy} className="remote-browser">
@@ -164,7 +166,6 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
             className={`rb-row${i === sel ? " sel" : ""}`}
             role="option"
             aria-selected={i === sel}
-            onMouseEnter={() => setSel(i)}
             onClick={() => setSel(i)}
             onDoubleClick={() => choose(i)}
           >

@@ -35,3 +35,11 @@ export function filterFolders<T extends Folder>(folders: T[], filter: string): T
   const contains = folders.filter((e) => !e.name.toLowerCase().startsWith(f) && e.name.toLowerCase().includes(f));
   return [...starts, ...contains];
 }
+
+/** What Open opens: the selected folder (the backend says if it is not in a repository), else the listed folder when
+ *  it is a repository itself. */
+export function openTarget(listing: { path: string; repo: boolean } | null, selected: Folder | undefined): string | null {
+  if (!listing) return null;
+  if (selected) return `${listing.path === "/" ? "" : listing.path}/${selected.name}`;
+  return listing.repo ? listing.path : null;
+}
