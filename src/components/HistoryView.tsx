@@ -319,9 +319,9 @@ export function HistoryView({ tab }: { tab: Tab }) {
                   className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${(highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha))) || (filtering && matches && !matches.has(c.sha)) ? " dim" : ""}`}
                   style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
                   onClick={(e) => {
-                    if (isWip) return setUi(tab.id, { view: "files" });
+                    if (isWip) return setUi(tab.id, { selCommit: WIP, compareCommit: null });
                     // Ctrl+click a second commit to compare it with the selected one.
-                    if ((e.ctrlKey || e.metaKey) && selected && !selected.startsWith("stash@") && selected !== c.sha)
+                    if ((e.ctrlKey || e.metaKey) && selected && selected !== WIP && !selected.startsWith("stash@") && selected !== c.sha)
                       return setUi(tab.id, { compareCommit: compare === c.sha ? null : c.sha });
                     setUi(tab.id, { selCommit: c.sha, compareCommit: null });
                   }}
@@ -359,6 +359,8 @@ export function HistoryView({ tab }: { tab: Tab }) {
           baseCommit={commitBySha.get(pair.base)}
           onClear={() => setUi(tab.id, { compareCommit: null })}
         />
+      ) : selected === WIP ? (
+        <WipDetailPane tab={tab} />
       ) : selected ? (
         <CommitDetailPane key={selected} tab={tab} sha={selected} commit={commitBySha.get(selected)} />
       ) : (
@@ -367,6 +369,99 @@ export function HistoryView({ tab }: { tab: Tab }) {
           <p>Select a commit to see its changes.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Read-only view of the uncommitted changes (staged and unstaged) selected from the top of the history. */
+function WipDetailPane({ tab }: { tab: Tab }) {
+  const path = tab.path!;
+  const notify = useApp.getState().notify;
+  const setUi = useApp.getState().setUi;
+  const status = useApp((s) => s.data[tab.id]?.status);
+  const [width, onSplit] = useSplit("detail-left", 380, 240, 700, "x");
+  type Entry = { key: string; path: string; staged: boolean; untracked: boolean; code: string; kind: string; old: string | null };
+  const entries = useMemo(() => {
+    const out: Entry[] = [];
+    const kindOf = (c: string) => ({ A: "added", D: "deleted", R: "renamed", C: "added" } as Record<string, string>)[c] ?? "modified";
+    for (const f of status?.files ?? []) {
+      if (!f.untracked && !f.conflicted && f.index !== ".")
+        out.push({ key: `s:${f.path}`, path: f.path, staged: true, untracked: false, code: f.index, kind: kindOf(f.index), old: f.orig_path });
+      if (f.conflicted) out.push({ key: `c:${f.path}`, path: f.path, staged: false, untracked: false, code: "!", kind: "conflict", old: null });
+      else if (f.untracked) out.push({ key: `u:${f.path}`, path: f.path, staged: false, untracked: true, code: "U", kind: "added", old: null });
+      else if (f.worktree !== ".") out.push({ key: `w:${f.path}`, path: f.path, staged: false, untracked: false, code: f.worktree, kind: kindOf(f.worktree), old: null });
+    }
+    return out;
+  }, [status]);
+  const [selKey, setSelKey] = useState<string | null>(null);
+  const entry = entries.find((e) => e.key === selKey) ?? entries[0] ?? null;
+  const [diff, setDiff] = useState("");
+
+  useEffect(() => {
+    // Collapsed untracked directories ("dir/") have no single diff.
+    if (!entry || entry.path.endsWith("/")) {
+      setDiff("");
+      return;
+    }
+    let live = true;
+    api
+      .fileDiff(path, entry.path, entry.staged, entry.untracked, 3)
+      .then((t) => live && setDiff(t))
+      .catch((e) => live && notify("error", errorMessage(e)));
+    return () => {
+      live = false;
+    };
+  }, [path, entry?.key, status, notify]);
+
+  const staged = entries.filter((e) => e.staged);
+  const unstaged = entries.filter((e) => !e.staged);
+  const group = (title: string, list: Entry[]) =>
+    list.length > 0 && (
+      <>
+        <h3 className="list-title">
+          {title} <span className="count">{list.length}</span>
+        </h3>
+        <ul className="file-lists">
+          {list.map((f) => {
+            const { dir, name } = splitPath(f.path);
+            return (
+              <li
+                key={f.key}
+                className={`file-row${entry?.key === f.key ? " active" : ""}`}
+                onClick={() => setSelKey(f.key)}
+                title={f.old ? `${f.old} → ${f.path}` : f.path}
+              >
+                <span className={`badge ${f.kind}`}>{f.code}</span>
+                <span className="file-path">
+                  <span className="name">{name}</span>
+                  <span className="dir">{dir}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </>
+    );
+
+  return (
+    <div className="detail" style={{ gridTemplateColumns: `${width}px 6px 1fr` }}>
+      <div className="detail-left">
+        <div className="detail-meta">
+          <h3 className="commit-title">Uncommitted changes ({entries.length})</h3>
+          <p className="commit-line small muted">
+            Read-only preview.{" "}
+            <button className="link" onClick={() => setUi(tab.id, { view: "files" })}>
+              Open the Files view to stage and commit
+            </button>
+          </p>
+        </div>
+        {group("Staged", staged)}
+        {group("Unstaged", unstaged)}
+      </div>
+      <div className="splitter" onMouseDown={onSplit} role="separator" aria-orientation="vertical" />
+      <div className="detail-right">
+        {entry ? <DiffView text={diff} fileLabel={entry.path} /> : <div className="empty">No uncommitted changes.</div>}
+      </div>
     </div>
   );
 }
