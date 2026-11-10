@@ -262,3 +262,74 @@ pub fn ref_arg(s: &str) -> Result<(), String> {
 pub fn opt_ref_arg(s: &Option<String>) -> Result<(), String> {
     s.as_deref().map_or(Ok(()), ref_arg)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+
+    fn temp_repo(name: &str) -> String {
+        let d = std::env::temp_dir().join(format!("treeline-core-read-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let d = std::fs::canonicalize(&d).unwrap().to_string_lossy().to_string();
+        git_at(&d, &["init", "-q", "-b", "main"], 0);
+        crate::trust::allow_repo(&d);
+        d
+    }
+
+    /// Runs git with a fixed author and the given commit time (seconds), so commit order by date is controlled.
+    fn git_at(repo: &str, args: &[&str], time: i64) {
+        let date = format!("{} +0000", 1_700_000_000 + time); // a real timestamp (git rejects tiny ones)
+        let ok = Command::new("git")
+            .args(["-c", "user.name=T", "-c", "user.email=t@example.com", "-C", repo])
+            .args(args)
+            .env("GIT_AUTHOR_DATE", &date)
+            .env("GIT_COMMITTER_DATE", &date)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git {args:?}");
+    }
+
+    #[test]
+    fn history_keeps_each_branch_together() {
+        let _serial = crate::serial_git();
+        // main: A(1) - M1(2) - M2(4); feature from A: F1(3) - F2(5); merge X(6). By date the branches interleave
+        // (F2 M2 F1 M1); topological order keeps F1 next to F2 and M1 next to M2, which the graph lanes rely on.
+        let r = temp_repo("topo");
+        git_at(&r, &["commit", "-q", "--allow-empty", "-m", "A"], 1);
+        git_at(&r, &["checkout", "-q", "-b", "feature"], 1);
+        git_at(&r, &["commit", "-q", "--allow-empty", "-m", "F1"], 3);
+        git_at(&r, &["commit", "-q", "--allow-empty", "-m", "F2"], 5);
+        git_at(&r, &["checkout", "-q", "main"], 1);
+        git_at(&r, &["commit", "-q", "--allow-empty", "-m", "M1"], 2);
+        git_at(&r, &["commit", "-q", "--allow-empty", "-m", "M2"], 4);
+        git_at(&r, &["merge", "-q", "--no-ff", "--no-edit", "-m", "X", "feature"], 6);
+        let log: Vec<String> = git_log(r.clone(), 0, 50, false, None, None).unwrap().into_iter().map(|c| c.subject).collect();
+        let at = |s: &str| log.iter().position(|x| x == s).unwrap();
+        assert_eq!(log[0], "X");
+        assert_eq!(at("F1").abs_diff(at("F2")), 1, "feature commits stay together: {log:?}");
+        assert_eq!(at("M1").abs_diff(at("M2")), 1, "main commits stay together: {log:?}");
+        let _ = std::fs::remove_dir_all(&r);
+    }
+
+    #[test]
+    fn detects_an_operation_in_progress() {
+        let _serial = crate::serial_git();
+        let r = temp_repo("state");
+        git_at(&r, &["commit", "-q", "--allow-empty", "-m", "A"], 1);
+        assert_eq!(repo_state(&r), None);
+        let git_dir = format!("{r}/.git");
+        std::fs::write(format!("{git_dir}/MERGE_HEAD"), "0000000000000000000000000000000000000000\n").unwrap();
+        assert_eq!(repo_state(&r).as_deref(), Some("merge"));
+        std::fs::remove_file(format!("{git_dir}/MERGE_HEAD")).unwrap();
+        std::fs::create_dir(format!("{git_dir}/rebase-merge")).unwrap();
+        assert_eq!(repo_state(&r).as_deref(), Some("rebase"), "a rebase wins over everything else");
+        std::fs::write(format!("{git_dir}/CHERRY_PICK_HEAD"), "x\n").unwrap();
+        assert_eq!(repo_state(&r).as_deref(), Some("rebase"));
+        std::fs::remove_dir(format!("{git_dir}/rebase-merge")).unwrap();
+        assert_eq!(repo_state(&r).as_deref(), Some("cherry-pick"));
+        let _ = std::fs::remove_dir_all(&r);
+    }
+}

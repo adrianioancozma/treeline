@@ -356,9 +356,6 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
 
-    /// Tests that run git share the process-wide git program setting; one of them swaps in a stand-in git.
-    static GIT_PROGRAM: Mutex<()> = Mutex::new(());
-
     #[derive(Default)]
     struct Recorder(Mutex<Vec<(String, String, Option<u8>)>>);
     impl ProgressSink for Recorder {
@@ -371,7 +368,7 @@ mod tests {
     #[test]
     fn progress_lines_reach_the_sink_tagged_and_without_secrets() {
         use std::os::unix::fs::PermissionsExt;
-        let _serial = GIT_PROGRAM.lock().unwrap_or_else(|e| e.into_inner());
+        let _serial = crate::serial_git();
         // A stand-in for git that prints what a real fetch can print: a progress line redrawn with '\r', then a URL
         // with a password (real git hides it in some messages, not in all; this layer must not rely on that).
         let dir = std::env::temp_dir().join(format!("treeline-core-stream-{}", std::process::id()));
@@ -423,7 +420,7 @@ mod tests {
     #[test]
     fn a_repository_cannot_make_git_run_a_program() {
         use std::os::unix::fs::PermissionsExt;
-        let _serial = GIT_PROGRAM.lock().unwrap_or_else(|e| e.into_inner());
+        let _serial = crate::serial_git();
         let dir = std::env::temp_dir().join(format!("treeline-core-guard-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let repo = dir.join("repo");
