@@ -78,12 +78,17 @@ export function TabBar() {
               drag?.slot === i ? " drop-before" : ""
             }${drag && drag.slot === tabs.length && i === tabs.length - 1 ? " drop-after" : ""}`}
             title={t.path ? `${t.name}
-${t.path}` : "New tab"}
+${t.host ? `${t.host}:` : ""}${t.path}` : "New tab"}
             onPointerDown={(e) => startDrag(e, t.id)}
             onClick={() => setActive(t.id)}
             onAuxClick={(e) => e.button === 1 && closeTab(t.id)}
           >
             {t.path && <Icon name="branch" size={13} />}
+            {t.host && (
+              <span className="host-badge" aria-label={`on ${t.host}`}>
+                ⇄
+              </span>
+            )}
             <span className="tab-name">{t.name}</span>
             {dirty && <span className="dirty" title={`${s!.files.length} uncommitted change(s)`} />}
             <button
@@ -138,4 +143,9 @@ ${t.path}` : "New tab"}
       </button>
     </div>
   );
+}
+
+/** "adrian@linux-box.local" → "linux-box": enough to tell computers apart on a tab. */
+export function shortHost(host: string): string {
+  return host.split("@").pop()!.replace(/\.local$/, "");
 }

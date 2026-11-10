@@ -13,8 +13,28 @@ export function pickAndOpenRepo(openRepo: (p: string) => Promise<void>, onError:
     .catch((e) => onError(errorMessage(e)));
 }
 
+/** Asks for a computer (as in ~/.ssh/config) and a folder on it, then opens it over ssh. */
+export function openRemoteDialog(
+  openDialog: ReturnType<typeof useApp.getState>["openDialog"],
+  openRemote: (host: string, path: string) => Promise<void>,
+  onError: (m: string) => void,
+) {
+  openDialog({
+    title: "Open remote repository",
+    description: "A repository on another computer you reach with ssh (keys from your ssh agent). Read-only for now.",
+    fields: [
+      { key: "host", label: "Computer", type: "text", placeholder: "linux-box.local or user@host" },
+      { key: "path", label: "Folder on that computer", type: "text", placeholder: "/home/me/dev/project" },
+    ],
+    submitLabel: "Open",
+    onSubmit: async (v) => {
+      await openRemote(String(v.host ?? "").trim(), String(v.path ?? "").trim()).catch((e) => onError(errorMessage(e)));
+    },
+  });
+}
+
 export function Home() {
-  const { bookmarks, recent, openRepo, removeBookmark, removeRecent, notify } = useApp();
+  const { bookmarks, recent, openRepo, openRemote, removeBookmark, removeRecent, notify, openDialog } = useApp();
   const onError = (m: string) => notify("error", m);
   const open = (path: string) => openRepo(path).catch((e) => onError(errorMessage(e)));
   const shownRecent = visibleRecent(recent, bookmarks);
@@ -32,6 +52,9 @@ export function Home() {
           </button>
           <button className="btn big" onClick={() => useUi.setState({ clone: true })}>
             <Icon name="cloud" /> Clone…
+          </button>
+          <button className="btn big" onClick={() => openRemoteDialog(openDialog, openRemote, onError)}>
+            <Icon name="terminal" /> Open remote…
           </button>
         </div>
       </div>

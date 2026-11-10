@@ -103,6 +103,8 @@ export interface Tab {
   /** Repository folder, or null for a "new tab" home page. */
   path: string | null;
   name: string;
+  /** The computer the folder is on, for a repository opened over ssh; absent for this computer. */
+  host?: string;
 }
 
 export interface Bookmark {

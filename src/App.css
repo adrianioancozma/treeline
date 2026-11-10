@@ -241,6 +241,12 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 .repo-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .repo-name { font-size: var(--fs-l); font-weight: 650; letter-spacing: -0.01em; }
 .chip { display: inline-flex; align-items: center; gap: 4px; background: transparent; border: 1px solid var(--border-strong); border-radius: var(--r-full); padding: 1px 9px; font-size: var(--fs-s); font-weight: 500; white-space: nowrap; }
+/* A repository on another computer: its computer is shown next to its name (tab, toolbar). */
+.host-badge { display: inline-flex; align-items: center; flex-shrink: 0; font-size: var(--fs-2xs); font-weight: 700; color: var(--remote); background: var(--remote-soft); border-radius: var(--r-xs); padding: 1px 5px; white-space: nowrap; }
+.tab .host-badge { margin-right: 2px; }
+/* Read-only for now: on a remote tab only the note and Refresh stay in the toolbar. */
+.toolbar.remote .tools > :not(.remote-note):not(.keep) { display: none; }
+.remote-note { align-self: center; font-size: var(--fs-s); color: var(--muted); padding: 0 8px; }
 .star.on { color: var(--warn); }
 .star.on .icon { fill: var(--warn); }
 .tools { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }

@@ -5,6 +5,7 @@ import { fileManagerName, toolbarLayout } from "../lib/toolbarLayout";
 import { useApp } from "../store";
 import { openMenu, useUi } from "../uiStore";
 import type { Tab } from "../types";
+import { shortHost } from "./TabBar";
 import { Icon, type IconName } from "./Icon";
 
 function Btn({
@@ -14,6 +15,7 @@ function Btn({
   badge,
   disabled,
   title,
+  keep,
 }: {
   icon: IconName;
   label: string;
@@ -21,9 +23,11 @@ function Btn({
   badge?: string;
   disabled?: boolean;
   title?: string;
+  /** Stays on a remote (read-only) tab. */
+  keep?: boolean;
 }) {
   return (
-    <button className="tool" onClick={onClick} disabled={disabled} title={title ?? label}>
+    <button className={`tool${keep ? " keep" : ""}`} onClick={onClick} disabled={disabled} title={title ?? label}>
       <span className="tool-icon">
         <Icon name={icon} size={18} />
         {badge && <span className="tool-badge">{badge}</span>}
@@ -67,25 +71,37 @@ export function Toolbar({ tab }: { tab: Tab }) {
   };
 
   return (
-    <div className={`toolbar${layout.labels ? "" : " icons-only"}`} ref={ref}>
+    <div className={`toolbar${layout.labels ? "" : " icons-only"}${tab.host ? " remote" : ""}`} ref={ref}>
       <div className="repo-id">
         <strong className="repo-name">{tab.name}</strong>
+        {tab.host && (
+          <span className="host-badge" title={`${tab.host}:${tab.path}`}>
+            ⇄ {shortHost(tab.host)}
+          </span>
+        )}
         <span className="chip" title={s?.upstream ? `Tracking ${s.upstream}` : "No upstream branch"}>
           <Icon name="branch" size={13} /> {s?.branch ?? (s ? "detached HEAD" : "…")}
           {s && s.ahead > 0 && <span className="ahead"> ↑{s.ahead}</span>}
           {s && s.behind > 0 && <span className="behind"> ↓{s.behind}</span>}
         </span>
-        <button
-          className={`icon-btn star${bookmark ? " on" : ""}`}
-          aria-label={bookmark ? "Remove bookmark" : "Bookmark this repository"}
-          title={bookmark ? "Remove bookmark" : "Bookmark this repository"}
-          onClick={() => (bookmark ? removeBookmark(bookmark.id) : tab.path && addBookmark(tab.path))}
-        >
-          <Icon name="star" size={16} />
-        </button>
+        {!tab.host && (
+          <button
+            className={`icon-btn star${bookmark ? " on" : ""}`}
+            aria-label={bookmark ? "Remove bookmark" : "Bookmark this repository"}
+            title={bookmark ? "Remove bookmark" : "Bookmark this repository"}
+            onClick={() => (bookmark ? removeBookmark(bookmark.id) : tab.path && addBookmark(tab.path))}
+          >
+            <Icon name="star" size={16} />
+          </button>
+        )}
       </div>
 
       <div className="tools">
+        {tab.host && (
+          <span className="remote-note" title="Repositories on another computer can only be read in this version.">
+            Read-only for now
+          </span>
+        )}
         <Btn icon="files" label="Commit" badge={changes ? String(changes) : undefined} title="Show changes and commit" onClick={() => setUi(tab.id, { view: "files" })} />
         <span className="sep" />
         <Btn icon="fetch" label="Fetch" disabled={busy} onClick={() => a.fetch()} />
@@ -150,7 +166,7 @@ export function Toolbar({ tab }: { tab: Tab }) {
         {shown("tag") && <Btn icon="tag" label="Tag" onClick={() => a.newTag()} />}
         <span className="sep" />
         <Btn icon="more" label="More" title={`More actions: merge into several branches, clean up, Terminal, ${fileManagerName()}`} onClick={openMore} />
-        <Btn icon="refresh" label="Refresh" disabled={d?.loading} onClick={() => void reload(tab.id)} />
+        <Btn icon="refresh" label="Refresh" disabled={d?.loading} onClick={() => void reload(tab.id)} keep />
       </div>
     </div>
   );

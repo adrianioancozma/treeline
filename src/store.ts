@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, baseName, errorMessage } from "./api";
+import { api, baseName, errorMessage, setRemoteHost } from "./api";
 import { gitNeedsSecurityUpdate, outdatedGitMessage } from "./lib/gitVersion";
 import { forgetSections } from "./uiStore";
 import { noFilters, type HistoryFilters } from "./lib/historyFilter";
@@ -157,6 +157,8 @@ interface AppState {
   moveTab: (id: string, toIndex: number) => void;
   /** Opens a repo in the active home tab (or a new tab). Throws if it is not a repo. */
   openRepo: (path: string, afterTabId?: string) => Promise<void>;
+  /** Opens a repository on another computer over ssh (read-only for now). */
+  openRemote: (host: string, path: string) => Promise<void>;
   reload: (id?: string) => Promise<void>;
   loadLog: (id: string, reset: boolean) => Promise<void>;
   setUi: (id: string, patch: Partial<RepoUi>) => void;
@@ -197,7 +199,8 @@ export const useApp = create<AppState>((set, get) => {
   const watchActive = () => {
     const { tabs, activeId } = get();
     const tab = tabs.find((t) => t.id === activeId);
-    if (tab?.path) void api.watch(tab.path).catch(() => undefined);
+    // Folders on another computer are not watched yet: they refresh on focus or with Refresh.
+    if (tab?.path && !tab.host) void api.watch(tab.path).catch(() => undefined);
     else void api.unwatch().catch(() => undefined);
   };
 
@@ -217,6 +220,7 @@ export const useApp = create<AppState>((set, get) => {
     async init() {
       const saved = await api.loadState().catch(() => null);
       const tabs = saved?.tabs ?? [];
+      for (const t of tabs) if (t.host && t.path) setRemoteHost(t.path, t.host);
       const activeId =
         saved?.activeId && tabs.some((t) => t.id === saved.activeId)
           ? saved.activeId
@@ -266,6 +270,10 @@ export const useApp = create<AppState>((set, get) => {
       const idx = tabs.findIndex((t) => t.id === id);
       if (idx < 0) return;
       const next = tabs.filter((t) => t.id !== id);
+      const closing = tabs[idx];
+      if (closing.host && closing.path && !next.some((t) => t.host === closing.host && t.path === closing.path)) {
+        setRemoteHost(closing.path, null);
+      }
       const data = { ...get().data };
       delete data[id];
       forgetSections(id);
@@ -353,6 +361,31 @@ export const useApp = create<AppState>((set, get) => {
         set({ tabs: [...tabs, tab], activeId: tab.id });
       }
       remember();
+      watchActive();
+      await get().reload();
+    },
+
+    async openRemote(host, path) {
+      const opened = await api.remoteOpen(host, path); // the backend checks the folder and asks the user to confirm
+      const top = opened.toplevel ?? opened.path;
+      const { tabs, activeId } = get();
+      const existing = tabs.find((t) => t.host === host && t.path === top);
+      if (existing) {
+        get().setActive(existing.id);
+        return;
+      }
+      if (tabs.some((t) => !t.host && t.path === top)) {
+        throw new Error(`${top} is already open as a folder on this computer; close that tab first.`);
+      }
+      setRemoteHost(top, host);
+      const name = baseName(top);
+      const active = tabs.find((t) => t.id === activeId);
+      if (active && active.path === null) {
+        set({ tabs: tabs.map((t) => (t.id === active.id ? { ...t, path: top, name, host } : t)) });
+      } else {
+        const tab: Tab = { id: uid(), path: top, name, host };
+        set({ tabs: [...tabs, tab], activeId: tab.id });
+      }
       watchActive();
       await get().reload();
     },

@@ -20,7 +20,7 @@ use crate::git::blocking;
 /// What a remote tab may ask for in this version: reading only.
 pub const READ_METHODS: &[&str] = &[
     "repo_status", "list_submodules", "list_refs", "stash_list", "list_remotes", "head_message", "git_log",
-    "commit_files", "commit_diff", "file_diff",
+    "commit_files", "commit_detail", "commit_diff", "file_diff",
 ];
 
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -56,7 +56,7 @@ fn lock() -> std::sync::MutexGuard<'static, State> {
     state().lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn remember(host: &str, folder: String) {
+pub(crate) fn remember(host: &str, folder: String) {
     let mut s = lock();
     let list = s.opened.entry(host.to_string()).or_default();
     if !list.contains(&folder) {
@@ -70,6 +70,11 @@ fn remember(host: &str, folder: String) {
             }
         }
     }
+}
+
+/// True when `path` was opened on `host` (or is inside such a folder): what the saved tabs may keep.
+pub(crate) fn is_remote_opened(host: &str, path: &str) -> bool {
+    valid_host(host) && lock().opened.get(host).is_some_and(|l| is_opened(l, path))
 }
 
 /// Reads the list of opened remote folders at start-up (a file only Rust writes).

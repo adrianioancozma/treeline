@@ -67,7 +67,7 @@ export default function App() {
       activeTab: () => {
         const s = useApp.getState();
         const tab = s.tabs.find((t) => t.id === s.activeId);
-        if (!tab?.path) return null;
+        if (!tab?.path || tab.host) return null; // no background fetch on another computer yet (read-only)
         const d = s.data[tab.id];
         return { id: tab.id, path: tab.path, hasRemotes: d ? d.remotes.length > 0 : null };
       },

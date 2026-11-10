@@ -10,6 +10,7 @@ use std::path::{Component, Path, PathBuf};
 use tauri::AppHandle;
 #[cfg(test)]
 use treeline_core::ops_parse::{parse_name_status, parse_refs, parse_stashes};
+pub use treeline_core::read::{CommitDetail};
 pub use treeline_core::read::{LOG_FORMAT};
 pub use treeline_core::ops_parse::{FileEntry, Commit, parse_log, RefInfo, StashEntry, parse_merge_tree, merge_msg_branch, FileCommit, parse_file_log, BlameLine, parse_blame};
 
@@ -190,39 +191,9 @@ pub async fn commit_diff(
     blocking(move || treeline_core::read::commit_diff(path, sha, parent, file, old_file, context)).await
 }
 
-#[derive(Serialize)]
-pub struct CommitDetail {
-    pub message: String,
-    pub author: String,
-    pub email: String,
-    pub time: i64,
-    pub committer: String,
-    pub parents: Vec<String>,
-}
-
 #[tauri::command]
 pub async fn commit_detail(path: String, sha: String) -> Result<CommitDetail, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        ref_arg(&sha)?;
-        let raw = run_git(
-            &path,
-            ["show", "-s", "--format=%an%x1f%ae%x1f%at%x1f%cn%x1f%P%x1f%B", &sha],
-        )?;
-        let f: Vec<&str> = raw.splitn(6, '\x1f').collect();
-        if f.len() < 6 {
-            return Err("Unexpected output from git show".into());
-        }
-        Ok(CommitDetail {
-            author: f[0].into(),
-            email: f[1].into(),
-            time: f[2].parse().unwrap_or(0),
-            committer: f[3].into(),
-            parents: f[4].split_whitespace().map(String::from).collect(),
-            message: f[5].trim().to_string(),
-        })
-    })
-    .await
+    blocking(move || treeline_core::read::commit_detail(path, sha)).await
 }
 
 // ---------------------------------------------------------------------------

@@ -333,3 +333,34 @@ mod tests {
         let _ = std::fs::remove_dir_all(&r);
     }
 }
+
+#[derive(Serialize)]
+pub struct CommitDetail {
+    pub message: String,
+    pub author: String,
+    pub email: String,
+    pub time: i64,
+    pub committer: String,
+    pub parents: Vec<String>,
+}
+
+pub fn commit_detail(path: String, sha: String) -> Result<CommitDetail, String> {
+        ensure_allowed(&path)?;
+        ref_arg(&sha)?;
+        let raw = run_git(
+            &path,
+            ["show", "-s", "--format=%an%x1f%ae%x1f%at%x1f%cn%x1f%P%x1f%B", &sha],
+        )?;
+        let f: Vec<&str> = raw.splitn(6, '\x1f').collect();
+        if f.len() < 6 {
+            return Err("Unexpected output from git show".into());
+        }
+        Ok(CommitDetail {
+            author: f[0].into(),
+            email: f[1].into(),
+            time: f[2].parse().unwrap_or(0),
+            committer: f[3].into(),
+            parents: f[4].split_whitespace().map(String::from).collect(),
+            message: f[5].trim().to_string(),
+        })
+    }

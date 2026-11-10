@@ -28,9 +28,11 @@ pub(crate) fn without_unopened_folders(json: &str) -> Result<String, String> {
     let mut state: serde_json::Value = serde_json::from_str(json).map_err(|e| e.to_string())?;
     for list in ["tabs", "bookmarks", "recent"] {
         if let Some(items) = state.get_mut(list).and_then(|v| v.as_array_mut()) {
-            items.retain(|item| match item.get("path").and_then(|v| v.as_str()) {
-                Some(p) => crate::git::ensure_allowed(p).is_ok(),
-                None => true, // a tab that is still the home screen has no folder
+            items.retain(|item| match (item.get("path").and_then(|v| v.as_str()), item.get("host").and_then(|v| v.as_str())) {
+                // A folder on another computer: kept only if it was opened there (a list only Rust writes).
+                (Some(p), Some(host)) => crate::remote::is_remote_opened(host, p),
+                (Some(p), None) => crate::git::ensure_allowed(p).is_ok(),
+                (None, _) => true, // a tab that is still the home screen has no folder
             });
         }
     }
@@ -59,12 +61,16 @@ mod tests {
         std::fs::create_dir_all(&kept).unwrap();
         std::fs::create_dir_all(&planted).unwrap();
         crate::git::allow_repo(&kept.to_string_lossy());
+        crate::remote::remember("linux-box.local", "/home/a/repo".to_string());
 
         let state = serde_json::json!({
             "tabs": [
                 { "id": "1", "path": kept.to_string_lossy(), "name": "kept" },
                 { "id": "2", "path": planted.to_string_lossy(), "name": "planted" },
-                { "id": "3", "path": null, "name": "home" }
+                { "id": "3", "path": null, "name": "home" },
+                { "id": "4", "path": "/home/a/repo", "name": "repo", "host": "linux-box.local" },
+                { "id": "5", "path": "/home/a/other", "name": "other", "host": "linux-box.local" },
+                { "id": "6", "path": kept.to_string_lossy(), "name": "kept-elsewhere", "host": "other-host" }
             ],
             "bookmarks": [
                 { "id": "b1", "path": kept.to_string_lossy() },
@@ -81,7 +87,12 @@ mod tests {
         let ids = |list: &str| -> Vec<String> {
             cleaned[list].as_array().unwrap().iter().map(|i| i["id"].as_str().unwrap().to_string()).collect()
         };
-        assert_eq!(ids("tabs"), ["1", "3"], "the planted folder is dropped, the home tab stays");
+        assert_eq!(
+            ids("tabs"),
+            ["1", "3", "4"],
+            "the planted folder is dropped, the home tab stays, a folder opened on another computer stays; one not opened \
+             there is dropped, and a local folder does not count as opened on another computer"
+        );
         assert_eq!(ids("bookmarks"), ["b1"]);
         let recent: Vec<&str> = cleaned["recent"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap()).collect();
         assert_eq!(recent, ["kept"], "a recent folder the user never opened is dropped too");

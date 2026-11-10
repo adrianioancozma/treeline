@@ -63,6 +63,7 @@ fn dispatch(method: &str, p: Value) -> Result<Value, String> {
         "head_message" => call!(p, read::head_message, path: String),
         "git_log" => call!(p, read::git_log, path: String, skip: u32, limit: u32, all: bool, query: Option<String>, file: Option<String>),
         "commit_files" => call!(p, read::commit_files, path: String, sha: String, parent: Option<String>),
+        "commit_detail" => call!(p, read::commit_detail, path: String, sha: String),
         "commit_diff" => call!(p, read::commit_diff, path: String, sha: String, parent: Option<String>, file: String, old_file: Option<String>, context: u32),
         "file_diff" => call!(p, read::file_diff, path: String, file: String, staged: bool, untracked: bool, context: u32),
         _ => Err(format!("unknown method: {method}")),

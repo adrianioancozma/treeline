@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import type {
   BlameLine,
@@ -23,12 +23,40 @@ import type {
   Submodule,
 } from "./types";
 
+/**
+ * Repositories on another computer, by folder path: the store registers each remote tab's folder. Every call naming
+ * such a folder goes to the helper on that computer (`remote_call`) instead of the local git; the backend accepts only
+ * reading there for now, so a write is refused with a message rather than run against a local folder.
+ * (First version: the folder path is the key; an explicit computer per call replaces it later.)
+ */
+const remoteHosts = new Map<string, string>();
+
+export function setRemoteHost(path: string, host: string | null): void {
+  if (host) remoteHosts.set(path, host);
+  else remoteHosts.delete(path);
+}
+
+/** `oldFile` → `old_file`: the helper takes the Rust parameter names (Tauri maps them itself for local calls). */
+function snakeKeys(args: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(args).map(([k, v]) => [k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`), v]));
+}
+
+function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const host = typeof args?.path === "string" ? remoteHosts.get(args.path) : undefined;
+  if (host === undefined) return tauriInvoke<T>(cmd, args);
+  return tauriInvoke<T>("remote_call", { host, method: cmd, params: snakeKeys(args!) });
+}
+
 export const api = {
   // repository
   /** The operating system's folder picker, shown by the backend. Only folders chosen here (or opened before) can be used. */
   pickFolder: (title: string, purpose: "repo" | "destination") =>
     invoke<string | null>("pick_folder", { title, purpose }),
   toplevel: (path: string) => invoke<string>("git_toplevel", { path }),
+  /** Opens a folder on another computer (the backend asks the user to confirm it); returns its top level and access. */
+  remoteOpen: (host: string, path: string) =>
+    tauriInvoke<{ path: string; writable: boolean; toplevel: string | null }>("remote_open", { host, path }),
+  remoteDisconnect: (host: string) => tauriInvoke<void>("remote_disconnect", { host }),
   status: (path: string) => invoke<RepoStatus>("repo_status", { path }),
   submodules: (path: string) => invoke<Submodule[]>("list_submodules", { path }),
   initSubmodule: (path: string, submodule: string) =>
