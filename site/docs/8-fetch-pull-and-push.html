@@ -78,9 +78,27 @@ explains why — check the branch out and pull with merge or rebase.</li>
 <li>A branch with no upstream can be pushed (the app sets the upstream for you) but cannot be fetched/pulled until it has one.</li>
 <li>Progress for long operations appears in the status bar.</li>
 </ul>
+<h3 id="automatic-background-fetch">Automatic background fetch</h3>
+<p>You don&#39;t have to press <strong>Fetch</strong> to see what happened on the server. Treeline quietly fetches the repository in the
+active tab when you open it, every <strong>2 minutes</strong> (you can change this) while the window is visible, and whenever you switch back to the window.
+So a branch merged on GitHub or GitLab (or pushed by a teammate) shows up in the sidebar and the history by itself, and
+remote branches deleted on the server disappear.</p>
+<ul>
+<li>It only <strong>fetches</strong> (it never changes your files, your branches or your checked-out work) and it is silent: no progress
+bar and no pop-ups.</li>
+<li>Only the <strong>active tab</strong> is fetched, and repositories with no remote are skipped.</li>
+<li>If you are offline, or your sign-in is missing or expired, the background fetch just does nothing. Press <strong>Fetch</strong> to see
+the real error message. Treeline never opens a password prompt on its own, so for an HTTPS remote run <code>git fetch</code> once in
+a terminal and sign in so the credential manager remembers you (see <a href="1-before-you-start.html#signing-in">Signing in</a>).</li>
+<li><strong>Change how often, or turn it off:</strong> open <strong>Settings</strong> (the gear in the top bar) → <strong>Background fetch</strong> and choose <em>every
+15 seconds</em>, <em>30 seconds</em>, <em>every minute</em>, <em>2</em>, <em>3</em>, <em>5</em>, <em>10</em> or <em>30 minutes</em>, or <em>Never</em>. The change applies right away
+(the timer restarts and checks at once) and is remembered. Very short intervals use more network and battery, and some
+servers limit how often you may contact them, so 1–2 minutes is a good choice.</li>
+<li>You can still press <strong>Fetch</strong> (or <code>Ctrl+K</code> → <em>Fetch</em>) at any time to update immediately.</li>
+</ul>
 
 </article>
-
+<aside class="on-page" aria-label="On this page"><strong>On this page</strong><ul><li><a href="#automatic-background-fetch">Automatic background fetch</a></li></ul></aside>
 <nav class="pager" aria-label="Previous and next page">
   <a class="prev" href="7-branches-and-tags.html"><small>Previous</small>7. Branches and tags</a>
   <a class="next" href="9-submodules.html"><small>Next</small>9. Submodules</a>

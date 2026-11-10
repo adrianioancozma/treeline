@@ -29,6 +29,7 @@ Tick each line as pass (✅), fail (❌) or skipped (➖). Note anything odd eve
 
 **Daily workflow**
 5. ☐ Edit a file in your editor — it appears in *File status* **by itself**, without pressing Refresh (file watcher).
+   Also, in a **test** repository with a remote, push a commit from a second clone: within about 2 minutes (the default; see Settings → Background fetch) it appears in *History* without pressing Fetch (background fetch).
 6. ☐ Stage a file, stage a single **hunk**, stage **selected lines**; commit; amend the commit message.
 7. ☐ *History*: scrolls smoothly; click a commit and see its diff; click a branch in the sidebar and see it highlighted.
 8. ☐ Create a branch, check it out, delete it.

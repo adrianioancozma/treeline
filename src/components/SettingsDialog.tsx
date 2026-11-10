@@ -5,6 +5,7 @@ import type { Update } from "@tauri-apps/plugin-updater";
 import { useAppVersion } from "../hooks";
 import { checkForUpdate, installUpdate } from "../updater";
 import type { GitInfo } from "../types";
+import { FETCH_SECOND_CHOICES, fetchSecondsLabel, loadFetchSeconds, saveFetchSeconds } from "../lib/autoFetch";
 
 /** App settings. For now: which Git program the app runs. */
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
@@ -19,6 +20,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
     | { kind: "available"; update: Update }
     | { kind: "installing"; percent: number | null }
     | { kind: "failed"; message: string };
+  const [fetchSeconds, setFetchSeconds] = useState(loadFetchSeconds);
   const [upd, setUpd] = useState<UpdateState>({ kind: "idle" });
 
   const checkUpdates = async () => {
@@ -101,6 +103,32 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <p className="small" role="alert" style={{ color: "var(--danger, #e5534b)" }}>
             {error}
           </p>
+        )}
+        <h3 className="small">Background fetch</h3>
+        <p className="muted small">
+          Checks the server for new commits and branches in the tab you are looking at, so merges done on GitHub or GitLab show up by themselves.
+          It only downloads; it never changes your files.
+        </p>
+        <label className="small">
+          Check the server{" "}
+          <select
+            value={fetchSeconds}
+            aria-label="How often to fetch in the background"
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setFetchSeconds(n);
+              saveFetchSeconds(n);
+            }}
+          >
+            {FETCH_SECOND_CHOICES.map((sec) => (
+              <option key={sec} value={sec}>
+                {fetchSecondsLabel(sec)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {fetchSeconds > 0 && fetchSeconds < 60 && (
+          <p className="muted small">Very short intervals use more network and battery, and some servers limit how often you may contact them.</p>
         )}
         <h3 className="small">About and updates</h3>
         <p className="muted small">Treeline{version ? ` version ${version}` : ""}</p>

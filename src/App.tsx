@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { api } from "./api";
+import { createAutoFetch, startAutoFetchTimer } from "./lib/autoFetch";
 import { useApp } from "./store";
 import { useUi } from "./uiStore";
 import { openGuide } from "./guide";
@@ -54,6 +56,33 @@ export default function App() {
       }),
     ];
     return () => subs.forEach((p) => void p.then((f) => f()));
+  }, []);
+
+  // Background fetch: the file watcher only sees local changes, so without this, branches merged or
+  // pushed on the server (GitHub/GitLab web UI, teammates) never show up until you press Fetch.
+  // Silent: no toast and no progress bar, and failures (offline, expired credentials) are ignored.
+  useEffect(() => {
+    const tick = createAutoFetch({
+      activeTab: () => {
+        const s = useApp.getState();
+        const tab = s.tabs.find((t) => t.id === s.activeId);
+        if (!tab?.path) return null;
+        const d = s.data[tab.id];
+        return { id: tab.id, path: tab.path, hasRemotes: d ? d.remotes.length > 0 : null };
+      },
+      fetch: (id, path) => api.fetch(id, path, true),
+      reload: (id) => useApp.getState().reload(id),
+      isHidden: () => document.visibilityState === "hidden",
+    });
+    // Restarts itself whenever the interval is changed in Settings.
+    const stopTimer = startAutoFetchTimer(tick);
+    const unfocus = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) void tick();
+    });
+    return () => {
+      stopTimer();
+      void unfocus.then((f) => f());
+    };
   }, []);
 
   useEffect(() => {

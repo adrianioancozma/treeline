@@ -276,6 +276,25 @@ Notes:
 * A branch with no upstream can be pushed (the app sets the upstream for you) but cannot be fetched/pulled until it has one.
 * Progress for long operations appears in the status bar.
 
+### Automatic background fetch
+
+You don't have to press **Fetch** to see what happened on the server. Treeline quietly fetches the repository in the
+active tab when you open it, every **2 minutes** (you can change this) while the window is visible, and whenever you switch back to the window.
+So a branch merged on GitHub or GitLab (or pushed by a teammate) shows up in the sidebar and the history by itself, and
+remote branches deleted on the server disappear.
+
+* It only **fetches** (it never changes your files, your branches or your checked-out work) and it is silent: no progress
+  bar and no pop-ups.
+* Only the **active tab** is fetched, and repositories with no remote are skipped.
+* If you are offline, or your sign-in is missing or expired, the background fetch just does nothing. Press **Fetch** to see
+  the real error message. Treeline never opens a password prompt on its own, so for an HTTPS remote run `git fetch` once in
+  a terminal and sign in so the credential manager remembers you (see [Signing in](#signing-in)).
+* **Change how often, or turn it off:** open **Settings** (the gear in the top bar) → **Background fetch** and choose *every
+  15 seconds*, *30 seconds*, *every minute*, *2*, *3*, *5*, *10* or *30 minutes*, or *Never*. The change applies right away
+  (the timer restarts and checks at once) and is remembered. Very short intervals use more network and battery, and some
+  servers limit how often you may contact them, so 1–2 minutes is a good choice.
+* You can still press **Fetch** (or `Ctrl+K` → *Fetch*) at any time to update immediately.
+
 ---
 
 ## 9. Submodules
@@ -426,6 +445,7 @@ Common situations:
 | *The remote has commits you don't have* | Push rejected (non-fast-forward) | **Pull** (or **Pull (rebase)**), then push again |
 | *Git could not sign in to the remote* | Wrong/expired credentials or SSH key | See [Signing in](#signing-in) |
 | *Could not reach the remote server* | Offline, VPN or proxy | Check connection; retry |
+| A branch merged on GitHub/GitLab still looks unmerged, or a deleted branch is still listed | Treeline has not fetched since the change. It checks every 2 minutes unless you changed or turned it off in Settings → Background fetch; offline or missing sign-in stops it silently | Press **Fetch** now; if that fails, read the error (see *Signing in*) |
 | *Uncommitted changes are in the way* | A checkout/merge would overwrite your edits | **Stash my changes…**, repeat, then pop |
 | *The changes conflict and need your decision* | Merge/rebase conflict | Resolve in File status (section 10) |
 | *Git doesn't know who you are* | No `user.name`/`user.email` | Run the two `git config` commands in section 1 |

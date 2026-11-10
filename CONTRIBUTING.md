@@ -33,7 +33,7 @@ cd src-tauri && cargo test --lib   # Rust tests (they run real git in temporary 
 ## Principles to keep
 
 1. **Any Git provider.** No GitHub-, GitLab- or Bitbucket-specific features, accounts or APIs. The app drives the system `git`.
-2. **Fast.** Git runs off the UI thread. Don't add polling; use the file watcher. Read-only git commands must keep
+2. **Fast.** Git runs off the UI thread. Don't add polling; use the file watcher for local changes. The one exception is the silent background fetch of the active tab (`src/lib/autoFetch.ts`, every 2 minutes by default, set in Settings), because the server cannot notify us. Read-only git commands must keep
    `GIT_OPTIONAL_LOCKS=0` (the `git_cmd()` helper sets it). Don't set `GIT_LITERAL_PATHSPECS` globally — it breaks
    `git stash -u`; pass `LITERAL` only to commands that take user file names.
 3. **Errors explain themselves.** A failure must reach the user through the error panel with a title, why, and fixes

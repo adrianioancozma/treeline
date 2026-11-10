@@ -44,14 +44,14 @@ macOS and Linux builds are untested (see the status table above). Prefer to buil
 
 | Area | What you get |
 | --- | --- |
-| **Tabs** | Many repositories open at once. Only the active tab is refreshed, and changes are picked up by a file watcher (no polling). Tabs are restored on start-up. |
+| **Tabs** | Many repositories open at once. Only the active tab is refreshed. Local changes are picked up by a file watcher (no polling), and the active tab is fetched silently in the background (every 2 minutes by default; configurable in Settings) so merges and pushes made on the server show up by themselves. Tabs are restored on start-up. |
 | **Bookmarks** | Star a repository to keep it one click away on the home tab and in the command palette. |
 | **Clone** | Any URL, live progress, optional submodules. A clone whose only failure is a submodule still opens, with a warning. |
 | **Submodules** | Shown in the sidebar with status, opened in their own tab beside the parent (double-click), initialised on demand, bulk update, and **one click to switch every submodule to the same branch name** as the parent (*Sync subs*). |
 | **Working copy** | Stage/unstage/discard per file, **per hunk, or per line**. Commit, amend, commit & push. |
 | **History** | Virtualised commit graph (smooth with 10k+ commits), search, all-branches toggle, **click a branch to highlight its history**, uncommitted-changes row, commit detail and per-file diff in a panel that always stays on screen, with a resizable message box. |
 | **Branches & tags** | Create, check out, rename, delete (local and remote), tag, push tag. Fetch / pull / push a single branch from its right-click menu. |
-| **Remotes** | Fetch, pull (merge / rebase / fast-forward only), push (upstream, tags, force-with-lease) with progress. |
+| **Remotes** | Automatic background fetch of the active tab (every 2 minutes by default; choose 15 seconds to 30 minutes, or off, in Settings; silent). Fetch, pull (merge / rebase / fast-forward only), push (upstream, tags, force-with-lease) with progress. |
 | **Merge tools** | Merge (`--no-ff`, squash), rebase, **interactive rebase** (pick/reword/edit/squash/fixup/drop, reorder), cherry-pick, revert, reset, stash, and a **conflict resolver** with per-conflict ours/theirs/both and an editable result; buttons explain themselves on hover and name the real branches. |
 | **Merge to many** | Merge one branch (a bug fix, say) into several release branches at once. Every merge is test-run first, so you see which are clean and which would conflict, and in which files, before anything changes. Resolve a conflicting branch, resume, and **reuse your resolution** on the others; merges that silently dropped your change are flagged. |
 | **Security** | Asks before opening a repository whose own settings or hooks can run programs, works only on folders you opened, hides credentials in messages, refuses writes through symbolic links, uses a strict content policy and verifies signed updates. See [SECURITY.md](SECURITY.md). |

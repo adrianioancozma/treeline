@@ -189,7 +189,7 @@ export const useApp = create<AppState>((set, get) => {
         : s,
     );
 
-  /** Watches only the active repo for changes; nothing is polled. */
+  /** Watches only the active repo for local changes; nothing is polled (server changes: see lib/autoFetch.ts). */
   const watchActive = () => {
     const { tabs, activeId } = get();
     const tab = tabs.find((t) => t.id === activeId);
