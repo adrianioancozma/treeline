@@ -4,6 +4,7 @@ import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import type { RebaseStep } from "../types";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 type Action = RebaseStep["action"];
 interface Row {
@@ -76,9 +77,7 @@ function RebaseDialog({ tabId, base, title }: { tabId: string; base: string | nu
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label={title} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && close()}>
-        <h2>{title}</h2>
+    <Modal title={title} className="wide" onClose={close}>
         <p className="muted small">
           Merge commits are not listed (a rebase flattens them). Reorder with the arrows and choose what happens to each commit. Newest commit is at the top. This rewrites history —
           avoid it for commits you have already pushed and shared.
@@ -122,7 +121,6 @@ function RebaseDialog({ tabId, base, title }: { tabId: string; base: string | nu
             Start rebase
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

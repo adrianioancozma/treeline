@@ -467,8 +467,9 @@ body.resizing .splitter::after { background: var(--accent); }
 
 /* File history and blame */
 .modal.wide { width: 94vw; max-width: 1400px; height: 88vh; max-height: 88vh; }
-.fh-head { display: flex; align-items: center; gap: 12px; }
-.fh-head h2 { flex: 1; min-width: 0; }
+.modal-head { display: flex; align-items: center; gap: 12px; }
+.modal-head h2 { flex: 1; min-width: 0; }
+.modal-close { margin: -4px -8px -4px 0; }
 .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg button { padding: 5px 14px; background: transparent; color: var(--muted); border: 0; cursor: pointer; }
 .seg button.active { background: var(--accent-soft); color: var(--text); }
@@ -502,8 +503,6 @@ body.resizing .splitter::after { background: var(--accent); }
 
 /* ---- Merge into multiple branches ---- */
 .modal.mm { width: 560px; max-width: 94vw; height: auto; max-height: 86vh; gap: 16px; }
-.mm-head { display: flex; align-items: center; gap: 12px; }
-.mm-head h2 { flex: 1; min-width: 0; }
 .mm-steps { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .mm-steps .s { display: inline-flex; align-items: center; gap: 6px; }
 .mm-steps .n { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 1px solid var(--border); }
