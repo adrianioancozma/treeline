@@ -73,6 +73,9 @@ fn dispatch(method: &str, p: Value) -> Result<Value, String> {
         "commit_detail" => call!(p, read::commit_detail, path: String, sha: String),
         "commit_diff" => call!(p, read::commit_diff, path: String, sha: String, parent: Option<String>, file: String, old_file: Option<String>, context: u32),
         "file_diff" => call!(p, read::file_diff, path: String, file: String, staged: bool, untracked: bool, context: u32),
+        "file_log" => call!(p, read::file_log, path: String, file: String, skip: u32, limit: u32),
+        "git_blame" => call!(p, read::git_blame, path: String, file: String, rev: Option<String>),
+        "git_log_matches" => call!(p, read::git_log_matches, path: String, all: bool, filter: read::LogFilter),
         _ => Err(format!("unknown method: {method}")),
     }
 }

@@ -2,7 +2,7 @@
 //! The desktop app calls them through thin Tauri commands; a helper next to a remote repository calls them directly.
 
 use crate::git::{LITERAL, run_git, run_git_ok_codes};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use crate::ops_parse::*;
 use crate::status::*;
 use crate::trust::ensure_allowed;
@@ -364,3 +364,123 @@ pub fn commit_detail(path: String, sha: String) -> Result<CommitDetail, String> 
             message: f[5].trim().to_string(),
         })
     }
+
+/// Which commits the History filters select. Empty fields do not filter.
+#[derive(Deserialize, Debug, Default)]
+pub struct LogFilter {
+    /// Matches the author's name or e-mail (plain text, any case).
+    pub author: Option<String>,
+    /// Matches the message (plain text, any case) or the start of the commit id.
+    pub text: Option<String>,
+    /// ISO 8601 time with an offset, e.g. `2026-11-01T09:30:00+02:00`.
+    pub since: Option<String>,
+    pub until: Option<String>,
+}
+
+pub fn non_empty(v: &Option<String>) -> Option<&str> {
+    v.as_deref().map(str::trim).filter(|v| !v.is_empty())
+}
+
+/// Dates reach Git as one `--since=` argument; only the characters of an ISO 8601 time are allowed.
+pub fn iso_time(v: &str) -> Result<&str, String> {
+    let ok = v.len() <= 40
+        && v.chars().all(|c| c.is_ascii_digit() || "T:+-Z .".contains(c))
+        && v.starts_with(|c: char| c.is_ascii_digit());
+    if ok {
+        Ok(v)
+    } else {
+        Err(format!("Not a valid date: {v}"))
+    }
+}
+
+/// `git log` arguments that print the ids of the commits matching every filter (AND), over the same
+/// set of commits the history list shows. The message filter is left out when `with_text` is false.
+pub fn log_filter_args(all: bool, f: &LogFilter, with_text: bool) -> Result<Vec<String>, String> {
+    let mut args: Vec<String> = vec![LITERAL.into(), "log".into(), "--no-color".into(), "--format=%H".into()];
+    if all {
+        args.push("--exclude=refs/stash".into());
+        args.push("--all".into());
+    }
+    // Plain text, not a pattern: "a.b" or "[WIP]" must match literally.
+    args.push("--fixed-strings".into());
+    args.push("--regexp-ignore-case".into());
+    if let Some(a) = non_empty(&f.author) {
+        args.push(format!("--author={a}"));
+    }
+    if with_text {
+        if let Some(t) = non_empty(&f.text) {
+            args.push(format!("--grep={t}"));
+        }
+    }
+    if let Some(v) = non_empty(&f.since) {
+        args.push(format!("--since={}", iso_time(v)?));
+    }
+    if let Some(v) = non_empty(&f.until) {
+        args.push(format!("--until={}", iso_time(v)?));
+    }
+    Ok(args)
+}
+
+pub const FILE_LOG_FORMAT: &str = "--format=%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%D%x1f%s%x1f";
+
+pub fn file_log(path: String, file: String, skip: u32, limit: u32) -> Result<Vec<FileCommit>, String> {
+        ensure_allowed(&path)?;
+        let args: Vec<String> = vec![
+            LITERAL.into(),
+            "log".into(),
+            "--follow".into(),
+            "--name-only".into(),
+            "--no-color".into(),
+            FILE_LOG_FORMAT.into(),
+            format!("--skip={skip}"),
+            format!("-n{limit}"),
+            "--".into(),
+            file,
+        ];
+        match run_git(&path, args) {
+            Ok(raw) => Ok(parse_file_log(&raw)),
+            Err(e) if e.contains("does not have any commits") || e.contains("bad default revision") => Ok(Vec::new()),
+            Err(e) => Err(e),
+        }
+    }
+
+pub fn git_blame(path: String, file: String, rev: Option<String>) -> Result<Vec<BlameLine>, String> {
+        ensure_allowed(&path)?;
+        opt_ref_arg(&rev)?;
+        let mut args: Vec<String> = vec![LITERAL.into(), "blame".into(), "--line-porcelain".into()];
+        if let Some(r) = rev.filter(|r| !r.is_empty()) {
+            args.push(r);
+        }
+        args.push("--".into());
+        args.push(file);
+        run_git(&path, args).map(|raw| parse_blame(&raw))
+    }
+
+pub fn git_log_matches(path: String, all: bool, filter: LogFilter) -> Result<Vec<String>, String> {
+        ensure_allowed(&path)?;
+        let run = |args: Vec<String>| match run_git(&path, args) {
+            Ok(raw) => Ok(raw.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect::<Vec<_>>()),
+            Err(e) if e.contains("does not have any commits") || e.contains("bad default revision") => Ok(Vec::new()),
+            Err(e) => Err(e),
+        };
+        let mut ids = run(log_filter_args(all, &filter, true)?)?;
+        // "a1b2c3" also finds the commit with that id (the other filters still apply).
+        if let Some(t) = non_empty(&filter.text) {
+            let t = t.to_ascii_lowercase();
+            if t.len() >= 4 && is_hex_id(&t) {
+                let seen: std::collections::HashSet<String> = ids.iter().cloned().collect();
+                for id in run(log_filter_args(all, &filter, false)?)? {
+                    if id.starts_with(&t) && !seen.contains(&id) {
+                        ids.push(id);
+                    }
+                }
+            }
+        }
+        Ok(ids)
+    }
+
+/// A commit id as it appears in a rebase todo line: only hex digits, so it cannot carry a newline
+/// (which would add a line of its own, such as an `exec`) or a space.
+pub fn is_hex_id(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 64 && s.chars().all(|c| c.is_ascii_hexdigit())
+}

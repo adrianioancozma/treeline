@@ -10,9 +10,10 @@ use std::path::{Component, Path, PathBuf};
 use tauri::AppHandle;
 #[cfg(test)]
 use treeline_core::ops_parse::{parse_name_status, parse_refs, parse_stashes};
+pub use treeline_core::read::{is_hex_id, LogFilter};
 pub use treeline_core::read::{CommitDetail};
 pub use treeline_core::read::{LOG_FORMAT};
-pub use treeline_core::ops_parse::{FileEntry, Commit, parse_log, RefInfo, StashEntry, parse_merge_tree, merge_msg_branch, FileCommit, parse_file_log, BlameLine, parse_blame};
+pub use treeline_core::ops_parse::{FileEntry, Commit, parse_log, RefInfo, StashEntry, parse_merge_tree, merge_msg_branch, FileCommit, BlameLine};
 
 fn nul_list(files: &[String]) -> Vec<u8> {
     let mut buf = Vec::new();
@@ -212,89 +213,11 @@ pub async fn git_log(
     blocking(move || treeline_core::read::git_log(path, skip, limit, all, query, file)).await
 }
 
-/// Which commits the History filters select. Empty fields do not filter.
-#[derive(Deserialize, Debug, Default)]
-pub struct LogFilter {
-    /// Matches the author's name or e-mail (plain text, any case).
-    pub author: Option<String>,
-    /// Matches the message (plain text, any case) or the start of the commit id.
-    pub text: Option<String>,
-    /// ISO 8601 time with an offset, e.g. `2026-11-01T09:30:00+02:00`.
-    pub since: Option<String>,
-    pub until: Option<String>,
-}
-
-fn non_empty(v: &Option<String>) -> Option<&str> {
-    v.as_deref().map(str::trim).filter(|v| !v.is_empty())
-}
-
-/// Dates reach Git as one `--since=` argument; only the characters of an ISO 8601 time are allowed.
-fn iso_time(v: &str) -> Result<&str, String> {
-    let ok = v.len() <= 40
-        && v.chars().all(|c| c.is_ascii_digit() || "T:+-Z .".contains(c))
-        && v.starts_with(|c: char| c.is_ascii_digit());
-    if ok {
-        Ok(v)
-    } else {
-        Err(format!("Not a valid date: {v}"))
-    }
-}
-
-/// `git log` arguments that print the ids of the commits matching every filter (AND), over the same
-/// set of commits the history list shows. The message filter is left out when `with_text` is false.
-fn log_filter_args(all: bool, f: &LogFilter, with_text: bool) -> Result<Vec<String>, String> {
-    let mut args: Vec<String> = vec![LITERAL.into(), "log".into(), "--no-color".into(), "--format=%H".into()];
-    if all {
-        args.push("--exclude=refs/stash".into());
-        args.push("--all".into());
-    }
-    // Plain text, not a pattern: "a.b" or "[WIP]" must match literally.
-    args.push("--fixed-strings".into());
-    args.push("--regexp-ignore-case".into());
-    if let Some(a) = non_empty(&f.author) {
-        args.push(format!("--author={a}"));
-    }
-    if with_text {
-        if let Some(t) = non_empty(&f.text) {
-            args.push(format!("--grep={t}"));
-        }
-    }
-    if let Some(v) = non_empty(&f.since) {
-        args.push(format!("--since={}", iso_time(v)?));
-    }
-    if let Some(v) = non_empty(&f.until) {
-        args.push(format!("--until={}", iso_time(v)?));
-    }
-    Ok(args)
-}
-
 /// The ids of every commit matching the History filters. The list itself is not filtered (so the
 /// graph stays exactly as it is); the view uses these ids to dim the rest.
 #[tauri::command]
 pub async fn git_log_matches(path: String, all: bool, filter: LogFilter) -> Result<Vec<String>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let run = |args: Vec<String>| match run_git(&path, args) {
-            Ok(raw) => Ok(raw.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect::<Vec<_>>()),
-            Err(e) if e.contains("does not have any commits") || e.contains("bad default revision") => Ok(Vec::new()),
-            Err(e) => Err(e),
-        };
-        let mut ids = run(log_filter_args(all, &filter, true)?)?;
-        // "a1b2c3" also finds the commit with that id (the other filters still apply).
-        if let Some(t) = non_empty(&filter.text) {
-            let t = t.to_ascii_lowercase();
-            if t.len() >= 4 && is_hex_id(&t) {
-                let seen: std::collections::HashSet<String> = ids.iter().cloned().collect();
-                for id in run(log_filter_args(all, &filter, false)?)? {
-                    if id.starts_with(&t) && !seen.contains(&id) {
-                        ids.push(id);
-                    }
-                }
-            }
-        }
-        Ok(ids)
-    })
-    .await
+    blocking(move || treeline_core::read::git_log_matches(path, all, filter)).await
 }
 
 // ---------------------------------------------------------------------------
@@ -1229,12 +1152,6 @@ fn sh_path(p: &Path) -> String {
     p.to_string_lossy().replace('\\', "/").replace('\'', "'\\''")
 }
 
-/// A commit id as it appears in a rebase todo line: only hex digits, so it cannot carry a newline
-/// (which would add a line of its own, such as an `exec`) or a space.
-fn is_hex_id(s: &str) -> bool {
-    !s.is_empty() && s.len() <= 64 && s.chars().all(|c| c.is_ascii_hexdigit())
-}
-
 /// Runs `git rebase -i` non-interactively by handing git a pre-written todo list.
 /// A `reword` is performed as `pick` + `exec git commit --amend -F <file>`.
 #[tauri::command]
@@ -1564,55 +1481,24 @@ pub fn open_terminal(path: String) -> Result<(), String> {
 // File history and blame
 // ---------------------------------------------------------------------------
 
-const FILE_LOG_FORMAT: &str = "--format=%x1e%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%D%x1f%s%x1f";
-
 /// The commits that changed one file, newest first, following it across renames.
 #[tauri::command]
 pub async fn file_log(path: String, file: String, skip: u32, limit: u32) -> Result<Vec<FileCommit>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        let args: Vec<String> = vec![
-            LITERAL.into(),
-            "log".into(),
-            "--follow".into(),
-            "--name-only".into(),
-            "--no-color".into(),
-            FILE_LOG_FORMAT.into(),
-            format!("--skip={skip}"),
-            format!("-n{limit}"),
-            "--".into(),
-            file,
-        ];
-        match run_git(&path, args) {
-            Ok(raw) => Ok(parse_file_log(&raw)),
-            Err(e) if e.contains("does not have any commits") || e.contains("bad default revision") => Ok(Vec::new()),
-            Err(e) => Err(e),
-        }
-    })
-    .await
+    blocking(move || treeline_core::read::file_log(path, file, skip, limit)).await
 }
 
 /// Who last changed each line of a file, in the working copy or (with `rev`) at a given commit.
 #[tauri::command]
 pub async fn git_blame(path: String, file: String, rev: Option<String>) -> Result<Vec<BlameLine>, String> {
-    blocking(move || {
-        ensure_allowed(&path)?;
-        opt_ref_arg(&rev)?;
-        let mut args: Vec<String> = vec![LITERAL.into(), "blame".into(), "--line-porcelain".into()];
-        if let Some(r) = rev.filter(|r| !r.is_empty()) {
-            args.push(r);
-        }
-        args.push("--".into());
-        args.push(file);
-        run_git(&path, args).map(|raw| parse_blame(&raw))
-    })
-    .await
+    blocking(move || treeline_core::read::git_blame(path, file, rev)).await
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::process::Command;
+    use treeline_core::ops_parse::{parse_blame, parse_file_log};
+    use treeline_core::read::{log_filter_args, FILE_LOG_FORMAT};
 
     #[test]
     fn launchers_only_accept_existing_folders() {

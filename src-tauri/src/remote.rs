@@ -20,7 +20,7 @@ use crate::git::blocking;
 /// What a remote tab may ask for in this version: reading only.
 pub const READ_METHODS: &[&str] = &[
     "repo_status", "list_submodules", "list_refs", "stash_list", "list_remotes", "head_message", "git_log",
-    "commit_files", "commit_detail", "commit_diff", "file_diff",
+    "commit_files", "commit_detail", "commit_diff", "file_diff", "file_log", "git_blame", "git_log_matches",
 ];
 
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -251,5 +251,8 @@ mod tests {
             assert!(!READ_METHODS.contains(&m), "{m}");
         }
         assert!(READ_METHODS.contains(&"repo_status") && READ_METHODS.contains(&"git_log"));
+        for m in ["file_log", "git_blame", "git_log_matches"] {
+            assert!(READ_METHODS.contains(&m), "File history, Blame and the History filters read only: {m}");
+        }
     }
 }

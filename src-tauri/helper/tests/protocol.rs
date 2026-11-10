@@ -142,6 +142,26 @@ fn answers_like_the_library_for_opened_folders_only() {
 }
 
 #[test]
+fn answers_file_history_blame_and_history_filters_like_the_library() {
+    let repo = sample_repo("file-history");
+    let p = repo.to_string_lossy().to_string();
+    let mut h = Helper::start();
+    h.call(1, "init", json!({ "trusted": [p] }));
+    treeline_core::trust::allow_repo(&p);
+    let log = treeline_core::read::file_log(p.clone(), "a.txt".into(), 0, 50).unwrap();
+    let blame = treeline_core::read::git_blame(p.clone(), "a.txt".into(), None).unwrap();
+    let filter = treeline_core::read::LogFilter { text: Some("second".into()), ..Default::default() };
+    let matches = treeline_core::read::git_log_matches(p.clone(), true, filter).unwrap();
+    assert_eq!(log.len(), 2, "two commits touched a.txt");
+    assert_eq!(matches.len(), 1, "one commit says “second”");
+    assert_eq!(h.call(2, "file_log", json!({ "path": p, "file": "a.txt", "skip": 0, "limit": 50 }))["result"], json!(log));
+    assert_eq!(h.call(3, "git_blame", json!({ "path": p, "file": "a.txt", "rev": null }))["result"], json!(blame));
+    let found = h.call(4, "git_log_matches", json!({ "path": p, "all": true, "filter": { "text": "second" } }));
+    assert_eq!(found["result"], json!(matches));
+    let _ = std::fs::remove_dir_all(&repo);
+}
+
+#[test]
 fn answers_requests_sent_together() {
     let repo = sample_repo("together");
     let p = repo.to_string_lossy().to_string();
