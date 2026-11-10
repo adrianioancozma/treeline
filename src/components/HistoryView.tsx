@@ -353,7 +353,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                   <GraphCell row={graph[i]} width={graphW} />
                   <span className="subject">
                     {refs.map((r) => (
-                      <span key={r.label + r.kind} className={`ref ${r.kind}`}>
+                      <span key={r.label + r.kind} className={`ref ${r.kind}`} title={r.label}>
                         {r.label}
                       </span>
                     ))}
