@@ -87,7 +87,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
     return () => ro.disconnect();
   }, []);
 
-  // Uncommitted changes appear as a pseudo-commit on top of HEAD, like Sourcetree.
+  // Uncommitted changes appear as a pseudo-commit on top of HEAD.
   const wipCount = status?.files.length ?? 0;
   const showWip = wipCount > 0 && !!status?.head;
   const rowsData: Commit[] = useMemo(() => {

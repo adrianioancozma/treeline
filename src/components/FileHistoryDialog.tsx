@@ -9,7 +9,7 @@ import { ErrorBox } from "./ErrorBox";
 const PAGE = 200;
 const UNCOMMITTED = /^0+$/;
 
-/** History of one file (like Sourcetree's "Log Selected…") and who last changed each line ("Blame"). */
+/** History of one file ("Log Selected…") and who last changed each line ("Blame"). */
 export function FileHistoryDialog({ req, onClose }: { req: FileHistoryRequest; onClose: () => void }) {
   const { repo, file } = req;
   const [mode, setMode] = useState(req.mode);
