@@ -3,20 +3,22 @@
 //! so the UI never waits on Git.
 
 use serde::Serialize;
-use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
 pub use treeline_core::git::{
-    GitInfo, LITERAL, OpResult, SPAWN_ERROR_PREFIX, git_cmd, git_info_now, run_git, run_git_ok_codes, run_git_stdin, run_op,
-    set_custom_git, spawn_error, verify_git,
+    GitInfo, LITERAL, OpResult, SPAWN_ERROR_PREFIX, git_info_now, run_git, run_git_ok_codes, run_git_stdin, run_op,
+    set_custom_git, verify_git,
 };
 #[cfg(test)]
 use std::process::Command;
 #[cfg(test)]
-use treeline_core::git::{git_program, merge_path};
+pub(crate) use treeline_core::git::{git_cmd, git_program, merge_path, spawn_error};
 #[cfg(all(test, windows))]
 use treeline_core::git::windows_git_candidates;
+pub use treeline_core::git::stream_git;
+#[cfg(test)]
+use treeline_core::git::percent_of;
+use treeline_core::git::ProgressSink;
 pub use treeline_core::status::{RepoStatus, parse_status, parse_gitlinks, redact_urls};
 
 // ---------------------------------------------------------------------------
@@ -242,89 +244,13 @@ struct OpProgress {
     percent: Option<u8>,
 }
 
-fn percent_of(line: &str) -> Option<u8> {
-    let idx = line.find('%')?;
-    let digits: String = line[..idx]
-        .chars()
-        .rev()
-        .take_while(|c| c.is_ascii_digit())
-        .collect::<Vec<_>>()
-        .into_iter()
-        .rev()
-        .collect();
-    digits.parse().ok()
-}
+/// Shows git progress in the window as `op-progress` events (the payload the UI has always received).
+pub(crate) struct WindowProgress<'a>(pub &'a AppHandle);
 
-/// Runs git, streaming each progress line as an `op-progress` event tagged with `id`.
-pub(crate) fn stream_git(
-    app: &AppHandle,
-    id: &str,
-    cwd: Option<&str>,
-    args: &[String],
-) -> Result<OpResult, String> {
-    let mut cmd = git_cmd();
-    if let Some(dir) = cwd {
-        cmd.arg("-C").arg(dir);
+impl ProgressSink for WindowProgress<'_> {
+    fn progress(&self, id: &str, line: &str, percent: Option<u8>) {
+        let _ = self.0.emit("op-progress", OpProgress { id: id.to_string(), line: line.to_string(), percent });
     }
-    let mut child = cmd
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(spawn_error)?;
-
-    let mut stdout = child.stdout.take().ok_or("Could not read git output")?;
-    let out_thread = std::thread::spawn(move || {
-        let mut s = String::new();
-        let _ = stdout.read_to_string(&mut s);
-        s
-    });
-
-    let stderr = child.stderr.take().ok_or("Could not read git output")?;
-    let mut reader = BufReader::new(stderr);
-    let (mut buf, mut lines) = (Vec::new(), Vec::<String>::new());
-    let mut byte = [0u8; 1];
-    // git redraws progress with '\r', so split on both '\r' and '\n'.
-    while reader.read(&mut byte).map_err(|e| e.to_string())? == 1 {
-        if byte[0] == b'\r' || byte[0] == b'\n' {
-            if !buf.is_empty() {
-                let line = redact_urls(String::from_utf8_lossy(&buf).trim());
-                let _ = app.emit(
-                    "op-progress",
-                    OpProgress {
-                        id: id.to_string(),
-                        percent: percent_of(&line),
-                        line: line.clone(),
-                    },
-                );
-                // Keep only the last redraw of a progress line; keep everything else.
-                if line.contains('%') && lines.last().is_some_and(|l| l.contains('%')) {
-                    lines.pop();
-                }
-                lines.push(line);
-                if lines.len() > 200 {
-                    lines.remove(0);
-                }
-                buf.clear();
-            }
-        } else {
-            buf.push(byte[0]);
-        }
-    }
-    let status = child.wait().map_err(|e| e.to_string())?;
-    let std = out_thread.join().unwrap_or_default();
-    let mut output = redact_urls(std.trim());
-    let err = lines.join("\n");
-    if !err.is_empty() {
-        if !output.is_empty() {
-            output.push('\n');
-        }
-        output.push_str(&err);
-    }
-    Ok(OpResult {
-        ok: status.success(),
-        output,
-    })
 }
 
 // ---------------------------------------------------------------------------
@@ -728,7 +654,7 @@ pub async fn clone_repo(
             args.push("--recurse-submodules".into());
         }
         args.extend(["--".to_string(), url, dest.clone()]);
-        let res = stream_git(&app, &id, None, &args)?;
+        let res = stream_git(&WindowProgress(&app), &id, None, &args)?;
         if res.ok {
             allow_repo(&dest);
             return Ok(CloneOutcome { path: dest, warning: None });

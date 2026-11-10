@@ -749,7 +749,7 @@ pub async fn fetch(app: AppHandle, id: String, path: String, prune: bool) -> Res
         if prune {
             args.push("--prune".into());
         }
-        stream_git(&app, &id, Some(&path), &args)
+        stream_git(&crate::git::WindowProgress(&app), &id, Some(&path), &args)
     })
     .await
 }
@@ -773,7 +773,7 @@ pub async fn fetch_ref(
         if let Some(r) = refspec.filter(|r| !r.is_empty()) {
             args.push(r);
         }
-        stream_git(&app, &id, Some(&path), &args)
+        stream_git(&crate::git::WindowProgress(&app), &id, Some(&path), &args)
     })
     .await
 }
@@ -790,7 +790,7 @@ pub async fn pull(app: AppHandle, id: String, path: String, mode: String) -> Res
             "ff-only" => args.push("--ff-only".into()),
             _ => args.push("--no-rebase".into()),
         }
-        stream_git(&app, &id, Some(&path), &args)
+        stream_git(&crate::git::WindowProgress(&app), &id, Some(&path), &args)
     })
     .await
 }
@@ -826,7 +826,7 @@ pub async fn push(
                 args.push(s);
             }
         }
-        stream_git(&app, &id, Some(&path), &args)
+        stream_git(&crate::git::WindowProgress(&app), &id, Some(&path), &args)
     })
     .await
 }
@@ -857,7 +857,7 @@ pub async fn delete_remote_branch(
         ref_arg(&remote)?;
         ref_arg(&branch)?;
         let args: Vec<String> = vec!["push".into(), remote, "--delete".into(), branch];
-        stream_git(&app, &id, Some(&path), &args)
+        stream_git(&crate::git::WindowProgress(&app), &id, Some(&path), &args)
     })
     .await
 }

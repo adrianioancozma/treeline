@@ -1,7 +1,7 @@
 use crate::status::redact_urls;
 use serde::Serialize;
 use std::ffi::OsStr;
-use std::io::Write;
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::RwLock;
@@ -265,4 +265,133 @@ where
         ok: out.status.success(),
         output: combined(&out),
     })
+}
+
+/// Receives the progress lines of a streaming git command (fetch, pull, push, clone): the app shows them in its
+/// window; a helper on another computer sends them over its connection.
+pub trait ProgressSink {
+    fn progress(&self, id: &str, line: &str, percent: Option<u8>);
+}
+
+pub fn percent_of(line: &str) -> Option<u8> {
+    let idx = line.find('%')?;
+    let digits: String = line[..idx]
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    digits.parse().ok()
+}
+
+/// Runs git, handing each progress line (already redacted) to `sink`, tagged with `id`.
+pub fn stream_git(
+    sink: &dyn ProgressSink,
+    id: &str,
+    cwd: Option<&str>,
+    args: &[String],
+) -> Result<OpResult, String> {
+    let mut cmd = git_cmd();
+    if let Some(dir) = cwd {
+        cmd.arg("-C").arg(dir);
+    }
+    let mut child = cmd
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(spawn_error)?;
+
+    let mut stdout = child.stdout.take().ok_or("Could not read git output")?;
+    let out_thread = std::thread::spawn(move || {
+        let mut s = String::new();
+        let _ = stdout.read_to_string(&mut s);
+        s
+    });
+
+    let stderr = child.stderr.take().ok_or("Could not read git output")?;
+    let mut reader = BufReader::new(stderr);
+    let (mut buf, mut lines) = (Vec::new(), Vec::<String>::new());
+    let mut byte = [0u8; 1];
+    // git redraws progress with '\r', so split on both '\r' and '\n'.
+    while reader.read(&mut byte).map_err(|e| e.to_string())? == 1 {
+        if byte[0] == b'\r' || byte[0] == b'\n' {
+            if !buf.is_empty() {
+                let line = redact_urls(String::from_utf8_lossy(&buf).trim());
+                sink.progress(id, &line, percent_of(&line));
+                // Keep only the last redraw of a progress line; keep everything else.
+                if line.contains('%') && lines.last().is_some_and(|l| l.contains('%')) {
+                    lines.pop();
+                }
+                lines.push(line);
+                if lines.len() > 200 {
+                    lines.remove(0);
+                }
+                buf.clear();
+            }
+        } else {
+            buf.push(byte[0]);
+        }
+    }
+    let status = child.wait().map_err(|e| e.to_string())?;
+    let std = out_thread.join().unwrap_or_default();
+    let mut output = redact_urls(std.trim());
+    let err = lines.join("\n");
+    if !err.is_empty() {
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str(&err);
+    }
+    Ok(OpResult {
+        ok: status.success(),
+        output,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Recorder(Mutex<Vec<(String, String, Option<u8>)>>);
+    impl ProgressSink for Recorder {
+        fn progress(&self, id: &str, line: &str, percent: Option<u8>) {
+            self.0.lock().unwrap().push((id.to_string(), line.to_string(), percent));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn progress_lines_reach_the_sink_tagged_and_without_secrets() {
+        use std::os::unix::fs::PermissionsExt;
+        // A stand-in for git that prints what a real fetch can print: a progress line redrawn with '\r', then a URL
+        // with a password (real git hides it in some messages, not in all; this layer must not rely on that).
+        let dir = std::env::temp_dir().join(format!("treeline-core-stream-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let fake = dir.join("git");
+        std::fs::write(&fake, "#!/bin/sh\nprintf 'Receiving objects:  42%% (1/2)\\rReceiving objects: 100%% (2/2)\\nremote: https://user:s3cr3t@example.com/x.git\\n' >&2\necho 'From https://user:s3cr3t@example.com/x.git'\nexit 1\n").unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        set_custom_git(Some(fake));
+
+        let rec = Recorder::default();
+        let res = stream_git(&rec, "op-7", None, &["fetch".to_string()]).unwrap();
+        set_custom_git(None);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let lines = rec.0.lock().unwrap();
+        assert!(!res.ok, "the command failed");
+        assert_eq!(lines.len(), 3, "the redrawn progress line arrives twice, then the remote line: {lines:?}");
+        assert!(lines.iter().all(|(id, _, _)| id == "op-7"), "every line carries the operation id");
+        assert_eq!(lines[0].2, Some(42));
+        assert_eq!(lines[1].2, Some(100));
+        assert!(lines.iter().all(|(_, l, _)| !l.contains("s3cr3t")), "no secret in what the user sees: {lines:?}");
+        assert!(lines[2].1.contains("https://***@example.com/x.git"), "the URL is shown with the secret hidden: {lines:?}");
+        assert!(!res.output.contains("s3cr3t"), "nor in the final output (stdout and stderr): {}", res.output);
+        assert!(res.output.contains("From https://***@example.com/x.git"), "stdout is kept, with the secret hidden");
+        assert!(!res.output.contains("42%"), "only the last redraw of a progress line is kept in the output");
+    }
 }
