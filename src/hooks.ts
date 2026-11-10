@@ -22,6 +22,29 @@ function readSize(key: string, fallback: number, min: number, max: number): numb
 }
 
 /**
+ * Follows the pointer for a divider drag until the button is released. A release outside the web view (e.g. over the
+ * window's title bar) may never arrive as mouseup, so a move with no button pressed, or the window losing focus, also
+ * ends the drag; otherwise the divider would keep following the pointer.
+ */
+function trackDrag(onMove: (ev: MouseEvent) => void, onEnd: () => void) {
+  const move = (ev: MouseEvent) => {
+    if (ev.buttons === 0) return end();
+    onMove(ev);
+  };
+  const end = () => {
+    window.removeEventListener("mousemove", move);
+    window.removeEventListener("mouseup", end);
+    window.removeEventListener("blur", end);
+    document.body.classList.remove("resizing");
+    onEnd();
+  };
+  document.body.classList.add("resizing");
+  window.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", end);
+  window.addEventListener("blur", end);
+}
+
+/**
  * Like useSplit for a column whose natural width depends on its content (`auto`): it follows `auto` until the user
  * drags the handle, remembers the dragged width, and goes back to automatic on reset (double-click).
  */
@@ -43,20 +66,16 @@ export function useAutoSplit(key: string, auto: number, min: number, max: number
       e.preventDefault();
       const start = e.clientX;
       const startSize = sizeRef.current;
-      const move = (ev: MouseEvent) => setStored(Math.min(max, Math.max(min, startSize + ev.clientX - start)));
-      const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
-        document.body.classList.remove("resizing");
-        try {
-          localStorage.setItem(`split:${key}`, String(sizeRef.current));
-        } catch {
-          /* storage unavailable: the size just won't persist */
-        }
-      };
-      document.body.classList.add("resizing");
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
+      trackDrag(
+        (ev) => setStored(Math.min(max, Math.max(min, startSize + ev.clientX - start))),
+        () => {
+          try {
+            localStorage.setItem(`split:${key}`, String(sizeRef.current));
+          } catch {
+            /* storage unavailable: the size just won't persist */
+          }
+        },
+      );
     },
     [key, min, max],
   );
@@ -89,23 +108,19 @@ export function useSplit(key: string, initial: number, min: number, max: number,
       e.preventDefault();
       const start = axis === "x" ? e.clientX : e.clientY;
       const startSize = sizeRef.current;
-      const move = (ev: MouseEvent) => {
-        const delta = (axis === "x" ? ev.clientX : ev.clientY) - start;
-        setSize(Math.min(max, Math.max(min, startSize + (invert ? -delta : delta))));
-      };
-      const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
-        document.body.classList.remove("resizing");
-        try {
-          localStorage.setItem(`split:${key}`, String(sizeRef.current));
-        } catch {
-          /* storage unavailable: the size just won't persist */
-        }
-      };
-      document.body.classList.add("resizing");
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
+      trackDrag(
+        (ev) => {
+          const delta = (axis === "x" ? ev.clientX : ev.clientY) - start;
+          setSize(Math.min(max, Math.max(min, startSize + (invert ? -delta : delta))));
+        },
+        () => {
+          try {
+            localStorage.setItem(`split:${key}`, String(sizeRef.current));
+          } catch {
+            /* storage unavailable: the size just won't persist */
+          }
+        },
+      );
     },
     [axis, key, min, max, invert],
   );
@@ -169,23 +184,19 @@ export function useOptionalSplit(key: string, min: number, max: number) {
       const y0 = e.clientY;
       const base = Math.min(max, Math.max(min, sizeRef.current ?? current));
       let latest = base;
-      const move = (ev: MouseEvent) => {
-        latest = Math.min(max, Math.max(min, base + ev.clientY - y0));
-        setSize(latest);
-      };
-      const up = () => {
-        window.removeEventListener("mousemove", move);
-        window.removeEventListener("mouseup", up);
-        document.body.classList.remove("resizing");
-        try {
-          localStorage.setItem(`split:${key}`, String(latest));
-        } catch {
-          /* storage unavailable: the size just won't persist */
-        }
-      };
-      document.body.classList.add("resizing");
-      window.addEventListener("mousemove", move);
-      window.addEventListener("mouseup", up);
+      trackDrag(
+        (ev) => {
+          latest = Math.min(max, Math.max(min, base + ev.clientY - y0));
+          setSize(latest);
+        },
+        () => {
+          try {
+            localStorage.setItem(`split:${key}`, String(latest));
+          } catch {
+            /* storage unavailable: the size just won't persist */
+          }
+        },
+      );
     },
     [key, min, max],
   );
