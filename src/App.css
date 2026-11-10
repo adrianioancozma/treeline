@@ -287,13 +287,18 @@ details[open] > summary > .icon:first-child { transform: rotate(90deg); }
 .list-title { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--bg-2); position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .list-title .btn { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .conflict-title { color: var(--danger); }
-.file-row { display: flex; align-items: center; gap: 8px; padding: 2px 8px 2px 12px; cursor: default; min-height: 24px; }
+.file-row { position: relative; display: flex; align-items: center; gap: 8px; padding: 2px 8px 2px 12px; cursor: default; min-height: 24px; }
 .file-row:hover { background: var(--bg-3); }
 .file-row.active { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
 .file-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-path .dir { color: var(--muted); font-size: var(--fs-s); margin-left: 8px; }
-.row-actions { display: none; gap: 2px; }
-.file-row:hover .row-actions, .file-row.active .row-actions { display: flex; }
+/* The actions float over the end of the row and fit its 24px: hovering never changes the row's size, and the file name
+   keeps its full width at rest. Their background repeats the row's, fading in on the left. */
+.row-actions { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; padding-left: 16px; visibility: hidden;
+  background: var(--bg-3); -webkit-mask-image: linear-gradient(to right, transparent, #000 16px); mask-image: linear-gradient(to right, transparent, #000 16px); }
+.file-row.active .row-actions { background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-2); }
+.row-actions .icon-btn { width: 20px; height: 20px; }
+.file-row:hover .row-actions, .file-row.active .row-actions { visibility: visible; }
 .badge { width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: var(--r-xs); font-size: var(--fs-xs); font-weight: 700; flex-shrink: 0; background: var(--bg-3); }
 .badge.modified, .badge.renamed { color: var(--warn); background: var(--warn-soft); }
 .badge.added { color: var(--ok); background: var(--ok-soft); }
