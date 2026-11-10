@@ -197,6 +197,15 @@ export function HistoryView({ tab }: { tab: Tab }) {
     const isHead = status?.head === c.sha;
     openMenu(e, [
       { label: "Copy SHA", onClick: () => a.copy(c.sha) },
+      { label: "Copy subject", onClick: () => a.copy(c.subject) },
+      {
+        label: "Copy message",
+        onClick: () =>
+          void api
+            .commitDetail(tab.path!, c.sha)
+            .then((det) => a.copy(det.message))
+            .catch((err) => useApp.getState().notify("error", errorMessage(err))),
+      },
       { separator: true },
       { label: "Check out this commit", onClick: () => a.checkoutCommit(c), disabled: isHead },
       { label: "New branch here…", onClick: () => a.newBranch(c.sha) },
