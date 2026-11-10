@@ -340,7 +340,12 @@ function CommitBox({ tab, stagedCount, conflicts }: { tab: Tab; stagedCount: num
         rows={3}
       />
       <div className="commit-meta">
-        <span className={first.length > 72 ? "warn-text small" : "muted small"}>{first.length}/72</span>
+        <span
+          className={first.length > 72 ? "warn-text small" : "muted small"}
+          title="Length of the first line (the subject). Keep it within 72 characters so it is not cut off in git log and on hosting sites."
+        >
+          {first.length}/72
+        </span>
         <label className="check inline">
           <input type="checkbox" checked={amend} onChange={(e) => void toggleAmend(e.target.checked)} />
           Amend last commit

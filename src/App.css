@@ -199,6 +199,8 @@ kbd { font-family: var(--mono); font-size: var(--fs-xs); background: var(--bg-3)
 .btn.tiny { padding: 2px 9px; font-size: var(--fs-s); border-radius: var(--r-xs); }
 .btn.danger-text { color: var(--danger); }
 .btn:disabled { opacity: 0.45; cursor: default; }
+/* A disabled main action looks unavailable but keeps a readable label (a faded blue button read at about 2:1). */
+.btn.primary:disabled { opacity: 1; background: var(--bg-3); border-color: var(--border-strong); color: var(--muted); }
 input:not([type="checkbox"]), textarea, select { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r-s); padding: 7px 10px; color: var(--text); font: inherit; }
 textarea { resize: vertical; font-family: inherit; }
 input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color: var(--accent); outline: none; }
@@ -259,7 +261,7 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 .side-scroll { flex: 1; overflow: auto; padding: 0 6px 12px; }
 .side-block { padding: 2px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
 .side-section > summary, .side-sub > summary, .side-folder > summary { display: flex; align-items: center; gap: 6px; padding: 8px 8px 3px; cursor: pointer; list-style: none; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; user-select: none; }
-.side-sub > summary { text-transform: none; letter-spacing: 0; font-size: var(--fs-s); font-weight: 500; color: var(--text); padding-left: 16px; }
+.side-sub > summary { text-transform: none; letter-spacing: 0; font-size: var(--fs-s); font-weight: 500; color: var(--text); padding-left: 26px; }
 .side-folder > summary { text-transform: none; letter-spacing: 0; font-size: var(--fs-s); font-weight: 500; color: var(--text); padding-top: 4px; padding-bottom: 4px; border-radius: var(--r-s); }
 .side-folder > summary:hover { background: var(--bg-3); }
 .side-folder > summary .icon { color: var(--muted); }
