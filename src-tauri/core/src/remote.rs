@@ -59,7 +59,13 @@ impl Connection {
             });
         }
         if let Some(bytes) = first {
-            stdin.write_all(bytes).and_then(|_| stdin.flush()).map_err(|e| format!("Could not send the helper: {e}"))?;
+            if let Err(e) = stdin.write_all(bytes).and_then(|_| stdin.flush()) {
+                // The other side stopped reading (ssh refused, no usable folder…): its own message says why.
+                let _ = child.wait();
+                std::thread::sleep(Duration::from_millis(50)); // let the error output be collected
+                let err = stderr.lock().unwrap_or_else(|e| e.into_inner()).trim().to_string();
+                return Err(if err.is_empty() { format!("Could not send the helper: {e}") } else { err });
+            }
         }
 
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
@@ -190,23 +196,33 @@ pub fn valid_host(host: &str) -> bool {
     !name.is_empty() && !name.starts_with('-') && !user.starts_with('-') && ok(name) && ok(user) && host.len() <= 255
 }
 
+/// Where the sent helper may be put, in order: /tmp, then a private folder in the user's home (for computers whose
+/// /tmp does not allow running programs).
+pub const HELPER_DIRS: [&str; 2] = ["/tmp", "$HOME/.cache/treeline"];
+
+/// The shell script run on the other computer. It reads the helper (`helper_len` bytes) from its input once, into a
+/// private file in the first folder where one can be created; if the helper cannot run there (`--probe`), it is moved
+/// to the next folder. The helper deletes its file as soon as it starts. Only `helper_len` (computed here) and the
+/// fixed folder names are put into the script.
+pub fn launch_script(helper_len: usize, dirs: &[&str]) -> String {
+    let dirs = dirs.iter().map(|d| format!("\"{d}\"")).collect::<Vec<_>>().join(" ");
+    format!(
+        r#"f=; for d in {dirs}; do [ -d "$d" ] || {{ mkdir -p "$d" 2>/dev/null && chmod 700 "$d"; }}; g=$(mktemp "$d/treeline-helper.XXXXXX" 2>/dev/null) || continue; chmod 700 "$g"; if [ -z "$f" ]; then head -c {helper_len} > "$g" || exit 97; else cat "$f" > "$g"; rm -f "$f"; fi; f=$g; if "$f" --probe >/dev/null 2>&1; then exec "$f" --stdio --self-delete; fi; done; [ -n "$f" ] && rm -f "$f"; echo "treeline: no folder on this computer allows running the helper (tried /tmp and ~/.cache/treeline)" >&2; exit 99"#
+    )
+}
+
 /// The command that starts a fresh helper on `host` with the system ssh. The helper binary (`helper_len` bytes) must be
-/// written to its input first: the other side copies exactly that many bytes into a private file in /tmp, runs it, and
-/// the helper deletes the file at once. Only keys from the ssh agent are used for now (no password prompt).
+/// written to its input first. Only keys from the ssh agent are used for now (no password prompt).
 pub fn ssh_helper_command(host: &str, helper_len: usize) -> Result<Command, String> {
     if !valid_host(host) {
         return Err(format!("“{host}” is not a computer name ssh can use."));
     }
     let ssh = if cfg!(target_os = "macos") { "/usr/bin/ssh" } else { "ssh" };
-    // The only value put into the remote command is a number this code computed.
-    let script = format!(
-        r#"f=$(mktemp /tmp/treeline-helper.XXXXXX) && head -c {helper_len} > "$f" && chmod 700 "$f" && exec "$f" --stdio --self-delete"#
-    );
     let mut cmd = Command::new(ssh);
     cmd.args(["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3"])
         .arg("--")
         .arg(host)
-        .arg(script);
+        .arg(launch_script(helper_len, &HELPER_DIRS));
     Ok(cmd)
 }
 
@@ -234,6 +250,6 @@ mod tests {
         assert_eq!(args.len(), dd + 3, "then only the remote command");
         assert!(args[..dd].windows(2).any(|w| w[0] == "-o" && w[1] == "BatchMode=yes"));
         assert!(args[dd + 2].contains("head -c 994296 "), "{}", args[dd + 2]);
-        assert!(args[dd + 2].ends_with("--stdio --self-delete"));
+        assert!(args[dd + 2].contains("exec \"$f\" --stdio --self-delete"));
     }
 }

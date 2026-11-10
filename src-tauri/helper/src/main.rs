@@ -63,6 +63,10 @@ fn dispatch(method: &str, p: Value) -> Result<Value, String> {
 }
 
 fn main() {
+    // Used by the launch script to check that a folder allows running programs; reads nothing.
+    if std::env::args().any(|a| a == "--probe") {
+        return;
+    }
     let self_deleted = std::env::args()
         .any(|a| a == "--self-delete")
         .then(|| std::env::current_exe().and_then(std::fs::remove_file).is_ok());

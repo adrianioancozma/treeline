@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use treeline_core::remote::Connection;
+use treeline_core::remote::{Connection, launch_script};
 
 const HELPER: &str = env!("CARGO_BIN_EXE_treeline-helper");
 const SEC: Duration = Duration::from_secs(10);
@@ -66,25 +66,67 @@ fn skips_what_a_login_shell_prints_first() {
     assert_eq!(conn.call("ping", json!({}), SEC).unwrap(), json!({}));
 }
 
+fn private_dir(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("treeline-client-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
 #[cfg(unix)]
 #[test]
 fn sends_the_helper_along_and_it_leaves_nothing_behind() {
     let bytes = std::fs::read(HELPER).unwrap();
-    let dir = std::env::temp_dir().join(format!("treeline-client-upload-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    // What the app runs on the other computer, with a private folder instead of /tmp.
-    let script = format!(
-        r#"f=$(mktemp '{}/treeline-helper.XXXXXX') && head -c {} > "$f" && chmod 700 "$f" && exec "$f" --stdio --self-delete"#,
-        dir.display(),
-        bytes.len()
-    );
+    let dir = private_dir("upload");
+    // The script the app runs on the other computer, with a private folder instead of /tmp.
+    let script = launch_script(bytes.len(), &[&dir.to_string_lossy()]);
     let conn = Connection::start(sh(&script), Some(&bytes), SEC, |_| {}).unwrap();
     assert_eq!(conn.hello["treeline-helper"]["self_deleted"], json!(true));
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "the sent helper deleted its file");
     conn.call("init", json!({ "trusted": [] }), SEC).unwrap();
     assert_eq!(conn.call("ping", json!({}), SEC).unwrap(), json!({}));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn uses_the_next_folder_when_the_first_does_not_work() {
+    use std::os::unix::fs::PermissionsExt;
+    let bytes = std::fs::read(HELPER).unwrap();
+    let blocked = private_dir("blocked");
+    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o500)).unwrap(); // nothing can be created there
+    let fallback = private_dir("fallback");
+    let script = launch_script(bytes.len(), &[&blocked.to_string_lossy(), &fallback.to_string_lossy()]);
+    let conn = Connection::start(sh(&script), Some(&bytes), SEC, |_| {}).unwrap();
+    assert_eq!(conn.hello["treeline-helper"]["self_deleted"], json!(true));
+    assert_eq!(std::fs::read_dir(&fallback).unwrap().count(), 0, "ran from the fallback folder and left nothing");
+    let mode = std::fs::metadata(&blocked).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o500, "an existing folder's permissions are left alone, so the helper could only run from the fallback");
+    conn.call("init", json!({ "trusted": [] }), SEC).unwrap();
+    assert_eq!(conn.call("ping", json!({}), SEC).unwrap(), json!({}));
+    drop(conn);
+    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let _ = std::fs::remove_dir_all(&blocked);
+    let _ = std::fs::remove_dir_all(&fallback);
+}
+
+#[cfg(unix)]
+#[test]
+fn says_clearly_when_no_folder_allows_running_the_helper() {
+    use std::os::unix::fs::PermissionsExt;
+    let bytes = std::fs::read(HELPER).unwrap();
+    let a = private_dir("none-a");
+    let b = private_dir("none-b");
+    for d in [&a, &b] {
+        std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o500)).unwrap();
+    }
+    let script = launch_script(bytes.len(), &[&a.to_string_lossy(), &b.to_string_lossy()]);
+    let err = Connection::start(sh(&script), Some(&bytes), SEC, |_| {}).err().expect("no connection");
+    assert!(err.contains("no folder on this computer allows running the helper"), "{err}");
+    for d in [&a, &b] {
+        std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(d);
+    }
 }
 
 #[test]
@@ -132,4 +174,19 @@ fn notifications_go_to_the_listener() {
     }
     assert_eq!(heard.lock().unwrap()[0]["params"]["key"], json!("/home/a/sub"));
     conn.close();
+}
+
+#[test]
+fn an_ssh_failure_while_sending_the_helper_becomes_its_message() {
+    // ssh gives up (e.g. a refused key) before reading what the app sends.
+    let bytes = vec![0u8; 4 * 1024 * 1024];
+    let err = Connection::start(
+        sh("echo 'adrian@linux-box.local: Permission denied (publickey).' >&2; exit 255"),
+        Some(&bytes),
+        SEC,
+        |_| {},
+    )
+    .err()
+    .expect("no connection");
+    assert!(err.contains("Permission denied (publickey)"), "{err}");
 }
