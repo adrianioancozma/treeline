@@ -3,7 +3,7 @@ import { api, errorMessage } from "../api";
 import { repoActions } from "../actions";
 import { useAutoSplit, useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
-import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
+import { classifyRef, fullDate, listDate, splitPath } from "../lib/format";
 import { graphWidths } from "../lib/paneSize";
 import { DATE_RANGES, authorsOf, dateFilterActive, dateWindow, filtersActive, noFilters, type DateRange } from "../lib/historyFilter";
 import { useApp } from "../store";
@@ -363,7 +363,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                   </span>
                   <span className="muted ellipsis">{c.author}</span>
                   <span className="muted ellipsis" title={isWip ? "" : fullDate(c.time)}>
-                    {isWip ? "" : relativeTime(c.time)}
+                    {isWip ? "" : listDate(c.time)}
                   </span>
                   <span className="sha">{isWip ? "" : c.sha.slice(0, 7)}</span>
                 </div>
@@ -576,18 +576,26 @@ function CommitDetailPane({
           <h3 className="commit-title">{base ? `to: ${title}` : title}</h3>
           {bodyLines.join("\n").trim() && <pre className="commit-body">{bodyLines.join("\n").trim()}</pre>}
           {detail && (
-            <p className="commit-line small">
-              <strong>{detail.author}</strong>
-              <span className="muted"> · {fullDate(detail.time)} · </span>
-              <button className="link" onClick={() => a.copy(sha)} title="Copy full SHA">
-                {sha.slice(0, 7)} <Icon name="copy" size={12} />
-              </button>
-              {detail.parents.length > 0 && (
-                <span className="muted">
-                  {" "}· {detail.parents.length > 1 ? "parents" : "parent"} {detail.parents.map((p) => p.slice(0, 7)).join(", ")}
+            // Two deliberate lines (who and when; which commit and its parents); each piece stays whole when space is short.
+            <div className="commit-meta-lines small">
+              <div className="meta-row">
+                <strong>{detail.author}</strong>
+                <span className="muted">{fullDate(detail.time)}</span>
+              </div>
+              <div className="meta-row muted">
+                <span>
+                  commit{" "}
+                  <button className="link" onClick={() => a.copy(sha)} title="Copy full SHA">
+                    {sha.slice(0, 7)} <Icon name="copy" size={12} />
+                  </button>
                 </span>
-              )}
-            </p>
+                {detail.parents.length > 0 && (
+                  <span>
+                    {detail.parents.length > 1 ? "parents" : "parent"} <code>{detail.parents.map((p) => p.slice(0, 7)).join(", ")}</code>
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
         <div

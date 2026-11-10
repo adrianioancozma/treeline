@@ -396,6 +396,10 @@ body.resizing .splitter::after { background: var(--accent); }
 .detail-left { display: flex; flex-direction: column; min-height: 0; background: var(--bg-2); border-right: 1px solid var(--border); }
 .detail-meta { padding: 10px 14px; border-bottom: 1px solid var(--border); max-height: 38%; overflow: auto; }
 .commit-line { margin: 4px 0 0; line-height: 1.6; }
+.commit-meta-lines { display: grid; gap: 2px; margin-top: 4px; }
+.meta-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 10px; row-gap: 2px; }
+.meta-row > * { white-space: nowrap; }
+.meta-row code { font-family: var(--mono); font-size: var(--fs-xs); }
 .commit-title { font-size: var(--fs-l); margin-bottom: 6px; line-height: 1.35; }
 .commit-body { white-space: pre-wrap; color: var(--muted); margin-bottom: 8px; font-size: var(--fs-s); }
 .detail dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 8px 0 0; }

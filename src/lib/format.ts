@@ -20,6 +20,17 @@ export function relativeTime(unixSeconds: number, now = Date.now()): string {
   return "";
 }
 
+/**
+ * The date for a list column: relative for the last week ("2 h ago", "6 d ago"), then the day and month ("11 Jan"),
+ * with the year once it is not the current one ("28 Nov 2025"). `locale` is for tests; the app uses the system's.
+ */
+export function listDate(unixSeconds: number, now = Date.now(), locale?: string): string {
+  if (now / 1000 - unixSeconds < 7 * 86400) return relativeTime(unixSeconds, now);
+  const d = new Date(unixSeconds * 1000);
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  return d.toLocaleDateString(locale, sameYear ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function fullDate(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toLocaleString(undefined, {
     year: "numeric",
