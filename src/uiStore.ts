@@ -44,6 +44,8 @@ interface UiState {
   /** Interactive-rebase dialog request. `base` is the commit to rebase onto (null = root). */
   rebase: { tabId: string; base: string | null; title: string } | null;
   clone: boolean;
+  /** The picker for a repository on another computer. */
+  remoteBrowser: boolean;
   settings: boolean;
   /** The merged-branches dialog, open for this tab. */
   mergedBranches: { tabId: string } | null;
@@ -53,7 +55,7 @@ interface UiState {
   update: Update | null;
 }
 
-export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, settings: false, mergedBranches: null, multiMerge: null, update: null }));
+export const useUi = create<UiState>(() => ({ fileHistory: null, sections: loadSections(), menu: null, rebase: null, clone: false, remoteBrowser: false, settings: false, mergedBranches: null, multiMerge: null, update: null }));
 
 export function openMenu(e: MouseEvent | { clientX: number; clientY: number; preventDefault?: () => void; stopPropagation?: () => void }, items: MenuItem[]) {
   e.preventDefault?.();

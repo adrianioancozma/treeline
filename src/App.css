@@ -457,6 +457,18 @@ body.resizing .splitter::after { background: var(--accent); }
 .modal h2 { font-size: var(--fs-l); text-transform: none; letter-spacing: 0; color: var(--text); }
 .modal label { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-s); color: var(--muted); }
 .modal label.check { flex-direction: row; align-items: center; gap: 8px; font-size: var(--fs-m); color: var(--text); }
+/* Picking a repository on another computer: a path field over a list of folders (like VS Code's remote input). */
+.modal.remote-browser { width: 600px; }
+.remote-browser .field { display: flex; flex-direction: column; gap: 6px; }
+.remote-browser .field input.mono { font-family: var(--mono); font-size: var(--fs-s); }
+.rb-list { height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-m); background: var(--bg); padding: 4px; }
+.rb-row { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 0 10px; border-radius: var(--r-s); cursor: pointer; font-size: var(--fs-m); }
+.rb-row.sel { background: var(--accent-soft); }
+.rb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-repo { flex-shrink: 0; font-size: var(--fs-2xs); font-weight: 700; color: var(--ok); background: var(--ok-soft); border-radius: var(--r-xs); padding: 1px 6px; }
+.rb-error { color: var(--danger); font-size: var(--fs-s); padding: 8px 10px; }
+.rb-recent { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.rb-actions { align-items: center; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .progress { display: flex; flex-direction: column; gap: 6px; }
 .bar { height: 6px; background: var(--bg-3); border-radius: var(--r-xs); overflow: hidden; }

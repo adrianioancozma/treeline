@@ -57,6 +57,16 @@ export const api = {
   remoteOpen: (host: string, path: string) =>
     tauriInvoke<{ path: string; writable: boolean; toplevel: string | null }>("remote_open", { host, path }),
   remoteDisconnect: (host: string) => tauriInvoke<void>("remote_disconnect", { host }),
+  /** Folders of a path on another computer (names only, and whether each is a repository). */
+  remoteList: (host: string, path: string, showHidden: boolean) =>
+    tauriInvoke<{ path: string; parent: string | null; home: string | null; repo: boolean; entries: { name: string; repo: boolean }[]; truncated: boolean }>(
+      "remote_list",
+      { host, path, showHidden },
+    ),
+  /** Computer names from ~/.ssh/config. */
+  sshHosts: () => tauriInvoke<string[]>("ssh_hosts"),
+  /** Folders already opened on that computer. */
+  remoteRecent: (host: string) => tauriInvoke<string[]>("remote_recent", { host }),
   status: (path: string) => invoke<RepoStatus>("repo_status", { path }),
   submodules: (path: string) => invoke<Submodule[]>("list_submodules", { path }),
   initSubmodule: (path: string, submodule: string) =>

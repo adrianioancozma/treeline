@@ -13,6 +13,7 @@ import { Home, pickAndOpenRepo } from "./components/Home";
 import { RepoView } from "./components/RepoView";
 import { StatusBar } from "./components/StatusBar";
 import { CloneDialog } from "./components/CloneDialog";
+import { RemoteBrowser } from "./components/RemoteBrowser";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FileHistoryDialog } from "./components/FileHistoryDialog";
 import { MergedBranchesDialog } from "./components/MergedBranchesDialog";
@@ -28,6 +29,7 @@ export default function App() {
   const activeId = useApp((s) => s.activeId);
   const theme = useApp((s) => s.theme);
   const cloning = useUi((s) => s.clone);
+  const browsingRemote = useUi((s) => s.remoteBrowser);
   const settingsOpen = useUi((s) => s.settings);
   const fileHistory = useUi((s) => s.fileHistory);
   const mergedBranches = useUi((s) => s.mergedBranches);
@@ -143,6 +145,7 @@ export default function App() {
       <Toasts />
       <CommandPalette onClone={() => useUi.setState({ clone: true })} />
       {cloning && <CloneDialog onClose={() => useUi.setState({ clone: false })} />}
+      {browsingRemote && <RemoteBrowser onClose={() => useUi.setState({ remoteBrowser: false })} />}
       {fileHistory && (
         <FileHistoryDialog key={`${fileHistory.repo}:${fileHistory.file}:${fileHistory.mode}`} req={fileHistory} onClose={() => useUi.setState({ fileHistory: null })} />
       )}
