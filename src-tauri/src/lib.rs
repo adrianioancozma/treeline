@@ -3,6 +3,7 @@ use tauri::{AppHandle, Wry};
 
 mod git;
 mod ops;
+mod remote;
 mod store;
 mod watcher;
 
@@ -62,6 +63,7 @@ pub fn run() {
         .setup(|app| {
             store::apply_saved_settings(app.handle());
             store::load_trusted_folders(app.handle());
+            remote::load(app.handle());
             #[cfg(target_os = "macos")]
             app.set_menu(build_app_menu(app.handle())?)?;
             #[cfg(not(target_os = "macos"))]
@@ -141,6 +143,10 @@ pub fn run() {
             store::save_state,
             watcher::watch_repo,
             watcher::unwatch_repo,
+            remote::remote_connect,
+            remote::remote_open,
+            remote::remote_call,
+            remote::remote_disconnect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Treeline");

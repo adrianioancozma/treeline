@@ -10,6 +10,7 @@
 //! - `{"id": 1, "method": "init", "params": {"trusted": ["/home/me/repo", …]}}` — the folders the user opened in the
 //!   app for this computer. Nothing else is answered before it. Folders added later on this side (a submodule, the
 //!   top level of a sub-folder) are reported as `{"method": "trusted", "params": {"key": …}}`.
+//! - `{"method": "allow", "params": {"path": …}}` — one more folder the user confirmed in the app.
 //! - read requests (`repo_status`, `git_log`, …) with the same parameter names as the functions in
 //!   `treeline_core::read`; each runs on its own thread, so a slow one does not hold up the others.
 //! - answers: `{"id": …, "result": …}` or `{"id": …, "error": "…"}`.
@@ -100,6 +101,18 @@ fn main() {
             });
             ready.store(true, Ordering::SeqCst);
             send(&out, &json!({ "id": id, "result": { "trusted": trusted.len() } }));
+            continue;
+        }
+        if method == "allow" && ready.load(Ordering::SeqCst) {
+            // Another folder the user confirmed in the app; resolved here, and reported back as `trusted`.
+            let answer = match params.get("path").and_then(Value::as_str) {
+                Some(path) => {
+                    treeline_core::trust::allow_repo(path);
+                    json!({ "id": id, "result": { "key": treeline_core::trust::allow_key(path) } })
+                }
+                None => json!({ "id": id, "error": "bad parameters: missing field `path`" }),
+            };
+            send(&out, &answer);
             continue;
         }
         if !ready.load(Ordering::SeqCst) {

@@ -169,3 +169,20 @@ fn deletes_its_own_file_and_keeps_working() {
     assert_eq!(h.call(2, "ping", json!({}))["result"], json!({}));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_folder_allowed_later_is_answered_and_reported_back() {
+    let repo = sample_repo("allow");
+    let p = repo.to_string_lossy().to_string();
+    let mut h = Helper::start();
+    h.call(1, "init", json!({ "trusted": [] }));
+    assert!(h.call(2, "repo_status", json!({ "path": p }))["error"].as_str().unwrap().contains("has not been opened"));
+    h.send(json!({ "id": 3, "method": "allow", "params": { "path": p } }));
+    // The notification and the answer may come in either order.
+    let (a, b) = (h.next(), h.next());
+    let (note, answer) = if a.get("id").is_some() { (b, a) } else { (a, b) };
+    assert_eq!(note["method"], json!("trusted"));
+    assert_eq!(answer["result"]["key"], note["params"]["key"]);
+    assert!(h.call(4, "repo_status", json!({ "path": p }))["result"].is_object());
+    let _ = std::fs::remove_dir_all(&repo);
+}
