@@ -246,6 +246,8 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 .tool.mini { min-width: 0; padding: 12px 3px; margin-left: -6px; color: var(--muted); }
 .tool-icon { position: relative; display: grid; place-items: center; }
 .tool-label { font-size: var(--fs-xs); color: var(--muted); font-weight: 500; }
+/* Labels go only when the toolbar is very narrow (toolbarLayout), after rare actions have moved into More. */
+.toolbar.icons-only .tool-label { display: none; }
 .tool:hover:not(:disabled) .tool-label { color: var(--text); }
 .tool-badge { position: absolute; top: -4px; right: -9px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: var(--r-m); background: var(--accent); color: var(--accent-text); font-size: var(--fs-2xs); font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--bg-2); }
 .sep { width: 1px; height: 20px; background: var(--border-strong); margin: 0 6px; }
@@ -487,7 +489,6 @@ body.resizing .splitter::after { background: var(--accent); }
   .tools { flex-wrap: nowrap; flex-shrink: 0; }
   .repo-side { width: 210px; }
   .tool { min-width: 34px; padding: 5px 4px; }
-  .tool-label { display: none; }
   .sep { margin: 0 2px; }
   .repo-name { min-width: 96px; }
 }
