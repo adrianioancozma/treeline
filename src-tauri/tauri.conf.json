@@ -29,7 +29,8 @@
     "publisher": "Treeline",
     "category": "DeveloperTool",
     "macOS": {
-      "minimumSystemVersion": "12.0"
+      "minimumSystemVersion": "12.0",
+      "signingIdentity": "-"
     },
     "shortDescription": "A fast, provider-independent Git client",
     "longDescription": "Treeline is a fast desktop Git client with tabs, bookmarks, submodules, history graph, staging by hunk or line, merge and rebase tools. It works with any Git remote.",
