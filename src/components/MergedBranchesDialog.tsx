@@ -134,8 +134,9 @@ export function MergedBranchesDialog({ tabId, onClose }: { tabId: string; onClos
                   title={b.head ? "Checked out, so it cannot be deleted" : `Delete ${b.name}`}
                 />
                 <button className="mb-name" onClick={() => setFocus(b.name)}>
-                  <span className="subject ellipsis">
-                    <Icon name="branch" size={13} /> {b.name}
+                  <span className="subject">
+                    <Icon name="branch" size={13} />
+                    <span className="subject-text">{b.name}</span>
                     {b.head && <span className="mb-badge">checked out</span>}
                     {b.atTarget && !b.head && (
                       <span className="mb-badge" title={`Its tip is the same commit as ${target}: nothing was committed on it`}>
@@ -175,7 +176,7 @@ export function MergedBranchesDialog({ tabId, onClose }: { tabId: string; onClos
                 </p>
                 {history.commits.map((c) => (
                   <div key={c.sha} className="fh-commit">
-                    <span className="subject ellipsis" title={c.subject}>
+                    <span className="subject-text" title={c.subject}>
                       {c.subject}
                     </span>
                     <span className="muted small ellipsis">

@@ -109,7 +109,7 @@ export function FileHistoryDialog({ req, onClose }: { req: FileHistoryRequest; o
                 const older = commits[i + 1];
                 return (
                   <button key={c.sha} role="option" aria-selected={c.sha === sel} className={`fh-commit${c.sha === sel ? " active" : ""}`} onClick={() => setSel(c.sha)}>
-                    <span className="subject ellipsis">{c.subject}</span>
+                    <span className="subject-text">{c.subject}</span>
                     <span className="muted small ellipsis">
                       {c.author} · <span title={fullDate(c.time)}>{relativeTime(c.time)}</span> · <code>{c.sha.slice(0, 7)}</code>
                       {older && older.file !== c.file ? ` · renamed from ${older.file}` : ""}

@@ -373,7 +373,9 @@ body.resizing .splitter::after { background: var(--accent); }
 .focus-chip .icon-btn { width: 20px; height: 20px; }
 .crow.wip .subject { font-style: italic; color: var(--muted); }
 .graph { display: block; overflow: hidden; }
-.subject { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.subject { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
+/* The text gets its own box: text-overflow does not apply to text placed directly in a flex container. */
+.subject-text { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ref { display: inline-block; flex-shrink: 0; padding: 0 5px; border-radius: var(--r-xs); font-size: var(--fs-xs); line-height: 16px; font-weight: 600; }
 .ref.head { background: var(--accent); color: var(--accent-text); }
 .ref.branch { background: var(--ok-soft); color: var(--ok); }

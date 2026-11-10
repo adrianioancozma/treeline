@@ -336,7 +336,9 @@ export function HistoryView({ tab }: { tab: Tab }) {
                         {r.label}
                       </span>
                     ))}
-                    {isWip ? <em>Uncommitted changes ({wipCount})</em> : c.subject}
+                    <span className="subject-text" title={isWip ? undefined : c.subject}>
+                      {isWip ? <em>Uncommitted changes ({wipCount})</em> : c.subject}
+                    </span>
                   </span>
                   <span className="muted ellipsis">{c.author}</span>
                   <span className="muted ellipsis" title={isWip ? "" : fullDate(c.time)}>
