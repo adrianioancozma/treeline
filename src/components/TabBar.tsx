@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 import { formatShortcut } from "../lib/shortcut";
 
 export function TabBar() {
-  const { tabs, activeId, setActive, closeTab, newTab, moveTab, data } = useApp();
+  const { tabs, activeId, setActive, closeTab, newTab, moveTab, data, hosts } = useApp();
   const update = useUi((s) => s.update);
   const bar = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -85,7 +85,10 @@ ${t.host ? `${t.host}:` : ""}${t.path}` : "New tab"}
           >
             {t.path && <Icon name="branch" size={13} />}
             {t.host && (
-              <span className="host-badge" aria-label={`on ${t.host}`}>
+              <span
+                className={`host-badge${hosts[t.host]?.down ? " down" : ""}`}
+                aria-label={hosts[t.host]?.down ? `on ${t.host}, not reachable` : `on ${t.host}`}
+              >
                 ⇄
               </span>
             )}

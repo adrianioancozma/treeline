@@ -40,6 +40,7 @@ function Btn({
 export function Toolbar({ tab }: { tab: Tab }) {
   const d = useApp((s) => s.data[tab.id]);
   const bookmarks = useApp((s) => s.bookmarks);
+  const down = useApp((s) => (tab.host ? (s.hosts[tab.host]?.down ?? false) : false));
   const { addBookmark, removeBookmark, refresh, setUi } = useApp.getState();
   const a = repoActions(tab.id);
   const s = d?.status;
@@ -75,7 +76,10 @@ export function Toolbar({ tab }: { tab: Tab }) {
       <div className="repo-id">
         <strong className="repo-name">{tab.name}</strong>
         {tab.host && (
-          <span className="host-badge" title={`${tab.host}:${tab.path}`}>
+          <span
+            className={`host-badge${down ? " down" : ""}`}
+            title={down ? `${tab.host} cannot be reached right now` : `${tab.host}:${tab.path}`}
+          >
             ⇄ {shortHost(tab.host)}
           </span>
         )}

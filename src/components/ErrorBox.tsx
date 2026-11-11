@@ -14,6 +14,7 @@ const ACTION_LABEL: Record<ErrorAction, string> = {
   "show-changes": "Show changes",
   "remove-lock": "Remove lock file",
   "choose-git": "Locate Git…",
+  reconnect: "Reconnect",
   "force-push": "Force push (with lease)…",
   "force-delete": "Delete anyway…",
   "force-checkout": "Force checkout (discard my changes)…",
@@ -38,12 +39,15 @@ export function ErrorBox({
   compact = false,
   onDone,
   ctx,
+  onRetry,
 }: {
   text: string;
   compact?: boolean;
   onDone?: () => void;
   /** The operation that failed; enables the matching force fix. */
   ctx?: ErrorCtx;
+  /** Called after Reconnect succeeds, for a host that shows something other than a tab (the remote browser). */
+  onRetry?: () => void;
 }) {
   const ex = useMemo(() => explainError(text), [text]);
   const [busy, setBusy] = useState(false);
@@ -74,6 +78,21 @@ export function ErrorBox({
   const run = async (action: ErrorAction) => {
     const s = useApp.getState();
     if (action === "choose-git") return chooseGit();
+    if (action === "reconnect") {
+      // The computer comes from the error itself: the toast may be about a tab that is no longer the active one.
+      if (!ex.host) return;
+      setBusy(true);
+      try {
+        await s.reconnectHost(ex.host);
+        onDone?.();
+        onRetry?.();
+      } catch (e) {
+        s.notify("error", errorMessage(e));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     const tab = s.tabs.find((t) => t.id === s.activeId);
     if (!tab?.path) return;
     const act = repoActions(tab.id);

@@ -81,9 +81,10 @@ describe("connection states", () => {
     applyHostState({ host: "linux-box", gen: 2, state: "alive" });
     applyHostState({ host: "linux-box", gen: 1, state: "failed" }); // about the old connection, arrived late
     applyHostState({ host: "build-box", gen: 1, state: "failed" });
-    expect(useApp.getState().hosts).toEqual({ "linux-box": { gen: 2, state: "alive" }, "build-box": { gen: 1, state: "failed" } });
+    expect(useApp.getState().hosts["linux-box"]).toMatchObject({ gen: 2, state: "alive" });
+    expect(useApp.getState().hosts["build-box"]).toMatchObject({ gen: 1, state: "failed" });
     applyHostState({ host: "linux-box", gen: 2, state: "idle" });
-    expect(useApp.getState().hosts["linux-box"]).toEqual({ gen: 2, state: "idle" });
+    expect(useApp.getState().hosts["linux-box"]).toMatchObject({ gen: 2, state: "idle" });
   });
 });
 
@@ -117,5 +118,22 @@ describe("Refresh on a remote tab", () => {
     useApp.setState({ activeId: "a" });
     await useApp.getState().reconnectHost("linux-box");
     expect(mocks.status).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the computer badge", () => {
+  it("stays grey from a failure until a connection succeeds", () => {
+    const { applyHostState } = useApp.getState();
+    const down = () => useApp.getState().hosts["linux-box"]?.down;
+    applyHostState({ host: "linux-box", gen: 1, state: "alive" });
+    expect(down()).toBe(false);
+    applyHostState({ host: "linux-box", gen: 2, state: "failed" });
+    expect(down()).toBe(true);
+    applyHostState({ host: "linux-box", gen: 3, state: "connecting" }); // Reconnect under way
+    expect(down()).toBe(true);
+    applyHostState({ host: "linux-box", gen: 3, state: "alive" });
+    expect(down()).toBe(false);
+    applyHostState({ host: "linux-box", gen: 3, state: "idle" }); // closed: not a failure
+    expect(down()).toBe(false);
   });
 });

@@ -148,7 +148,7 @@ interface AppState {
   dialog: DialogSpec | null;
   paletteOpen: boolean;
   /** Connection state per computer (from the backend's events); a report about an older connection is ignored. */
-  hosts: Record<string, { gen: number; state: RemoteHostState["state"] }>;
+  hosts: Record<string, { gen: number; state: RemoteHostState["state"]; down: boolean }>;
   /** The computer the "open remote repository" browser is on, if it is open: its connection is kept. */
   browsingHost: string | null;
 
@@ -429,7 +429,10 @@ export const useApp = create<AppState>((set, get) => {
     applyHostState({ host, gen, state }) {
       const known = get().hosts[host];
       if (known && gen < known.gen) return; // about an older connection, arrived late
-      set((s) => ({ hosts: { ...s.hosts, [host]: { gen, state } } }));
+      // `down` (the grey badge) turns on with a failure and off only when a connection works: it stays on while
+      // Reconnect is under way.
+      const down = state === "failed" ? true : state === "alive" ? false : (known?.down ?? false);
+      set((s) => ({ hosts: { ...s.hosts, [host]: { gen, state, down } } }));
     },
 
     setBrowsingHost(host) {

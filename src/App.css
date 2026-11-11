@@ -244,6 +244,8 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 /* A repository on another computer: its computer is shown next to its name (tab, toolbar). */
 .host-badge { display: inline-flex; align-items: center; flex-shrink: 0; font-size: var(--fs-2xs); font-weight: 700; color: var(--remote); background: var(--remote-soft); border-radius: var(--r-xs); padding: 1px 5px; white-space: nowrap; }
 .tab .host-badge { margin-right: 2px; }
+/* The computer cannot be reached (from a failed connection until one works again). */
+.host-badge.down { color: var(--muted); background: var(--bg-3, var(--bg-2)); text-decoration: line-through; }
 /* Read-only for now: on a remote tab only the note and Refresh stay in the toolbar. */
 .toolbar.remote .tools > :not(.remote-note):not(.keep) { display: none; }
 .remote-note { align-self: center; font-size: var(--fs-s); color: var(--muted); padding: 0 8px; }

@@ -1,3 +1,5 @@
+import { ErrorBox } from "./ErrorBox";
+import { remoteErrorHost } from "../lib/explain";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { useApp } from "../store";
@@ -38,6 +40,7 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
+  const [retry, setRetry] = useState(0); // asks for the listing again after Reconnect
   const [sel, setSel] = useState(-1); // nothing selected until a click or ↓
   const pathRef = useRef<HTMLInputElement>(null);
 
@@ -78,7 +81,7 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
       stale = true;
       clearTimeout(t);
     };
-  }, [host, dir, showHidden]);
+  }, [host, dir, showHidden, retry]);
 
   const shown = useMemo(() => filterFolders(listing?.entries ?? [], filter), [listing, filter]);
   useEffect(() => setSel(-1), [dir, filter]);
@@ -179,7 +182,11 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
             {e.repo && <span className="rb-repo">git repo</span>}
           </div>
         ))}
-        {error && <p className="rb-error">{error}</p>}
+        {error && remoteErrorHost(error) ? (
+          <ErrorBox text={error} compact onRetry={() => setRetry((n) => n + 1)} />
+        ) : (
+          error && <p className="rb-error">{error}</p>
+        )}
         {!error && listing && shown.length === 0 && <p className="muted small pad">No folders{filter ? ` starting with “${filter}”` : ""}.</p>}
         {listing?.truncated && <p className="muted small pad">Only the first 2000 folders are shown; type to narrow them down.</p>}
       </div>

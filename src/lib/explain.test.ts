@@ -122,3 +122,16 @@ describe("connection to another computer", () => {
     expect(remoteErrorHost(`see: ${golden.lost}`)).toBeNull();
   });
 });
+
+describe("Reconnect is offered for connection errors", () => {
+  it("on every connection error that reconnecting can fix", () => {
+    for (const text of [golden.start, golden.lost, golden.cancelled, golden.timeout]) {
+      expect(explainError(text).actions, text).toContain("reconnect");
+    }
+    expect(explainError(`Treeline could not connect to “h”: the helper sent to it is older than this Treeline: it lacks x.`).actions).toContain("reconnect");
+  });
+
+  it("not when there is no helper for that computer at all", () => {
+    expect(explainError("Treeline could not connect to “h”: Treeline has no helper for Darwin arm64 yet.").actions).not.toContain("reconnect");
+  });
+});
