@@ -11,7 +11,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Sender, channel};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 type Pending = Arc<Mutex<HashMap<u64, Sender<Result<Value, CallError>>>>>;
@@ -29,6 +29,51 @@ pub enum CallError {
     Timeout,
     /// The helper answered with an error (git's message, a refused folder…).
     Remote(String),
+}
+
+/// Lets another thread end a connection while it is still starting (a time limit, the user closing it). Once the
+/// connection exists it ends that connection too.
+#[derive(Clone, Default)]
+pub struct Abort(Arc<Mutex<AbortState>>);
+
+#[derive(Default)]
+struct AbortState {
+    child: Option<Weak<Mutex<Child>>>,
+    why: Option<String>,
+}
+
+impl Abort {
+    pub fn new() -> Abort {
+        Abort::default()
+    }
+
+    /// Ends the process now (or as soon as it is started); the first `why` is kept for the error message.
+    pub fn abort(&self, why: &str) {
+        let child = {
+            let mut s = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            s.why.get_or_insert_with(|| why.to_string());
+            s.child.clone()
+        };
+        // std does not signal a process it already waited for, so a reused pid is never hit.
+        if let Some(child) = child.and_then(|w| w.upgrade()) {
+            let _ = child.lock().unwrap_or_else(|e| e.into_inner()).kill();
+        }
+    }
+
+    pub fn reason(&self) -> Option<String> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).why.clone()
+    }
+
+    fn watch(&self, child: &Arc<Mutex<Child>>) {
+        let aborted = {
+            let mut s = self.0.lock().unwrap_or_else(|e| e.into_inner());
+            s.child = Some(Arc::downgrade(child));
+            s.why.is_some()
+        };
+        if aborted {
+            let _ = child.lock().unwrap_or_else(|e| e.into_inner()).kill();
+        }
+    }
 }
 
 impl std::fmt::Display for CallError {
@@ -59,7 +104,7 @@ pub enum Upload<'a> {
 
 pub struct Connection {
     stdin: Mutex<ChildStdin>,
-    child: Mutex<Child>,
+    child: Arc<Mutex<Child>>,
     pending: Pending,
     next: AtomicU64,
     alive: Arc<AtomicBool>,
@@ -79,9 +124,20 @@ const CLOSED: &str = "The connection to the other computer was closed.";
 impl Connection {
     /// Starts `cmd`, sends the helper if asked for (see `Upload`), and waits up to `hello_timeout` for the hello line.
     pub fn start(
+        cmd: Command,
+        upload: Upload<'_>,
+        hello_timeout: Duration,
+        on_note: impl Fn(&Value) + Send + 'static,
+    ) -> Result<Connection, String> {
+        Connection::start_with(cmd, upload, hello_timeout, &Abort::new(), on_note)
+    }
+
+    /// `start`, which `abort` can end from another thread. Sending the helper is limited to `hello_timeout` too.
+    pub fn start_with(
         mut cmd: Command,
         upload: Upload<'_>,
         hello_timeout: Duration,
+        abort: &Abort,
         on_note: impl Fn(&Value) + Send + 'static,
     ) -> Result<Connection, String> {
         let mut child = cmd
@@ -93,6 +149,8 @@ impl Connection {
         let mut stdin = child.stdin.take().ok_or("no input")?;
         let stdout = child.stdout.take().ok_or("no output")?;
         let mut err_pipe = child.stderr.take().ok_or("no error output")?;
+        let child = Arc::new(Mutex::new(child));
+        abort.watch(&child);
         let stderr = Arc::new(Mutex::new(String::new()));
         {
             let stderr = Arc::clone(&stderr);
@@ -167,35 +225,53 @@ impl Connection {
             });
         }
 
-        let fail = |child: &mut Child, own: Option<String>| -> String {
-            let _ = child.kill();
-            let _ = child.wait();
+        // Ends the process and says why: the caller's own reason, then an abort's, then what ssh printed.
+        let fail = |own: Option<String>, default: &str| -> String {
+            {
+                let mut c = child.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = c.kill();
+                let _ = c.wait();
+            }
             std::thread::sleep(Duration::from_millis(50)); // let the error output be collected
             let err = stderr.lock().unwrap_or_else(|e| e.into_inner()).trim().to_string();
-            own.unwrap_or(if err.is_empty() { "The other computer did not answer.".into() } else { err })
+            own.or_else(|| abort.reason()).unwrap_or(if err.is_empty() { default.into() } else { err })
         };
         if let Upload::ForComputer(pick) = upload {
-            let Ok(computer) = arch_rx.recv_timeout(hello_timeout) else { return Err(fail(&mut child, None)) };
+            let Ok(computer) = arch_rx.recv_timeout(hello_timeout) else {
+                return Err(fail(None, "The other computer did not answer."));
+            };
             let bytes = match pick(&computer) {
                 Ok(b) => b,
                 Err(e) => {
                     let _ = writeln!(stdin, "none");
-                    return Err(fail(&mut child, Some(e)));
+                    return Err(fail(Some(e), ""));
                 }
             };
+            // A side that stops reading would block the write for ever: give it `hello_timeout`.
+            let (sent_tx, sent_rx) = channel::<()>();
+            {
+                let abort = abort.clone();
+                std::thread::spawn(move || {
+                    if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = sent_rx.recv_timeout(hello_timeout) {
+                        abort.abort("The other computer stopped taking the helper.");
+                    }
+                });
+            }
             let sent = writeln!(stdin, "{}", bytes.len()).and_then(|_| stdin.write_all(&bytes)).and_then(|_| stdin.flush());
+            drop(sent_tx);
             if sent.is_err() {
                 // The other side stopped reading (no usable folder…): its own message says why.
-                let _ = child.wait();
+                let _ = child.lock().unwrap_or_else(|e| e.into_inner()).wait();
                 std::thread::sleep(Duration::from_millis(50));
                 let err = stderr.lock().unwrap_or_else(|e| e.into_inner()).trim().to_string();
-                return Err(if err.is_empty() { "Could not send the helper.".into() } else { err });
+                let err = if err.is_empty() { None } else { Some(err) };
+                return Err(abort.reason().or(err).unwrap_or_else(|| "Could not send the helper.".into()));
             }
         }
         match hello_rx.recv_timeout(hello_timeout) {
             Ok((hello, noise)) => Ok(Connection {
                 stdin: Mutex::new(stdin),
-                child: Mutex::new(child),
+                child,
                 pending,
                 next: AtomicU64::new(0),
                 alive,
@@ -205,13 +281,7 @@ impl Connection {
                 hello,
                 noise,
             }),
-            Err(_) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                std::thread::sleep(Duration::from_millis(50)); // let the error output be collected
-                let err = stderr.lock().unwrap_or_else(|e| e.into_inner()).trim().to_string();
-                Err(if err.is_empty() { "The other computer did not answer.".into() } else { err })
-            }
+            Err(_) => Err(fail(None, "The other computer did not answer.")),
         }
     }
 

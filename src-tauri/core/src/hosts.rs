@@ -6,7 +6,7 @@
 //! A failed start is remembered for `Config::hold`: a tab's calls get the same error at once instead of each starting
 //! ssh again, while what the user just asked for (connect, browse, open, Reconnect) always tries.
 
-use crate::remote::{CallError, Connection};
+use crate::remote::{Abort, CallError, Connection};
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -14,7 +14,8 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 /// Starts a ready connection to a computer (in the app: ssh, the helper, `init`); the error is the reason, for the user.
-pub type Connect = dyn Fn(&str) -> Result<Connection, String> + Send + Sync;
+/// The `Abort` ends that start from another thread (the time limit, a disconnect): pass it to `Connection::start_with`.
+pub type Connect = dyn Fn(&str, &Abort) -> Result<Connection, String> + Send + Sync;
 /// Told every change of a computer's state, in order (called with the lock held: it must not call `Hosts`).
 pub type Sink = dyn Fn(&str, u64, State) + Send + Sync;
 
@@ -34,11 +35,13 @@ pub struct Config {
     pub hold: Duration,
     /// How long Reconnect waits for a live connection to answer before replacing it.
     pub ping: Duration,
+    /// The longest a start may take in all (ssh, sending the helper, its hello, `init`).
+    pub deadline: Duration,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { hold: Duration::from_secs(10), ping: Duration::from_secs(3) }
+        Config { hold: Duration::from_secs(10), ping: Duration::from_secs(3), deadline: Duration::from_secs(25) }
     }
 }
 
@@ -61,7 +64,7 @@ impl Ask {
 }
 
 enum Entry {
-    Connecting(u64),
+    Connecting(u64, Abort),
     Alive(u64, Arc<Connection>),
     /// The start of this generation failed; the callers that waited for it get the error.
     Failed(u64, String, Instant),
@@ -74,13 +77,13 @@ enum Entry {
 impl Entry {
     fn generation(&self) -> u64 {
         match self {
-            Entry::Connecting(g) | Entry::Alive(g, _) | Entry::Failed(g, _, _) | Entry::Gone(g) | Entry::Cancelled(g) => *g,
+            Entry::Connecting(g, _) | Entry::Alive(g, _) | Entry::Failed(g, _, _) | Entry::Gone(g) | Entry::Cancelled(g) => *g,
         }
     }
 
     fn state(&self) -> State {
         match self {
-            Entry::Connecting(_) => State::Connecting,
+            Entry::Connecting(..) => State::Connecting,
             Entry::Alive(..) => State::Alive,
             Entry::Failed(..) => State::Failed,
             Entry::Gone(_) | Entry::Cancelled(_) => State::Idle,
@@ -115,12 +118,12 @@ pub fn describe(host: &str, e: CallError) -> String {
 }
 
 impl Hosts {
-    pub fn new(connect: impl Fn(&str) -> Result<Connection, String> + Send + Sync + 'static) -> Hosts {
+    pub fn new(connect: impl Fn(&str, &Abort) -> Result<Connection, String> + Send + Sync + 'static) -> Hosts {
         Hosts::with(connect, Config::default(), |_, _, _| {})
     }
 
     pub fn with(
-        connect: impl Fn(&str) -> Result<Connection, String> + Send + Sync + 'static,
+        connect: impl Fn(&str, &Abort) -> Result<Connection, String> + Send + Sync + 'static,
         cfg: Config,
         sink: impl Fn(&str, u64, State) + Send + Sync + 'static,
     ) -> Hosts {
@@ -154,7 +157,7 @@ impl Hosts {
         loop {
             match entries.get(host) {
                 Some(Entry::Alive(g, c)) if c.is_alive() => return Ok((*g, Arc::clone(c))),
-                Some(Entry::Connecting(g)) => {
+                Some(Entry::Connecting(g, _)) => {
                     waited = Some(*g);
                     entries = self.0.changed.wait(entries).unwrap_or_else(|e| e.into_inner());
                 }
@@ -164,18 +167,46 @@ impl Hosts {
                 other => {
                     // Nothing usable (none yet, a dead one, an old failure): start the next generation.
                     let g = other.map_or(0, Entry::generation) + 1;
-                    self.set(&mut entries, host, Entry::Connecting(g));
+                    let abort = Abort::new();
+                    self.set(&mut entries, host, Entry::Connecting(g, abort.clone()));
                     drop(entries);
-                    return self.start(host, g);
+                    self.watch_deadline(host, g, &abort);
+                    return self.start(host, g, &abort);
                 }
             }
         }
     }
 
-    fn start(&self, host: &str, g: u64) -> Result<(u64, Arc<Connection>), String> {
-        let started = (self.0.connect)(host).map(Arc::new).map_err(|reason| start_failed(host, &reason));
+    /// Ends the start of generation `g` if it is still under way when `Config::deadline` passes.
+    fn watch_deadline(&self, host: &str, g: u64, abort: &Abort) {
+        let (inner, host, abort) = (Arc::clone(&self.0), host.to_string(), abort.clone());
+        std::thread::spawn(move || {
+            let until = Instant::now() + inner.cfg.deadline;
+            let mut entries = inner.entries.lock().unwrap_or_else(|e| e.into_inner());
+            loop {
+                if !matches!(entries.get(&host), Some(Entry::Connecting(n, _)) if *n == g) {
+                    return;
+                }
+                let now = Instant::now();
+                if now >= until {
+                    break;
+                }
+                entries = inner.changed.wait_timeout(entries, until - now).unwrap_or_else(|e| e.into_inner()).0;
+            }
+            drop(entries);
+            abort.abort(&format!("it did not answer within {} seconds.", inner.cfg.deadline.as_secs_f64().ceil()));
+        });
+    }
+
+    fn start(&self, host: &str, g: u64, abort: &Abort) -> Result<(u64, Arc<Connection>), String> {
+        let started = match (self.0.connect)(host, abort) {
+            // Aborted after all (the time limit passed as it finished): not used.
+            Ok(_) if abort.reason().is_some() => Err(start_failed(host, &abort.reason().unwrap_or_default())),
+            Ok(c) => Ok(Arc::new(c)),
+            Err(reason) => Err(start_failed(host, &abort.reason().unwrap_or(reason))),
+        };
         let mut entries = self.lock();
-        let current = matches!(entries.get(host), Some(Entry::Connecting(n)) if *n == g);
+        let current = matches!(entries.get(host), Some(Entry::Connecting(n, _)) if *n == g);
         let result = match (&started, current) {
             (Ok(c), true) => {
                 self.set(&mut entries, host, Entry::Alive(g, Arc::clone(c)));
@@ -233,19 +264,23 @@ impl Hosts {
     /// Closes the connection to `host`: calls in flight are told Treeline closed it (and are not sent again), a start
     /// under way is not used, and a remembered failure is forgotten.
     pub fn disconnect(&self, host: &str) {
-        let closing = {
+        let (conn, starting) = {
             let mut entries = self.lock();
-            let (g, conn) = match entries.get(host) {
-                Some(Entry::Alive(g, c)) => (*g, Some(Arc::clone(c))),
-                Some(Entry::Connecting(g) | Entry::Failed(g, _, _)) => (*g, None),
+            let (g, conn, starting) = match entries.get(host) {
+                Some(Entry::Alive(g, c)) => (*g, Some(Arc::clone(c)), None),
+                Some(Entry::Connecting(g, a)) => (*g, None, Some(a.clone())),
+                Some(Entry::Failed(g, _, _)) => (*g, None, None),
                 _ => return,
             };
             self.set(&mut entries, host, Entry::Cancelled(g));
             self.0.changed.notify_all();
-            conn
+            (conn, starting)
         };
-        if let Some(c) = closing {
+        if let Some(c) = conn {
             c.close();
+        }
+        if let Some(a) = starting {
+            a.abort("Treeline closed the connection.");
         }
     }
 

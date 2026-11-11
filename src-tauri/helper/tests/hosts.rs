@@ -27,7 +27,7 @@ fn helper() -> Result<Connection, String> {
 fn hosts(delay: Duration, make: impl Fn(usize) -> Result<Connection, String> + Send + Sync + 'static) -> (Arc<Hosts>, Arc<AtomicUsize>) {
     let starts = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&starts);
-    let h = Hosts::new(move |_host| {
+    let h = Hosts::new(move |_host, _abort| {
         let n = counter.fetch_add(1, Ordering::SeqCst) + 1;
         std::thread::sleep(delay);
         make(n)
@@ -104,7 +104,7 @@ fn a_failed_start_reaches_every_waiting_call() {
 
 #[test]
 fn a_slow_computer_does_not_hold_up_another() {
-    let h = Arc::new(Hosts::new(|host| {
+    let h = Arc::new(Hosts::new(|host, _abort| {
         if host == "slow" {
             std::thread::sleep(Duration::from_millis(1500));
         }
@@ -144,7 +144,7 @@ fn the_texts_are_the_ones_the_page_knows() {
     assert_eq!(describe(host, CallError::Remote("fatal: bad revision".into())), "fatal: bad revision", "git's own words pass through");
 }
 
-const FAST: Config = Config { hold: Duration::from_millis(400), ping: Duration::from_millis(300) };
+const FAST: Config = Config { hold: Duration::from_millis(400), ping: Duration::from_millis(300), deadline: Duration::from_secs(2) };
 const NO_ROUTE: &str = "ssh: connect to host linux-box port 22: No route to host";
 
 /// Like `hosts`, with `FAST` timings and every state change recorded.
@@ -154,7 +154,7 @@ fn watched(delay: Duration, make: impl Fn(usize) -> Result<Connection, String> +
     let seen: Arc<Mutex<Vec<(u64, State)>>> = Arc::default();
     let (counter, log) = (Arc::clone(&starts), Arc::clone(&seen));
     let h = Hosts::with(
-        move |_host| {
+        move |_host, _abort| {
             let n = counter.fetch_add(1, Ordering::SeqCst) + 1;
             std::thread::sleep(delay);
             make(n)
@@ -296,11 +296,8 @@ fn disconnect_while_starting_keeps_nothing() {
     h.disconnect("linux-box");
     assert_eq!(waiting.join().unwrap().unwrap_err(), "Treeline closed the connection to “linux-box”.");
     assert!(!h.states().iter().any(|(_, _, s)| *s == State::Alive), "{:?}", h.states());
-    let pid = std::fs::read_to_string(&marker).unwrap();
-    let _ = std::fs::remove_file(&marker);
     std::thread::sleep(Duration::from_millis(100));
-    let alive = Command::new("kill").args(["-0", pid.trim()]).status().unwrap().success();
-    assert!(!alive, "the connection started meanwhile was ended");
+    assert!(!ran_on(&marker), "the connection started meanwhile was ended");
     assert_eq!(starts_of(&starts), 1);
 }
 
@@ -340,4 +337,65 @@ fn every_change_is_told_once_in_order() {
         *seen.lock().unwrap(),
         vec![(1, Connecting), (1, Alive), (1, Idle), (2, Connecting), (2, Failed), (3, Connecting), (3, Alive), (3, Idle)]
     );
+}
+
+/// True when the process whose pid a stand-in wrote to `pidfile` is still running (the file is removed). A missing file
+/// means the process was ended before it ran a line.
+fn ran_on(pidfile: &std::path::Path) -> bool {
+    let pid = std::fs::read_to_string(pidfile).unwrap_or_default();
+    let _ = std::fs::remove_file(pidfile);
+    let running = !pid.trim().is_empty() && Command::new("kill").args(["-0", pid.trim()]).status().unwrap().success();
+    if running {
+        let _ = Command::new("kill").args(["-9", pid.trim()]).status();
+    }
+    running
+}
+
+/// A `Hosts` (with `FAST` timings) whose every start hangs before the hello, writing its pid to the returned file.
+fn hanging(name: &str) -> (Arc<Hosts>, Arc<AtomicUsize>, std::path::PathBuf) {
+    let pidfile = std::env::temp_dir().join(format!("treeline-hosts-{name}-{}", std::process::id()));
+    let script = format!("echo $$ > '{}'; exec sleep 30", pidfile.display());
+    let starts = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&starts);
+    let h = Hosts::with(
+        move |_host, abort| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Connection::start_with(sh(&script), Upload::Nothing, SEC, abort, |_| {})
+        },
+        FAST,
+        |_, _, _| {},
+    );
+    (Arc::new(h), starts, pidfile)
+}
+
+#[test]
+fn a_start_that_hangs_ends_at_the_deadline_and_is_remembered() {
+    let (h, starts, pidfile) = hanging("deadline");
+    let t = Instant::now();
+    let err = h.call("linux-box", "ping", json!({}), SEC, Ask::READ).unwrap_err();
+    let took = t.elapsed();
+    assert_eq!(err, "Treeline could not connect to “linux-box”: it did not answer within 2 seconds.");
+    assert!(took >= FAST.deadline && took < FAST.deadline + Duration::from_secs(2), "took {took:?}");
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(!ran_on(&pidfile), "the hanging ssh was ended");
+    assert_eq!(h.states(), vec![("linux-box".to_string(), 1, State::Failed)]);
+    assert_eq!(h.call("linux-box", "ping", json!({}), SEC, Ask::READ).unwrap_err(), err, "remembered, like any failed start");
+    assert_eq!(starts_of(&starts), 1);
+}
+
+#[test]
+fn disconnect_ends_a_start_at_once() {
+    let (h, starts, pidfile) = hanging("disconnect");
+    let waiting = {
+        let h = Arc::clone(&h);
+        std::thread::spawn(move || h.call("linux-box", "ping", json!({}), SEC, Ask::READ))
+    };
+    std::thread::sleep(Duration::from_millis(200));
+    let t = Instant::now();
+    h.disconnect("linux-box");
+    assert_eq!(waiting.join().unwrap().unwrap_err(), "Treeline closed the connection to “linux-box”.");
+    assert!(t.elapsed() < Duration::from_secs(1), "took {:?}", t.elapsed());
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(!ran_on(&pidfile), "the ssh under way was ended");
+    assert_eq!(starts_of(&starts), 1);
 }

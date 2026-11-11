@@ -278,3 +278,25 @@ fn says_when_the_process_ends_whoever_ends_it() {
     conn.on_close(move || tx.send(()).unwrap());
     assert!(rx.try_recv().is_ok());
 }
+
+#[test]
+fn a_side_that_stops_reading_does_not_hang_the_start() {
+    // Reads the length, then stops reading: a helper bigger than the pipe's buffer can never be written in full.
+    let pidfile = std::env::temp_dir().join(format!("treeline-client-stalled-{}", std::process::id()));
+    let script = format!(r#"echo $$ > '{}'; echo "treeline-arch Linux x86_64"; read n; exec sleep 30"#, pidfile.display());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let pick = |_: &str| Ok(vec![0u8; 4 << 20]);
+        let _ = tx.send(Connection::start(sh(&script), Upload::ForComputer(&pick), Duration::from_secs(1), |_| {}).map(|_| ()));
+    });
+    let outcome = rx.recv_timeout(Duration::from_secs(5));
+    let pid = std::fs::read_to_string(&pidfile).unwrap_or_default();
+    let _ = std::fs::remove_file(&pidfile);
+    let still_running = !pid.trim().is_empty() && Command::new("kill").args(["-0", pid.trim()]).status().unwrap().success();
+    if still_running {
+        let _ = Command::new("kill").args(["-9", pid.trim()]).status(); // do not leave it behind when the test fails
+    }
+    assert!(outcome.is_ok(), "the start was still waiting to send the helper after 5 s");
+    assert!(outcome.unwrap().is_err());
+    assert!(!still_running, "the process was left running");
+}
