@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api } from "./api";
+import { api, type RemoteHostState } from "./api";
 import { UPDATE_CHECK_INTERVAL_MS, checkForUpdate, createUpdateWatch } from "./updater";
 import { createAutoFetch, startAutoFetchTimer } from "./lib/autoFetch";
 import { useApp } from "./store";
@@ -57,7 +57,12 @@ export default function App() {
       getCurrentWindow().onFocusChanged(({ payload: focused }) => {
         if (focused) void useApp.getState().reload();
       }),
+      listen<RemoteHostState>("remote-host-state", ({ payload }) => useApp.getState().applyHostState(payload)),
     ];
+    // Changes from before the listener was ready (the first remote tab loads at start-up): ask once it is.
+    void subs[subs.length - 1].then(() =>
+      api.remoteHostStates().then((all) => all.forEach((s) => useApp.getState().applyHostState(s)), () => undefined),
+    );
     return () => subs.forEach((p) => void p.then((f) => f()));
   }, []);
 
@@ -122,7 +127,7 @@ export default function App() {
       else if (key === "w" && app.activeId) app.closeTab(app.activeId);
       else if (key === "o") void pickAndOpenRepo(app.openRepo, (m) => app.notify("error", m));
       else if (key === "k" || (key === "p" && e.shiftKey)) app.setPalette(!app.paletteOpen);
-      else if (key === "r" && !e.shiftKey) void app.reload();
+      else if (key === "r" && !e.shiftKey) void app.refresh();
       else if (e.key === "Tab") app.cycleTab(e.shiftKey ? -1 : 1);
       else return;
       e.preventDefault();

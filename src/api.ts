@@ -31,6 +31,13 @@ import type {
  */
 const remoteHosts = new Map<string, string>();
 
+/** A computer's connection, as the backend reports it ("remote-host-state" events); `gen` counts its connections. */
+export interface RemoteHostState {
+  host: string;
+  gen: number;
+  state: "connecting" | "alive" | "failed" | "idle";
+}
+
 export function setRemoteHost(path: string, host: string | null): void {
   if (host) remoteHosts.set(path, host);
   else remoteHosts.delete(path);
@@ -57,6 +64,10 @@ export const api = {
   remoteOpen: (host: string, path: string) =>
     tauriInvoke<{ path: string; writable: boolean; toplevel: string | null }>("remote_open", { host, path }),
   remoteDisconnect: (host: string) => tauriInvoke<void>("remote_disconnect", { host }),
+  /** Keeps a connection that answers, replaces one that does not, or connects now (even right after a failure). */
+  remoteReconnect: (host: string) => tauriInvoke<void>("remote_reconnect", { host }),
+  /** Every computer's connection state, for a page that starts listening to "remote-host-state" late. */
+  remoteHostStates: () => tauriInvoke<RemoteHostState[]>("remote_host_states"),
   /** Folders of a path on another computer (names only, and whether each is a repository). */
   remoteList: (host: string, path: string, showHidden: boolean) =>
     tauriInvoke<{ path: string; parent: string | null; home: string | null; repo: boolean; entries: { name: string; repo: boolean }[]; truncated: boolean }>(

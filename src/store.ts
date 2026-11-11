@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { api, baseName, errorMessage, setRemoteHost } from "./api";
+import { api, baseName, errorMessage, setRemoteHost, type RemoteHostState } from "./api";
 import { gitNeedsSecurityUpdate, outdatedGitMessage } from "./lib/gitVersion";
 import { forgetSections } from "./uiStore";
 import { noFilters, type HistoryFilters } from "./lib/historyFilter";
@@ -147,6 +147,10 @@ interface AppState {
   progress: OpProgress | null;
   dialog: DialogSpec | null;
   paletteOpen: boolean;
+  /** Connection state per computer (from the backend's events); a report about an older connection is ignored. */
+  hosts: Record<string, { gen: number; state: RemoteHostState["state"] }>;
+  /** The computer the "open remote repository" browser is on, if it is open: its connection is kept. */
+  browsingHost: string | null;
 
   init: () => Promise<void>;
   newTab: () => void;
@@ -160,6 +164,13 @@ interface AppState {
   /** Opens a repository on another computer over ssh (read-only for now). */
   openRemote: (host: string, path: string) => Promise<void>;
   reload: (id?: string) => Promise<void>;
+  /** Refresh asked for by the user: on a remote tab it first reconnects that computer (and waits), then reloads. */
+  refresh: (id?: string) => Promise<void>;
+  /** Reconnects `host` (see `api.remoteReconnect`) and reloads the active tab if it is on that computer. Throws if it fails. */
+  reconnectHost: (host: string) => Promise<void>;
+  applyHostState: (s: RemoteHostState) => void;
+  /** The browser moved to `host` (or closed: null); a computer it leaves with no tab on it is disconnected. */
+  setBrowsingHost: (host: string | null) => void;
   loadLog: (id: string, reset: boolean) => Promise<void>;
   setUi: (id: string, patch: Partial<RepoUi>) => void;
   /** Runs a repository operation, surfaces its result as a toast, and refreshes the repo. */
@@ -216,6 +227,8 @@ export const useApp = create<AppState>((set, get) => {
     progress: null,
     dialog: null,
     paletteOpen: false,
+    hosts: {},
+    browsingHost: null,
 
     async init() {
       const saved = await api.loadState().catch(() => null);
@@ -273,6 +286,9 @@ export const useApp = create<AppState>((set, get) => {
       const closing = tabs[idx];
       if (closing.host && closing.path && !next.some((t) => t.host === closing.host && t.path === closing.path)) {
         setRemoteHost(closing.path, null);
+      }
+      if (closing.host && !next.some((t) => t.host === closing.host) && get().browsingHost !== closing.host) {
+        void api.remoteDisconnect(closing.host).catch(() => undefined); // nothing reads from that computer any more
       }
       const data = { ...get().data };
       delete data[id];
@@ -388,6 +404,40 @@ export const useApp = create<AppState>((set, get) => {
       }
       watchActive();
       await get().reload();
+    },
+
+    async refresh(id) {
+      const tab = get().tabs.find((t) => t.id === (id ?? get().activeId));
+      if (!tab?.path) return;
+      if (tab.host) {
+        try {
+          await api.remoteReconnect(tab.host);
+        } catch (e) {
+          patchRepo(tab.id, { error: errorMessage(e), loading: false });
+          return;
+        }
+      }
+      await get().reload(tab.id);
+    },
+
+    async reconnectHost(host) {
+      await api.remoteReconnect(host);
+      const active = get().tabs.find((t) => t.id === get().activeId);
+      if (active?.host === host) await get().reload(active.id);
+    },
+
+    applyHostState({ host, gen, state }) {
+      const known = get().hosts[host];
+      if (known && gen < known.gen) return; // about an older connection, arrived late
+      set((s) => ({ hosts: { ...s.hosts, [host]: { gen, state } } }));
+    },
+
+    setBrowsingHost(host) {
+      const left = get().browsingHost;
+      set({ browsingHost: host });
+      if (left && left !== host && !get().tabs.some((t) => t.host === left)) {
+        void api.remoteDisconnect(left).catch(() => undefined);
+      }
     },
 
     /** Refreshes one repo. Concurrent calls coalesce into one trailing refresh. */

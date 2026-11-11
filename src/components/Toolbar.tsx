@@ -40,7 +40,7 @@ function Btn({
 export function Toolbar({ tab }: { tab: Tab }) {
   const d = useApp((s) => s.data[tab.id]);
   const bookmarks = useApp((s) => s.bookmarks);
-  const { addBookmark, removeBookmark, reload, setUi } = useApp.getState();
+  const { addBookmark, removeBookmark, refresh, setUi } = useApp.getState();
   const a = repoActions(tab.id);
   const s = d?.status;
   const busy = !!d?.busy;
@@ -166,7 +166,7 @@ export function Toolbar({ tab }: { tab: Tab }) {
         {shown("tag") && <Btn icon="tag" label="Tag" onClick={() => a.newTag()} />}
         <span className="sep" />
         <Btn icon="more" label="More" title={`More actions: merge into several branches, clean up, Terminal, ${fileManagerName()}`} onClick={openMore} />
-        <Btn icon="refresh" label="Refresh" disabled={d?.loading} onClick={() => void reload(tab.id)} keep />
+        <Btn icon="refresh" label="Refresh" disabled={d?.loading} onClick={() => void refresh(tab.id)} keep />
       </div>
     </div>
   );

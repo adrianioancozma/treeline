@@ -28,7 +28,7 @@ function rememberDir(host: string, dir: string) {
  * Backspace on an empty filter to go up. Opening still asks for confirmation in a native dialog.
  */
 export function RemoteBrowser({ onClose }: { onClose: () => void }) {
-  const { openRemote, notify } = useApp();
+  const { openRemote, notify, setBrowsingHost } = useApp();
   const [hosts, setHosts] = useState<string[]>([]);
   const [host, setHost] = useState("");
   const [input, setInput] = useState("~/");
@@ -47,6 +47,12 @@ export function RemoteBrowser({ onClose }: { onClose: () => void }) {
       if (h.length > 0) setHost((cur) => cur || h[0]);
     }, () => undefined);
   }, []);
+
+  // The connection to the computer being browsed is kept while the browser is on it (see `setBrowsingHost`).
+  useEffect(() => {
+    setBrowsingHost(host || null);
+  }, [host, setBrowsingHost]);
+  useEffect(() => () => setBrowsingHost(null), [setBrowsingHost]);
 
   // A new computer: start where the user was last time on it.
   useEffect(() => {
