@@ -1,0 +1,7 @@
+{
+  "host": "adrian@linux-box.local",
+  "start": "Treeline could not connect to “adrian@linux-box.local”: ssh: connect to host linux-box.local port 22: No route to host",
+  "lost": "Treeline lost the connection to “adrian@linux-box.local”.",
+  "cancelled": "Treeline closed the connection to “adrian@linux-box.local”.",
+  "timeout": "Treeline got no answer from “adrian@linux-box.local” in time."
+}

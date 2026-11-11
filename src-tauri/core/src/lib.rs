@@ -4,6 +4,7 @@
 pub mod access;
 pub mod browse;
 pub mod git;
+pub mod hosts;
 pub mod ops_parse;
 pub mod read;
 pub mod remote;
