@@ -16,7 +16,9 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use treeline_core::hosts::{Ask, Config, Hosts};
 pub use treeline_core::remote::READ_METHODS;
-use treeline_core::remote::{Abort, Connection, Upload, helper_build_for, parse_ssh_hosts, ssh_helper_command, valid_host};
+use treeline_core::remote::{
+    Abort, Connection, Upload, check_hello, helper_build_for, parse_ssh_hosts, required_methods, ssh_helper_command, valid_host,
+};
 
 use crate::git::blocking;
 
@@ -124,6 +126,8 @@ fn connect(app: &AppHandle, host: &str, abort: &Abort) -> Result<Connection, Str
             }
         }
     })?;
+    // A helper that does not know everything this app sends is refused before anything is asked of it.
+    check_hello(&conn.hello, &required_methods()).map_err(|why| format!("the helper sent to it {why}"))?;
     let opened = lock().opened.get(host).cloned().unwrap_or_default();
     conn.call("init", json!({ "trusted": opened }), Duration::from_secs(20))?;
     Ok(conn)
