@@ -268,6 +268,12 @@ impl Connection {
     /// Ends the connection: the helper sees its input close and exits.
     pub fn close(&self) {
         self.closing.store(true, Ordering::SeqCst);
+        self.abandon();
+    }
+
+    /// Ends the process as if the link had dropped: the requests in flight get `Closed`, so a read may be sent again on
+    /// a new connection (used when the connection stopped answering).
+    pub fn abandon(&self) {
         let mut child = self.child.lock().unwrap_or_else(|e| e.into_inner());
         let _ = child.kill();
         let _ = child.wait();
