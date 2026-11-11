@@ -56,6 +56,8 @@ function RemoteGroup({ tabId, remote, count, children }: { tabId: string; remote
 
 /** Pixels of indent per folder level. */
 const INDENT = 14;
+/** Room a folder's chevron takes: items are indented by it so their icons line up with folder icons at the same depth. */
+const LEAF = 16;
 
 /**
  * A ref tree: sub-folders first, then the refs sitting directly in this folder. `base` is the left
@@ -74,7 +76,7 @@ function RefTree<T>({ tabId, scope, folder, depth = 0, base, renderItem }: {
       {folder.folders.map((f) => (
         <FolderNode key={f.path} tabId={tabId} scope={scope} folder={f} depth={depth} base={base} renderItem={renderItem} />
       ))}
-      {folder.items.map(({ item, label }) => renderItem(item, label, base + depth * INDENT))}
+      {folder.items.map(({ item, label }) => renderItem(item, label, base + LEAF + depth * INDENT))}
     </>
   );
 }
@@ -206,7 +208,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
         <Section tabId={tab.id} title="Remotes" count={remoteGroups.length}>
           {remoteGroups.map(({ remote, count, tree }) => (
             <RemoteGroup tabId={tab.id} key={remote} remote={remote} count={count}>
-              <RefTree tabId={tab.id} scope={`remote:${remote}`} folder={tree} base={34} renderItem={(r, label, pad) => (
+              <RefTree tabId={tab.id} scope={`remote:${remote}`} folder={tree} base={10 + INDENT} renderItem={(r, label, pad) => (
                 <button
                   key={r.name}
                   style={{ paddingLeft: pad }}
@@ -234,7 +236,7 @@ export function RepoSidebar({ tab }: { tab: Tab }) {
         </Section>
 
         <Section tabId={tab.id} title="Tags" count={tags.length}>
-          <RefTree tabId={tab.id} scope="tag" folder={tagTree} base={26} renderItem={(t, label, pad) => (
+          <RefTree tabId={tab.id} scope="tag" folder={tagTree} base={10} renderItem={(t, label, pad) => (
             <button
               key={t.name}
               style={{ paddingLeft: pad }}

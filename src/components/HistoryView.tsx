@@ -3,8 +3,8 @@ import { api, errorMessage } from "../api";
 import { repoActions } from "../actions";
 import { useAutoSplit, useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
-import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
-import { graphWidths } from "../lib/paneSize";
+import { classifyRef, fullDate, listDate, splitPath } from "../lib/format";
+import { graphWidths, historyListHeights } from "../lib/paneSize";
 import { DATE_RANGES, authorsOf, dateFilterActive, dateWindow, filtersActive, noFilters, type DateRange } from "../lib/historyFilter";
 import { useApp } from "../store";
 import { openMenu, useUi } from "../uiStore";
@@ -60,9 +60,6 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
   );
 }
 
-/** The smallest the commit detail panel may be squeezed to by the splitter above it. */
-const MIN_DETAIL_H = 220;
-
 export function HistoryView({ tab }: { tab: Tab }) {
   const d = useApp((s) => s.data[tab.id])!;
   const { setUi, loadLog } = useApp.getState();
@@ -71,9 +68,10 @@ export function HistoryView({ tab }: { tab: Tab }) {
   const remotes = d.remotes;
   const historyRef = useRef<HTMLDivElement>(null);
   const historyH = useElementHeight(historyRef);
-  // Leave room for the commit detail panel: a saved or dragged height may never push it off screen.
-  const maxTop = historyH > 0 ? Math.max(140, Math.min(800, historyH - 6 - MIN_DETAIL_H)) : 800;
-  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.6), 140, maxTop, "y");
+  // The list takes most of the height and follows the window until the divider is dragged; the commit detail panel
+  // always keeps room, so a saved or dragged height can never push it off screen.
+  const listH = historyListHeights(historyH, window.innerHeight);
+  const [height, onSplit, resetSplit] = useAutoSplit("history-top", listH.auto, listH.min, listH.max, "y");
   const filters = d.ui.filters;
   const setFilters = (patch: Partial<typeof filters>) => setUi(tab.id, { filters: { ...filters, ...patch } });
   const filtering = filtersActive(filters);
@@ -353,7 +351,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                   <GraphCell row={graph[i]} width={graphW} />
                   <span className="subject">
                     {refs.map((r) => (
-                      <span key={r.label + r.kind} className={`ref ${r.kind}`}>
+                      <span key={r.label + r.kind} className={`ref ${r.kind}`} title={r.label}>
                         {r.label}
                       </span>
                     ))}
@@ -363,7 +361,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                   </span>
                   <span className="muted ellipsis">{c.author}</span>
                   <span className="muted ellipsis" title={isWip ? "" : fullDate(c.time)}>
-                    {isWip ? "" : relativeTime(c.time)}
+                    {isWip ? "" : listDate(c.time)}
                   </span>
                   <span className="sha">{isWip ? "" : c.sha.slice(0, 7)}</span>
                 </div>
@@ -372,7 +370,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
           </div>
         </div>
       </div>
-      <div className="splitter h" onMouseDown={onSplit} role="separator" aria-orientation="horizontal" />
+      <div className="splitter h" onMouseDown={onSplit} onDoubleClick={() => resetSplit()} role="separator" aria-orientation="horizontal" title="Drag to resize. Double-click for the automatic height." />
       {pair ? (
         <CommitDetailPane
           key={`${pair.base}..${pair.target}`}
@@ -576,18 +574,26 @@ function CommitDetailPane({
           <h3 className="commit-title">{base ? `to: ${title}` : title}</h3>
           {bodyLines.join("\n").trim() && <pre className="commit-body">{bodyLines.join("\n").trim()}</pre>}
           {detail && (
-            <p className="commit-line small">
-              <strong>{detail.author}</strong>
-              <span className="muted"> · {fullDate(detail.time)} · </span>
-              <button className="link" onClick={() => a.copy(sha)} title="Copy full SHA">
-                {sha.slice(0, 7)} <Icon name="copy" size={12} />
-              </button>
-              {detail.parents.length > 0 && (
-                <span className="muted">
-                  {" "}· {detail.parents.length > 1 ? "parents" : "parent"} {detail.parents.map((p) => p.slice(0, 7)).join(", ")}
+            // Two deliberate lines (who and when; which commit and its parents); each piece stays whole when space is short.
+            <div className="commit-meta-lines small">
+              <div className="meta-row">
+                <strong>{detail.author}</strong>
+                <span className="muted">{fullDate(detail.time)}</span>
+              </div>
+              <div className="meta-row muted">
+                <span>
+                  commit{" "}
+                  <button className="link" onClick={() => a.copy(sha)} title="Copy full SHA">
+                    {sha.slice(0, 7)} <Icon name="copy" size={12} />
+                  </button>
                 </span>
-              )}
-            </p>
+                {detail.parents.length > 0 && (
+                  <span>
+                    {detail.parents.length > 1 ? "parents" : "parent"} <code>{detail.parents.map((p) => p.slice(0, 7)).join(", ")}</code>
+                  </span>
+                )}
+              </div>
+            </div>
           )}
         </div>
         <div
