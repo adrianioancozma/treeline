@@ -11,15 +11,16 @@ Built with **Tauri 2** (Rust) and **React + TypeScript**.
 > **New here? Read the [User Guide](docs/USER_GUIDE.md)** — a step-by-step walkthrough of every feature, what each error
 > means and how to fix it. It is also built into the app (press `F1`).
 
-> ### ⚠️ Platform status — help wanted
+> ### ⚠️ Platform status — Linux help wanted
 > | | Status |
 > | --- | --- |
 > | **Windows 10** | ✅ Built, installer produced, and every feature exercised by hand |
-> | **macOS** | ❌ **Not built and not tested.** The code is prepared for it, but it has never been compiled or run on a Mac. |
-> | **Linux** | ❌ **Not built and not tested.** Same: prepared, never compiled or run. |
+> | **macOS (Apple Silicon)** | ✅ Installer built by the release workflow, and every feature exercised by hand |
+> | **macOS (Intel)** | ⚠️ Installer is built by the release workflow, but it has not been tested on an Intel Mac. |
+> | **Linux** | ❌ **Not tested.** `.AppImage`, `.deb` and `.rpm` installers are built by the release workflow, but they have never been run. |
 >
-> **We need your help to test it on macOS and Linux** — see [Help us test](#help-us-test-on-macos-and-linux). Windows 11 is
-> expected to work but has not been checked either. Until this is verified, treat macOS and Linux as unsupported.
+> **We need your help to test it on Linux and on Intel Macs** — see [Help us test](#help-us-test-on-macos-and-linux). Windows 11 is
+> expected to work but has not been checked either. Until this is verified, treat Linux as unsupported.
 
 > ### 🙋 Want to help? Anyone is welcome.
 > This is a young project and it needs people. You don't have to be a Git or Rust expert, and every bit counts:
@@ -38,7 +39,7 @@ Download the installer for your system from the **[latest release](https://githu
 | **Linux** | `.AppImage` (`chmod +x`, run), `.deb` (`sudo apt install ./file.deb`) or `.rpm` | Needs WebKitGTK 4.1 |
 
 Install [Git 2.30+](https://git-scm.com) first. Full steps are in the [User Guide](docs/USER_GUIDE.md#installing-treeline).
-macOS and Linux builds are untested (see the status table above). Prefer to build it yourself? See [Build installers](#build-installers).
+Linux builds and Intel Mac builds are untested (see the status table above). Prefer to build it yourself? See [Build installers](#build-installers).
 
 ## Features
 
@@ -102,15 +103,15 @@ pnpm tauri build
 | OS | Extra prerequisites | Output (`src-tauri/target/release/bundle/`) | Verified |
 | --- | --- | --- | --- |
 | Windows | Visual Studio Build Tools (C++), WebView2 | `nsis/*.exe`, `msi/*.msi` | ✅ |
-| macOS | Xcode command line tools | `dmg/*.dmg`, `macos/*.app` | ❌ never built |
-| Linux | `libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev` | `deb/*.deb`, `appimage/*.AppImage`, `rpm/*.rpm` | ❌ never built |
+| macOS | Xcode command line tools | `dmg/*.dmg`, `macos/*.app` | ✅ Apple Silicon (Intel untested) |
+| Linux | `libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev` | `deb/*.deb`, `appimage/*.AppImage`, `rpm/*.rpm` | ❌ built by CI, never run |
 
 Regenerate the icon set from a 1024×1024 PNG with `pnpm tauri icon path/to/icon.png`.
 
 ## macOS and Linux
 
-> **Not built or tested yet.** The steps below are what we expect to work; please tell us what actually happens
-> ([how to help](#help-us-test-on-macos-and-linux)).
+> **macOS (Apple Silicon) is tested; Intel Macs and Linux are not.** The Linux steps below are what we expect to work;
+> please tell us what actually happens ([how to help](#help-us-test-on-macos-and-linux)).
 
 The same code is meant to run on all three systems, but each installer must be **built on its own OS**.
 
@@ -150,8 +151,8 @@ The scripts target Debian/Ubuntu; other distributions need the equivalent packag
 
 ## Help us test on macOS and Linux
 
-**The app has never been built or run on macOS or Linux.** We have only a Windows machine, so we cannot tell what works.
-If you have a Mac or a Linux machine, even 15 minutes helps a lot:
+**The app has been tested on Windows 10 and on Apple Silicon Macs, but never run on Linux or on an Intel Mac.**
+If you have a Linux machine or an Intel Mac, even 15 minutes helps a lot:
 
 1. Build it (steps above) — or tell us if the build itself fails, and paste the error.
 2. Run the short smoke-test checklist in **[docs/CROSS_PLATFORM_TESTING.md](docs/CROSS_PLATFORM_TESTING.md)**.
@@ -169,7 +170,7 @@ menus on macOS, Linux window and file-watcher behaviour, and packaging. Even "it
 issue or send a patch / merge request wherever this repository is hosted).
 
 Good places to start:
-* **Test and fix macOS and Linux** (above) — the biggest gap today.
+* **Test and fix Linux and Intel Macs** (above) — the biggest gap today.
 * **Packaging and signing:** macOS notarisation, Windows code signing, a Flatpak or Snap.
 * **Errors:** add explanations for Git errors we don't recognise yet (`src/lib/explain.ts`, with a test).
 * **Features not built yet:** file history and blame views, Git LFS, worktrees, Git-flow helpers, tag/annotation details.
