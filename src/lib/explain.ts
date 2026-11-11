@@ -22,6 +22,8 @@ export interface Explained {
   actions: ErrorAction[];
   /** For "remove-lock": the lock file git complained about. */
   lockPath?: string;
+  /** For a connection to another computer: that computer, as named in the error. */
+  host?: string;
 }
 
 interface Rule {
@@ -30,7 +32,73 @@ interface Rule {
   build: (m: RegExpExecArray, raw: string) => Omit<Explained, "id">;
 }
 
+// Errors Treeline itself writes about a computer reached over ssh (see src-tauri/core/src/hosts.rs). They start with a
+// fixed text and the computer's name in quotes, so they never match git's own messages, and they come first.
+const START = "^Treeline could not connect to “([^”]+)”: ";
+const remote = (id: string, test: RegExp, build: (host: string, reason: string) => Omit<Explained, "id" | "host" | "actions">): Rule => ({
+  id,
+  test,
+  build: (m) => ({ ...build(m[1], m[2] ?? ""), host: m[1], actions: [] }),
+});
+const REMOTE_RULES: Rule[] = [
+  remote("remote-auth", new RegExp(`${START}(.*(?:Permission denied \\(publickey|Host key verification failed|Too many authentication failures).*)$`, "s"), (host) => ({
+    title: `${host} did not accept your ssh key`,
+    why: "Treeline connects with the keys loaded in your ssh agent and never asks for a password. That computer refused them, or its host key is not the one ssh remembers.",
+    fixes: [
+      "Load your key into the agent: “ssh-add --apple-use-keychain ~/.ssh/id_ed25519” (use your key's path).",
+      `Check that “ssh ${host}” logs in without asking anything, then press Refresh.`,
+      `If ssh says the host key changed, find out why before you accept the new one (“ssh-keygen -R ${host}”).`,
+    ],
+  })),
+  remote("remote-helper-old", new RegExp(`${START}(the helper sent to it .*)$`, "s"), (host) => ({
+    title: `The helper Treeline sends to ${host} is out of date`,
+    why: "Treeline sends a small helper program to the other computer when it connects. The one in this build is older than the app and does not know every command the app uses, so Treeline did not use it.",
+    fixes: ["Rebuild the helper for this version of Treeline and put it in the app's settings folder (developer builds), then press Refresh."],
+  })),
+  remote("remote-helper-missing", new RegExp(`${START}(.*(?:has no helper for|helper is not in this build).*)$`, "s"), (_host, reason) => ({
+    title: "No helper for that computer",
+    why: `Treeline needs a helper program built for the other computer's system. ${reason}`,
+    fixes: ["Only Linux (x86_64 and ARM) is supported for now.", "Developer builds: put the helper files in the app's settings folder."],
+  })),
+  remote("remote-timeout", new RegExp(`${START}(.*did not answer within.*)$`, "s"), (host) => ({
+    title: `${host} did not finish connecting in time`,
+    why: "ssh got through, but the other computer did not finish starting Treeline's helper in time. It may be very busy, or the network may be dropping packets.",
+    fixes: ["Check the network between the two computers (Wi-Fi, VPN).", "Press Refresh to try again."],
+  })),
+  remote("remote-unreachable", new RegExp(`${START}(.*)$`, "s"), (host) => ({
+    title: `Treeline could not reach ${host}`,
+    why: "ssh could not get through to that computer: it may be asleep or off, on another network, or its name may not be found.",
+    fixes: [
+      "Check that the computer is on and awake, and on the same network or VPN.",
+      `Try “ssh ${host}” in a terminal: it should log in without asking anything.`,
+      "Then press Refresh.",
+    ],
+  })),
+  remote("remote-lost", /^Treeline lost the connection to “([^”]+)”\./, (host) => ({
+    title: `The connection to ${host} was lost`,
+    why: "The link dropped (the computer slept, restarted or left the network) and Treeline's one automatic retry did not get through. Nothing was changed.",
+    fixes: ["Press Refresh to connect again.", "If it keeps happening, check the network between the two computers."],
+  })),
+  remote("remote-closed", /^Treeline closed the connection to “([^”]+)”\./, (host) => ({
+    title: `The connection to ${host} was closed`,
+    why: "Treeline closed that connection (for example when the last tab on that computer was closed), which cut this request off. Nothing was changed.",
+    fixes: ["Press Refresh to connect again."],
+  })),
+  remote("remote-slow", /^Treeline got no answer from “([^”]+)” in time\./, (host) => ({
+    title: `${host} is taking too long`,
+    why: "The connection is up, but the answer did not come within a minute: a very large repository, a busy computer, or Git waiting for something there.",
+    fixes: ["Try again.", "Run the same Git command on that computer to see what it is doing."],
+  })),
+];
+
+/** The computer a connection error from Treeline is about, or null for any other error. */
+export function remoteErrorHost(text: string): string | null {
+  const m = /^Treeline (?:could not connect to|lost the connection to|closed the connection to|got no answer from) “([^”]+)”/.exec(text ?? "");
+  return m ? m[1] : null;
+}
+
 const RULES: Rule[] = [
+  ...REMOTE_RULES,
   {
     id: "index-lock",
     test: /Unable to create '([^']*\.lock)': File exists/i,
