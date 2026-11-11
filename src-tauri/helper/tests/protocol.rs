@@ -281,3 +281,46 @@ fn lists_folders_starting_from_home_on_that_computer() {
     let _ = std::fs::remove_file(&exe);
     let _ = std::fs::remove_dir_all(&home);
 }
+
+#[test]
+fn the_hello_lists_the_commands() {
+    let h = Helper::start();
+    let methods = h.hello["treeline-helper"]["methods"].as_array().cloned().unwrap_or_default();
+    let names: Vec<&str> = methods.iter().filter_map(Value::as_str).collect();
+    for m in ["repo_status", "list_dir", "init", "allow", "ping"] {
+        assert!(names.contains(&m), "the hello does not list {m}: {:?}", h.hello);
+    }
+}
+
+/// The commands `dispatch` answers, read from the helper's source (each arm `"name" =>`, up to the `_ =>` arm).
+fn dispatch_arms() -> Vec<String> {
+    let src = include_str!("../src/main.rs");
+    let body = &src[src.find("fn dispatch(").expect("dispatch")..];
+    let body = &body[..body.find("_ =>").expect("the fallback arm")];
+    body.lines()
+        .filter_map(|l| l.trim().strip_prefix('"').and_then(|r| r.split_once("\" =>")).map(|(name, _)| name.to_string()))
+        .collect()
+}
+
+#[test]
+fn the_listed_commands_are_the_ones_it_answers() {
+    let mut h = Helper::start();
+    let listed: Vec<String> =
+        h.hello["treeline-helper"]["methods"].as_array().unwrap().iter().map(|m| m.as_str().unwrap().to_string()).collect();
+    // Listed -> answered: each one is known (wrong parameters are fine, an unknown command is not).
+    h.call(1, "init", json!({ "trusted": [] }));
+    for (i, m) in listed.iter().filter(|m| *m != "init").enumerate() {
+        let answer = h.call(2 + i as u64, m, json!({}));
+        let error = answer["error"].as_str().unwrap_or("");
+        assert!(!error.starts_with("unknown method"), "{m} is listed but not answered: {answer}");
+    }
+    // Answered -> listed: every arm of dispatch is listed, and only init and allow are handled elsewhere.
+    let mut arms = dispatch_arms();
+    assert!(arms.len() > 10, "read the arms of dispatch: {arms:?}");
+    arms.extend(["init".to_string(), "allow".to_string()]);
+    let (mut a, mut l) = (arms.clone(), listed.clone());
+    a.sort();
+    l.sort();
+    assert_eq!(a, l, "dispatch and the hello's list differ");
+    assert_eq!(treeline_core::remote::check_hello(&h.hello, &treeline_core::remote::required_methods()), Ok(()));
+}

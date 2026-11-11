@@ -1,6 +1,6 @@
 [package]
 name = "treeline-core"
-version = "0.3.2"
+version = "0.3.3"
 description = "Treeline's git layer, without the desktop shell"
 edition = "2024"
 

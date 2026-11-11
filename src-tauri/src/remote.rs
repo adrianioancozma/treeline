@@ -15,15 +15,10 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use treeline_core::hosts::{Ask, Config, Hosts};
+pub use treeline_core::remote::READ_METHODS;
 use treeline_core::remote::{Abort, Connection, Upload, helper_build_for, parse_ssh_hosts, ssh_helper_command, valid_host};
 
 use crate::git::blocking;
-
-/// What a remote tab may ask for in this version: reading only.
-pub const READ_METHODS: &[&str] = &[
-    "repo_status", "list_submodules", "list_refs", "stash_list", "list_remotes", "head_message", "git_log",
-    "commit_files", "commit_detail", "commit_diff", "file_diff", "file_log", "git_blame", "git_log_matches",
-];
 
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 

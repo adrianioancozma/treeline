@@ -369,6 +369,38 @@ pub fn valid_host(host: &str) -> bool {
     !name.is_empty() && !name.starts_with('-') && !user.starts_with('-') && ok(name) && ok(user) && host.len() <= 255
 }
 
+/// The protocol between the app and the helper; both sides must speak the same one.
+pub const PROTOCOL: u64 = 1;
+
+/// What a remote tab may ask for in this version: reading only.
+pub const READ_METHODS: &[&str] = &[
+    "repo_status", "list_submodules", "list_refs", "stash_list", "list_remotes", "head_message", "git_log",
+    "commit_files", "commit_detail", "commit_diff", "file_diff", "file_log", "git_blame", "git_log_matches",
+];
+
+/// Everything the app sends a helper: the reads, plus opening folders, browsing, the start and Reconnect's ping.
+pub fn required_methods() -> Vec<&'static str> {
+    let mut all = READ_METHODS.to_vec();
+    all.extend(["access", "list_dir", "init", "allow", "ping"]);
+    all
+}
+
+/// Whether a helper's hello (`{"treeline-helper": {…}}`) can serve this app: the same protocol and every command in
+/// `required`. Its version is not compared (it can lag behind the app's without missing anything). The error is the
+/// end of a sentence about the helper ("The helper on … ").
+pub fn check_hello(hello: &Value, required: &[&str]) -> Result<(), String> {
+    let h = &hello["treeline-helper"];
+    let proto = h["proto"].as_u64().unwrap_or(0);
+    if proto != PROTOCOL {
+        return Err(format!("speaks protocol {proto}; this Treeline speaks {PROTOCOL}."));
+    }
+    let Some(listed) = h["methods"].as_array() else {
+        return Err("is older than this Treeline: it does not list its commands.".into());
+    };
+    let missing: Vec<&str> = required.iter().copied().filter(|m| !listed.iter().any(|l| l == m)).collect();
+    if missing.is_empty() { Ok(()) } else { Err(format!("is older than this Treeline: it lacks {}.", missing.join(", "))) }
+}
+
 /// Where the sent helper may be put, in order: /tmp, then a private folder in the user's home (for computers whose
 /// /tmp does not allow running programs).
 pub const HELPER_DIRS: [&str; 2] = ["/tmp", "$HOME/.cache/treeline"];
@@ -432,6 +464,45 @@ pub fn parse_ssh_hosts(config: &str) -> Vec<String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod hello_tests {
+    use super::*;
+
+    fn hello(proto: u64, methods: Option<&[&str]>) -> Value {
+        match methods {
+            Some(m) => json!({ "treeline-helper": { "proto": proto, "version": "0.0.1", "methods": m } }),
+            None => json!({ "treeline-helper": { "proto": proto, "version": "0.3.2" } }),
+        }
+    }
+
+    #[test]
+    fn a_helper_with_every_command_is_accepted_whatever_its_version() {
+        let all = required_methods();
+        assert_eq!(check_hello(&hello(PROTOCOL, Some(&all)), &all), Ok(()));
+    }
+
+    #[test]
+    fn says_what_is_wrong_with_a_helper() {
+        let all = required_methods();
+        assert_eq!(check_hello(&hello(PROTOCOL, None), &all), Err("is older than this Treeline: it does not list its commands.".into()));
+        let without: Vec<&str> = all.iter().copied().filter(|m| *m != "file_log" && *m != "list_dir").collect();
+        assert_eq!(check_hello(&hello(PROTOCOL, Some(&without)), &all), Err("is older than this Treeline: it lacks file_log, list_dir.".into()));
+        assert_eq!(check_hello(&hello(2, Some(&all)), &all), Err("speaks protocol 2; this Treeline speaks 1.".into()));
+        assert!(check_hello(&json!({}), &all).is_err(), "no hello at all");
+    }
+
+    #[test]
+    fn the_app_asks_for_reads_only_plus_what_it_needs_to_connect() {
+        let all = required_methods();
+        for m in READ_METHODS {
+            assert!(all.contains(m));
+        }
+        for m in ["commit", "push", "checkout", "stage_files"] {
+            assert!(!all.contains(&m), "{m}");
+        }
+    }
 }
 
 #[cfg(test)]

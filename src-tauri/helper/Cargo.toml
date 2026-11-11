@@ -1,6 +1,6 @@
 [package]
 name = "treeline-helper"
-version = "0.3.2"
+version = "0.3.3"
 description = "Runs Treeline's git layer next to repositories on another computer; talks JSON-RPC over stdin/stdout"
 edition = "2024"
 

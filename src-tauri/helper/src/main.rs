@@ -24,7 +24,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use treeline_core::read;
 
-pub const PROTOCOL: u32 = 1;
+use treeline_core::remote::PROTOCOL;
+
+/// Every command this helper answers (`init` and `allow` in the main loop, the rest in `dispatch`), listed in the hello
+/// so the app can tell an old helper before using it. Kept in step with `dispatch` by a test.
+pub const METHODS: &[&str] = &[
+    "init", "allow", "ping", "access", "list_dir", "repo_status", "list_submodules", "list_refs", "stash_list", "list_remotes",
+    "head_message", "git_log", "commit_files", "commit_detail", "commit_diff", "file_diff", "file_log", "git_blame",
+    "git_log_matches",
+];
 
 type Out = Arc<Mutex<std::io::Stdout>>;
 
@@ -92,6 +100,7 @@ fn main() {
     let git = treeline_core::git::git_info_now();
     send(&out, &json!({ "treeline-helper": {
         "proto": PROTOCOL, "version": env!("CARGO_PKG_VERSION"), "git": git.version, "self_deleted": self_deleted,
+        "methods": METHODS,
     }}));
 
     let ready = Arc::new(AtomicBool::new(false));
