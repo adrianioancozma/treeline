@@ -155,7 +155,18 @@ fn answers_file_history_blame_and_history_filters_like_the_library() {
     assert_eq!(log.len(), 2, "two commits touched a.txt");
     assert_eq!(matches.len(), 1, "one commit says “second”");
     assert_eq!(h.call(2, "file_log", json!({ "path": p, "file": "a.txt", "skip": 0, "limit": 50 }))["result"], json!(log));
-    assert_eq!(h.call(3, "git_blame", json!({ "path": p, "file": "a.txt", "rev": null }))["result"], json!(blame));
+    // Git gives a line not committed yet the current time, so two calls can differ by a second there.
+    let uncommitted_time_dropped = |v: Value| -> Value {
+        let mut v = v;
+        for line in v.as_array_mut().unwrap() {
+            if line["sha"].as_str().is_some_and(|s| s.bytes().all(|b| b == b'0')) {
+                line["time"] = Value::Null;
+            }
+        }
+        v
+    };
+    let answered = h.call(3, "git_blame", json!({ "path": p, "file": "a.txt", "rev": null }))["result"].clone();
+    assert_eq!(uncommitted_time_dropped(answered), uncommitted_time_dropped(json!(blame)));
     let found = h.call(4, "git_log_matches", json!({ "path": p, "all": true, "filter": { "text": "second" } }));
     assert_eq!(found["result"], json!(matches));
     let _ = std::fs::remove_dir_all(&repo);
