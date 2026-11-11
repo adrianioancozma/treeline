@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use treeline_core::remote::{Connection, Upload, launch_script};
+use treeline_core::remote::{CallError, Connection, Upload, launch_script};
 
 const HELPER: &str = env!("CARGO_BIN_EXE_treeline-helper");
 const SEC: Duration = Duration::from_secs(10);
@@ -50,7 +50,7 @@ fn talks_to_the_helper_from_several_threads() {
     for t in threads {
         assert!(!t.join().unwrap().is_null());
     }
-    let err = conn.call("repo_status", json!({ "path": "/" }), SEC).unwrap_err();
+    let err = conn.call("repo_status", json!({ "path": "/" }), SEC).unwrap_err().to_string();
     assert!(err.contains("has not been opened"), "{err}");
     conn.close();
     assert!(conn.call("ping", json!({}), SEC).is_err(), "no calls after close");
@@ -137,7 +137,7 @@ fn a_request_in_flight_fails_at_once_when_the_other_side_goes_away() {
     // Says hello, reads one request and exits without answering.
     let conn = Connection::start(sh(r#"echo '{"treeline-helper":{"proto":1}}'; read line; exit 0"#), Upload::Nothing, SEC, |_| {}).unwrap();
     let started = Instant::now();
-    let err = conn.call("repo_status", json!({ "path": "/x" }), Duration::from_secs(30)).unwrap_err();
+    let err = conn.call("repo_status", json!({ "path": "/x" }), Duration::from_secs(30)).unwrap_err().to_string();
     assert!(err.contains("closed"), "{err}");
     assert!(started.elapsed() < Duration::from_secs(5), "did not wait for the timeout");
     assert!(!conn.is_alive());
@@ -226,4 +226,55 @@ fn sends_the_build_for_the_computer_and_refuses_an_unknown_one() {
     assert!(started.elapsed() < Duration::from_secs(5));
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "nothing was written for an unknown computer");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn close_by_treeline_is_not_a_lost_connection() {
+    // Answers nothing; `exec` so that killing the shell ends the process holding the output.
+    let script = r#"echo '{"treeline-helper":{"proto":1}}'; read line; exec sleep 30"#;
+    let conn = Arc::new(Connection::start(sh(script), Upload::Nothing, SEC, |_| {}).unwrap());
+    let caller = {
+        let conn = Arc::clone(&conn);
+        std::thread::spawn(move || conn.call("repo_status", json!({ "path": "/x" }), SEC).unwrap_err().to_string())
+    };
+    std::thread::sleep(Duration::from_millis(300));
+    conn.close();
+    let in_flight = caller.join().unwrap();
+    assert!(in_flight.contains("Treeline closed the connection"), "{in_flight}");
+    let after = conn.call("ping", json!({}), SEC).unwrap_err().to_string();
+    assert!(after.contains("Treeline closed the connection"), "{after}");
+}
+
+#[test]
+fn each_failure_has_its_kind() {
+    // Answers the first request with an error, ignores the second, exits after the third line.
+    let script = r#"echo '{"treeline-helper":{"proto":1}}'; read a; echo '{"id":1,"error":"fatal: bad revision"}'; read b; read c; exit 0"#;
+    let conn = Connection::start(sh(script), Upload::Nothing, SEC, |_| {}).unwrap();
+    assert_eq!(conn.call("git_log", json!({}), SEC), Err(CallError::Remote("fatal: bad revision".into())));
+    assert_eq!(conn.call("git_log", json!({}), Duration::from_millis(300)), Err(CallError::Timeout));
+    assert_eq!(conn.call("git_log", json!({}), SEC), Err(CallError::Closed), "the other side went away on its own");
+    assert!(CallError::Closed.to_string().contains("was closed"));
+}
+
+#[test]
+fn says_when_the_process_ends_whoever_ends_it() {
+    let ended = |script: &str, close: bool| {
+        let conn = Connection::start(sh(script), Upload::Nothing, SEC, |_| {}).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        conn.on_close(move || tx.send(()).unwrap());
+        if close {
+            conn.close();
+        }
+        rx.recv_timeout(Duration::from_secs(5)).is_ok()
+    };
+    assert!(ended(r#"echo '{"treeline-helper":{"proto":1}}'; exit 0"#, false), "the other side exits");
+    assert!(ended(r#"echo '{"treeline-helper":{"proto":1}}'; exec sleep 30"#, true), "Treeline closes it");
+    // Registered after the end: runs at once.
+    let conn = Connection::start(sh(r#"echo '{"treeline-helper":{"proto":1}}'; exit 0"#), Upload::Nothing, SEC, |_| {}).unwrap();
+    while conn.is_alive() {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    conn.on_close(move || tx.send(()).unwrap());
+    assert!(rx.try_recv().is_ok());
 }

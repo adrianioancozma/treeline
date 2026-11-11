@@ -27,5 +27,5 @@ fn opens_a_repository_on_another_computer() {
         status["branch"], log.as_array().unwrap().len(), conn.hello
     );
     assert_eq!(log.as_array().unwrap().len(), 400);
-    assert!(conn.call("repo_status", json!({ "path": "/etc" }), Duration::from_secs(10)).unwrap_err().contains("has not been opened"));
+    assert!(conn.call("repo_status", json!({ "path": "/etc" }), Duration::from_secs(10)).unwrap_err().to_string().contains("has not been opened"));
 }

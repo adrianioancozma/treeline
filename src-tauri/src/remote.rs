@@ -182,7 +182,7 @@ pub async fn remote_call(app: AppHandle, host: String, method: String, params: V
         if !is_opened(&opened, &path) {
             return Err(format!("{path} has not been opened on {host} in Treeline."));
         }
-        connection(&app, &host)?.call(&method, params, CALL_TIMEOUT)
+        Ok(connection(&app, &host)?.call(&method, params, CALL_TIMEOUT)?)
     })
     .await
 }
@@ -194,7 +194,7 @@ pub async fn remote_list(app: AppHandle, host: String, path: String, show_hidden
         if !valid_host(&host) {
             return Err(format!("“{host}” is not a computer name ssh can use."));
         }
-        connection(&app, &host)?.call("list_dir", json!({ "path": path, "show_hidden": show_hidden }), CALL_TIMEOUT)
+        Ok(connection(&app, &host)?.call("list_dir", json!({ "path": path, "show_hidden": show_hidden }), CALL_TIMEOUT)?)
     })
     .await
 }

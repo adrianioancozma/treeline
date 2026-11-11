@@ -14,7 +14,39 @@ use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-type Pending = Arc<Mutex<HashMap<u64, Sender<Result<Value, String>>>>>;
+type Pending = Arc<Mutex<HashMap<u64, Sender<Result<Value, CallError>>>>>;
+type OnClose = Arc<Mutex<Option<Box<dyn FnOnce() + Send>>>>;
+
+/// Why a call did not get an answer. The kind decides what the app may do next (retry a read after `Closed`, never
+/// after `Cancelled`); the text is what the user reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CallError {
+    /// The process ended on its own: the link dropped, ssh gave up, the helper exited.
+    Closed,
+    /// Treeline closed the connection itself (`close`).
+    Cancelled,
+    /// No answer within the call's time limit; the connection may still be alive.
+    Timeout,
+    /// The helper answered with an error (git's message, a refused folder…).
+    Remote(String),
+}
+
+impl std::fmt::Display for CallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CallError::Closed => f.write_str(CLOSED),
+            CallError::Cancelled => f.write_str("Treeline closed the connection to the other computer."),
+            CallError::Timeout => f.write_str("The other computer did not answer in time."),
+            CallError::Remote(e) => f.write_str(e),
+        }
+    }
+}
+
+impl From<CallError> for String {
+    fn from(e: CallError) -> String {
+        e.to_string()
+    }
+}
 
 /// What to send before the helper starts.
 pub enum Upload<'a> {
@@ -31,6 +63,10 @@ pub struct Connection {
     pending: Pending,
     next: AtomicU64,
     alive: Arc<AtomicBool>,
+    /// Set by `close` before the process is killed, so the requests it cuts off get `Cancelled`, not `Closed`.
+    closing: Arc<AtomicBool>,
+    /// Run once when the process ends (guarded by its own lock together with `alive`).
+    on_close: OnClose,
     stderr: Arc<Mutex<String>>,
     /// The helper's hello: protocol, version, git version.
     pub hello: Value,
@@ -68,11 +104,15 @@ impl Connection {
         }
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
         let alive = Arc::new(AtomicBool::new(true));
+        let closing = Arc::new(AtomicBool::new(false));
+        let on_close: OnClose = Arc::new(Mutex::new(None));
         let (hello_tx, hello_rx) = channel::<(Value, Vec<String>)>();
         let (arch_tx, arch_rx) = channel::<String>();
         {
             let pending = Arc::clone(&pending);
             let alive = Arc::clone(&alive);
+            let closing = Arc::clone(&closing);
+            let on_close = Arc::clone(&on_close);
             std::thread::spawn(move || {
                 let mut noise = Vec::new();
                 let mut hello = Some(hello_tx);
@@ -102,7 +142,7 @@ impl Connection {
                         Some(id) => {
                             if let Some(tx) = pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id) {
                                 let answer = match v.get("error") {
-                                    Some(e) => Err(e.as_str().map(str::to_string).unwrap_or_else(|| e.to_string())),
+                                    Some(e) => Err(CallError::Remote(e.as_str().map(str::to_string).unwrap_or_else(|| e.to_string()))),
                                     None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
                                 };
                                 let _ = tx.send(answer);
@@ -112,9 +152,17 @@ impl Connection {
                     }
                 }
                 // The process ended: nothing more will arrive.
-                alive.store(false, Ordering::SeqCst);
+                let why = if closing.load(Ordering::SeqCst) { CallError::Cancelled } else { CallError::Closed };
+                let callback = {
+                    let mut slot = on_close.lock().unwrap_or_else(|e| e.into_inner());
+                    alive.store(false, Ordering::SeqCst);
+                    slot.take()
+                };
                 for (_, tx) in pending.lock().unwrap_or_else(|e| e.into_inner()).drain() {
-                    let _ = tx.send(Err(CLOSED.into()));
+                    let _ = tx.send(Err(why.clone()));
+                }
+                if let Some(f) = callback {
+                    f();
                 }
             });
         }
@@ -151,6 +199,8 @@ impl Connection {
                 pending,
                 next: AtomicU64::new(0),
                 alive,
+                closing,
+                on_close,
                 stderr,
                 hello,
                 noise,
@@ -169,15 +219,30 @@ impl Connection {
         self.alive.load(Ordering::SeqCst)
     }
 
+    /// Runs `f` once when the process ends (at once if it already has), whoever ended it.
+    pub fn on_close(&self, f: impl FnOnce() + Send + 'static) {
+        let mut slot = self.on_close.lock().unwrap_or_else(|e| e.into_inner());
+        if self.is_alive() {
+            *slot = Some(Box::new(f));
+        } else {
+            drop(slot);
+            f();
+        }
+    }
+
+    fn gone(&self) -> CallError {
+        if self.closing.load(Ordering::SeqCst) { CallError::Cancelled } else { CallError::Closed }
+    }
+
     /// What the process wrote on its error output (ssh's messages), for an error shown to the user.
     pub fn error_output(&self) -> String {
         self.stderr.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Sends one request and waits for its answer (other requests may be answered meanwhile).
-    pub fn call(&self, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
+    pub fn call(&self, method: &str, params: Value, timeout: Duration) -> Result<Value, CallError> {
         if !self.is_alive() {
-            return Err(CLOSED.into());
+            return Err(self.gone());
         }
         let id = self.next.fetch_add(1, Ordering::SeqCst) + 1;
         let (tx, rx) = channel();
@@ -189,19 +254,20 @@ impl Connection {
         };
         if sent.is_err() {
             self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
-            return Err(CLOSED.into());
+            return Err(self.gone());
         }
         match rx.recv_timeout(timeout) {
             Ok(answer) => answer,
             Err(_) => {
                 self.pending.lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
-                Err("The other computer did not answer in time.".into())
+                Err(CallError::Timeout)
             }
         }
     }
 
     /// Ends the connection: the helper sees its input close and exits.
     pub fn close(&self) {
+        self.closing.store(true, Ordering::SeqCst);
         let mut child = self.child.lock().unwrap_or_else(|e| e.into_inner());
         let _ = child.kill();
         let _ = child.wait();
