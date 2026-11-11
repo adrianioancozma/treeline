@@ -48,8 +48,8 @@ if you do not have it.
 * **Fedora, openSUSE**: `sudo dnf install ./treeline-*.rpm`
 * You need WebKitGTK 4.1 (`libwebkit2gtk-4.1-0`), which the `.deb` and `.rpm` pull in automatically.
 
-> **macOS and Linux are not fully tested yet.** Windows is the verified platform. If something does not work on your
-> system, please tell us (see *Help us test* in the project's README).
+> **Linux and Intel Macs are not tested yet.** Windows 10 and Apple Silicon Macs are the verified platforms. If something
+> does not work on your system, please tell us (see *Help us test* in the project's README).
 
 Once installed, the app updates itself: it tells you when a new version is out (see *Version and updates* below).
 If you would rather build it yourself, see the README's *Build installers* section.

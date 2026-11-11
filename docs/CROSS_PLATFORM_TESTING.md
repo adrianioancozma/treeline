@@ -1,7 +1,7 @@
 # Testing Treeline on macOS and Linux
 
-**Status:** the app has been built and tested **only on Windows 10**. It has **never been compiled or run on macOS or
-Linux**. This checklist is how you can help change that. It takes about 15–20 minutes. Thank you!
+**Status:** the app has been built and tested on **Windows 10** and on **Apple Silicon Macs**. It has **never been run
+on Linux or on an Intel Mac**. This checklist is how you can help change that. It takes about 15–20 minutes. Thank you!
 
 You need a Mac (macOS 12 or newer) or a Linux machine with a desktop (Debian/Ubuntu is what the scripts target), and
 `git` installed. Two small test repositories are enough: any repository you can clone, plus a scratch one you make.
