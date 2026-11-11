@@ -480,12 +480,12 @@ full output.
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+R` | Refresh |
 | `Ctrl+Enter` (in the message box) | Commit |
-| `Enter` / `Esc` (in a dialog) | Confirm / cancel |
+| `Enter` / `Esc` or × (in a dialog) | Confirm / cancel |
 | Double-click a file | Stage / unstage it |
 | Double-click a branch | Check it out |
 | Double-click a submodule | Open it in a tab beside its parent |
 
-(On macOS use `Cmd` instead of `Ctrl`, except `Ctrl+Tab` for switching tabs. On a Mac, `F1` may need the `Fn` key, so `Cmd+?` is the easier way to open the guide.)
+(On macOS use `Cmd` instead of `Ctrl`, except `Ctrl+Tab` for switching tabs. The app shows each shortcut with your platform's keys, for example ⌘K and ⌃Tab on a Mac. On a Mac, `F1` may need the `Fn` key, so `Cmd+?` is the easier way to open the guide.)
 
 ---
 

@@ -5,6 +5,7 @@ import { closeMenu, useUi } from "../uiStore";
 import { errorMessage } from "../api";
 import { Icon } from "./Icon";
 import { ErrorBox } from "./ErrorBox";
+import { Modal } from "./Modal";
 
 export function ContextMenuHost() {
   const menu = useUi((s) => s.menu);
@@ -114,18 +115,18 @@ function FormDialog({ spec }: { spec: DialogSpec }) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && close()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label={spec.title}
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && !busy) close();
-          if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement) && !busy) void submit();
-        }}
-      >
-        <h2>{spec.title}</h2>
+    <Modal
+      title={spec.title}
+      onClose={close}
+      busy={busy}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement) && !(e.target instanceof HTMLButtonElement) && !busy) {
+          // Stop the key's default action: focus returns to the button that opened the dialog, which this Enter must not press again.
+          e.preventDefault();
+          void submit();
+        }
+      }}
+    >
         {spec.description && <p className="muted small">{spec.description}</p>}
         {spec.fields.map((f, i) => {
           if (f.showIf && !values[f.showIf]) return null;
@@ -175,7 +176,6 @@ function FormDialog({ spec }: { spec: DialogSpec }) {
             {spec.submitLabel}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

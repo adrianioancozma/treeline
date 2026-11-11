@@ -5,6 +5,7 @@ import type { FileHistoryRequest } from "../uiStore";
 import type { BlameLine, FileCommit } from "../types";
 import { DiffView } from "./DiffView";
 import { ErrorBox } from "./ErrorBox";
+import { Modal } from "./Modal";
 
 const PAGE = 200;
 const UNCOMMITTED = /^0+$/;
@@ -83,30 +84,22 @@ export function FileHistoryDialog({ req, onClose }: { req: FileHistoryRequest; o
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="modal wide"
-        role="dialog"
-        aria-label={`History of ${file}`}
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-      >
-        <div className="fh-head">
-          <h2 className="ellipsis" title={file}>
-            {file}
-          </h2>
-          <div className="seg" role="tablist">
-            <button role="tab" aria-selected={mode === "history"} className={mode === "history" ? "active" : ""} onClick={() => setMode("history")}>
-              History
-            </button>
-            <button role="tab" aria-selected={mode === "blame"} className={mode === "blame" ? "active" : ""} onClick={() => setMode("blame")}>
-              Blame
-            </button>
-          </div>
-          <button className="btn" onClick={onClose}>
-            Close
+    <Modal
+      title={<span title={file}>{file}</span>}
+      label={`History of ${file}`}
+      className="wide"
+      onClose={onClose}
+      headerExtra={
+        <div className="seg" role="tablist">
+          <button role="tab" aria-selected={mode === "history"} className={mode === "history" ? "active" : ""} onClick={() => setMode("history")}>
+            History
+          </button>
+          <button role="tab" aria-selected={mode === "blame"} className={mode === "blame" ? "active" : ""} onClick={() => setMode("blame")}>
+            Blame
           </button>
         </div>
+      }
+    >
         {error && <ErrorBox text={error} compact />}
 
         {mode === "history" ? (
@@ -116,7 +109,7 @@ export function FileHistoryDialog({ req, onClose }: { req: FileHistoryRequest; o
                 const older = commits[i + 1];
                 return (
                   <button key={c.sha} role="option" aria-selected={c.sha === sel} className={`fh-commit${c.sha === sel ? " active" : ""}`} onClick={() => setSel(c.sha)}>
-                    <span className="subject ellipsis">{c.subject}</span>
+                    <span className="subject-text">{c.subject}</span>
                     <span className="muted small ellipsis">
                       {c.author} · <span title={fullDate(c.time)}>{relativeTime(c.time)}</span> · <code>{c.sha.slice(0, 7)}</code>
                       {older && older.file !== c.file ? ` · renamed from ${older.file}` : ""}
@@ -161,7 +154,11 @@ export function FileHistoryDialog({ req, onClose }: { req: FileHistoryRequest; o
             })}
           </div>
         )}
-      </div>
-    </div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+    </Modal>
   );
 }

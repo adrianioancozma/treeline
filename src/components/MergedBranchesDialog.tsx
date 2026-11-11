@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import type { BranchHistory, MergedBranch } from "../types";
 import { ErrorBox } from "./ErrorBox";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 const HISTORY_LIMIT = 100;
 const USUAL_TARGETS = ["main", "master", "develop"];
@@ -94,30 +95,24 @@ export function MergedBranchesDialog({ tabId, onClose }: { tabId: string; onClos
   const focused = branches?.find((b) => b.name === focus);
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="modal wide"
-        role="dialog"
-        aria-label="Merged branches"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-      >
-        <div className="fh-head">
-          <h2>Merged branches</h2>
-          <label className="mb-target">
-            <span>Merged into</span>
-            <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Target branch">
-              {targets.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="btn" onClick={onClose}>
-            Close
-          </button>
-        </div>
+    <Modal
+      title="Merged branches"
+      className="wide"
+      onClose={onClose}
+      busy={deleting}
+      headerExtra={
+        <label className="mb-target">
+          <span>Merged into</span>
+          <select value={target} onChange={(e) => setTarget(e.target.value)} aria-label="Target branch">
+            {targets.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+      }
+    >
         <p className="muted small">
           These branches are already part of <code>{target}</code>, so deleting them loses no commits. A branch that was squash-merged or rebased
           is not recognised, because its original commits never reached <code>{target}</code>; check those by hand.
@@ -139,8 +134,9 @@ export function MergedBranchesDialog({ tabId, onClose }: { tabId: string; onClos
                   title={b.head ? "Checked out, so it cannot be deleted" : `Delete ${b.name}`}
                 />
                 <button className="mb-name" onClick={() => setFocus(b.name)}>
-                  <span className="subject ellipsis">
-                    <Icon name="branch" size={13} /> {b.name}
+                  <span className="subject">
+                    <Icon name="branch" size={13} />
+                    <span className="subject-text">{b.name}</span>
                     {b.head && <span className="mb-badge">checked out</span>}
                     {b.atTarget && !b.head && (
                       <span className="mb-badge" title={`Its tip is the same commit as ${target}: nothing was committed on it`}>
@@ -180,7 +176,7 @@ export function MergedBranchesDialog({ tabId, onClose }: { tabId: string; onClos
                 </p>
                 {history.commits.map((c) => (
                   <div key={c.sha} className="fh-commit">
-                    <span className="subject ellipsis" title={c.subject}>
+                    <span className="subject-text" title={c.subject}>
                       {c.subject}
                     </span>
                     <span className="muted small ellipsis">
@@ -216,12 +212,16 @@ export function MergedBranchesDialog({ tabId, onClose }: { tabId: string; onClos
               </button>
             </>
           ) : (
-            <button className="btn danger-outline" disabled={checked.size === 0} onClick={() => setConfirming(true)}>
-              Delete {checked.size > 0 ? checked.size : ""} selected…
-            </button>
+            <>
+              <button className="btn danger-outline" disabled={checked.size === 0} onClick={() => setConfirming(true)}>
+                Delete {checked.size > 0 ? checked.size : ""} selected…
+              </button>
+              <button className="btn" onClick={onClose}>
+                Close
+              </button>
+            </>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
 import { repoActions } from "../actions";
-import { useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
+import { useAutoSplit, useDebounced, useElementHeight, useOptionalSplit, useSplit } from "../hooks";
 import { computeGraph, reachableFrom, type GraphRow } from "../lib/graph";
 import { classifyRef, fullDate, relativeTime, splitPath } from "../lib/format";
+import { graphWidths } from "../lib/paneSize";
 import { DATE_RANGES, authorsOf, dateFilterActive, dateWindow, filtersActive, noFilters, type DateRange } from "../lib/historyFilter";
 import { useApp } from "../store";
 import { openMenu, useUi } from "../uiStore";
@@ -11,9 +12,12 @@ import type { Commit, CommitDetail, FileEntry, Tab } from "../types";
 import { DiffView } from "./DiffView";
 import { Icon } from "./Icon";
 
-const ROW_H = 28;
+const ROW_H = 22;
 const LANE_W = 14;
-const PALETTE = ["#4c8dff", "#e5a23c", "#4cc38a", "#c678dd", "#ff6b6b", "#2bb5c8", "#d9822b", "#8fbf3f"];
+/** Smallest width of a History text column (Description, Author, Date, Commit). */
+const COL_MIN = 50;
+// Lane colours are theme tokens (--lane-1 … --lane-8 in App.css); CSS variables only work as style properties in SVG.
+const PALETTE = Array.from({ length: 8 }, (_, i) => `var(--lane-${i + 1})`);
 const WIP = "WIP";
 
 /** A text filter with its own X button. */
@@ -49,9 +53,9 @@ function GraphCell({ row, width }: { row: GraphRow; width: number }) {
         const d = straight
           ? `M${x(s.x1)} ${y(s.y1)}V${y(s.y2)}`
           : `M${x(s.x1)} ${y(s.y1)}C${x(s.x1)} ${y((s.y1 + s.y2) / 2)} ${x(s.x2)} ${y((s.y1 + s.y2) / 2)} ${x(s.x2)} ${y(s.y2)}`;
-        return <path key={i} d={d} stroke={color(s.color)} strokeWidth="2" fill="none" />;
+        return <path key={i} d={d} style={{ stroke: color(s.color) }} strokeWidth="1.75" fill="none" />;
       })}
-      <circle cx={x(row.lane)} cy={ROW_H / 2} r="4.5" fill={color(row.color)} stroke="var(--bg)" strokeWidth="1.5" />
+      <circle cx={x(row.lane)} cy={ROW_H / 2} r="4" style={{ fill: color(row.color), stroke: "var(--bg)" }} strokeWidth="1.5" />
     </svg>
   );
 }
@@ -69,7 +73,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
   const historyH = useElementHeight(historyRef);
   // Leave room for the commit detail panel: a saved or dragged height may never push it off screen.
   const maxTop = historyH > 0 ? Math.max(140, Math.min(800, historyH - 6 - MIN_DETAIL_H)) : 800;
-  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.42), 140, maxTop, "y");
+  const [height, onSplit] = useSplit("history-top", Math.round(window.innerHeight * 0.6), 140, maxTop, "y");
   const filters = d.ui.filters;
   const setFilters = (patch: Partial<typeof filters>) => setUi(tab.id, { filters: { ...filters, ...patch } });
   const filtering = filtersActive(filters);
@@ -166,13 +170,18 @@ export function HistoryView({ tab }: { tab: Tab }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seeking, focusTip, focusIndex, d.logLoaded, d.logDone, d.logLoading, d.ui.historyAll]);
-  const maxLanes = Math.min(12, Math.max(1, ...graph.map((r) => r.lanes)));
-  const graphW = maxLanes * LANE_W + 8;
+  // Up to 12 lanes by default; drag the Graph header edge to widen it (P21). The width is remembered per repository,
+  // so a column widened for a repository with many branches does not leave empty space in a small one.
+  const graphRange = graphWidths(Math.max(1, ...graph.map((r) => r.lanes)), LANE_W);
+  const [graphW, onGraphSplit, resetGraph] = useAutoSplit(`history-col-graph:${tab.path}`, graphRange.auto, graphRange.min, graphRange.max);
   // Right-hand columns resize from their left edge, so dragging left widens them. Sizes are remembered.
-  const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, 60, 400, "x", true);
-  const [dateW, onDateSplit, resetDate] = useSplit("history-col-date", 110, 50, 300, "x", true);
-  const [shaW, onShaSplit, resetSha] = useSplit("history-col-sha", 64, 50, 160, "x", true);
-  const columns = `${graphW}px minmax(0, 1fr) ${authorW}px ${dateW}px ${shaW}px`;
+  // Minimums only (P26): columns can grow freely; when they no longer fit, the list scrolls sideways.
+  const [authorW, onAuthorSplit, resetAuthor] = useSplit("history-col-author", 150, COL_MIN, Infinity, "x", true);
+  const [dateW, onDateSplit, resetDate] = useSplit("history-col-date", 110, COL_MIN, Infinity, "x", true);
+  const [shaW, onShaSplit, resetSha] = useSplit("history-col-sha", 64, COL_MIN, Infinity, "x", true);
+  const columns = `${graphW}px minmax(${COL_MIN}px, 1fr) ${authorW}px ${dateW}px ${shaW}px`;
+  // Width the five columns need at their current sizes: 4 gaps of 8px and the row padding (8px left, 12px right).
+  const rowMinW = graphW + COL_MIN + authorW + dateW + shaW + 4 * 8 + 20;
 
   const first = Math.max(0, Math.floor(scroll / ROW_H) - 6);
   const last = Math.min(rowsData.length, Math.ceil((scroll + viewH) / ROW_H) + 6);
@@ -196,6 +205,15 @@ export function HistoryView({ tab }: { tab: Tab }) {
     const isHead = status?.head === c.sha;
     openMenu(e, [
       { label: "Copy SHA", onClick: () => a.copy(c.sha) },
+      { label: "Copy subject", onClick: () => a.copy(c.subject) },
+      {
+        label: "Copy message",
+        onClick: () =>
+          void api
+            .commitDetail(tab.path!, c.sha)
+            .then((det) => a.copy(det.message))
+            .catch((err) => useApp.getState().notify("error", errorMessage(err))),
+      },
       { separator: true },
       { label: "Check out this commit", onClick: () => a.checkoutCommit(c), disabled: isHead },
       { label: "New branch here…", onClick: () => a.newBranch(c.sha) },
@@ -289,26 +307,30 @@ export function HistoryView({ tab }: { tab: Tab }) {
             </span>
           )}
         </div>
-        <div className="history-head" style={{ gridTemplateColumns: columns }}>
-          <span>Graph</span>
-          <span>Description</span>
-          <span className="col-head">
-            <i className="col-grip" onMouseDown={onAuthorSplit} onDoubleClick={() => resetAuthor()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
-            Author
-          </span>
-          <span className="col-head">
-            <i className="col-grip" onMouseDown={onDateSplit} onDoubleClick={() => resetDate()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
-            Date
-          </span>
-          <span className="col-head">
-            <i className="col-grip" onMouseDown={onShaSplit} onDoubleClick={() => resetSha()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
-            Commit
-          </span>
-        </div>
         <div className="vlist" ref={scroller} onScroll={(e) => setScroll(e.currentTarget.scrollTop)}>
+          {/* Inside the scroller, sticky: same width as the rows (scrollbar included) and scrolls sideways with them. */}
+          <div className="history-head" style={{ gridTemplateColumns: columns, minWidth: rowMinW }}>
+            <span className="col-head">
+              <span className="col-label">Graph</span>
+              <i className="col-grip end" onMouseDown={onGraphSplit} onDoubleClick={() => resetGraph()} role="separator" aria-orientation="vertical" title="Drag to show more branches. Double-click for the automatic width." />
+            </span>
+            <span className="col-label">Description</span>
+            <span className="col-head">
+              <i className="col-grip" onMouseDown={onAuthorSplit} onDoubleClick={() => resetAuthor()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+              <span className="col-label">Author</span>
+            </span>
+            <span className="col-head">
+              <i className="col-grip" onMouseDown={onDateSplit} onDoubleClick={() => resetDate()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+              <span className="col-label">Date</span>
+            </span>
+            <span className="col-head">
+              <i className="col-grip" onMouseDown={onShaSplit} onDoubleClick={() => resetSha()} role="separator" aria-orientation="vertical" title="Drag to resize. Double-click to reset." />
+              <span className="col-label">Commit</span>
+            </span>
+          </div>
           {d.logLoaded && rowsData.length === 0 && <div className="empty">No commits yet.</div>}
           {!d.logLoaded && <div className="empty">Loading history…</div>}
-          <div style={{ height: rowsData.length * ROW_H, position: "relative" }}>
+          <div style={{ height: rowsData.length * ROW_H, position: "relative", minWidth: rowMinW }}>
             {rowsData.slice(first, last).map((c, k) => {
               const i = first + k;
               const isWip = c.sha === WIP;
@@ -317,7 +339,7 @@ export function HistoryView({ tab }: { tab: Tab }) {
                 <div
                   key={c.sha}
                   className={`crow${selected === c.sha ? " active" : ""}${compare === c.sha ? " compare" : ""}${isWip ? " wip" : ""}${(highlight && !(isWip ? focusRef === status?.branch : highlight.has(c.sha))) || (filtering && matches && !matches.has(c.sha)) ? " dim" : ""}`}
-                  style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: columns }}
+                  style={{ top: i * ROW_H, height: ROW_H, gridTemplateColumns: columns, minWidth: rowMinW }}
                   onClick={(e) => {
                     if (isWip) return setUi(tab.id, { selCommit: WIP, compareCommit: null });
                     // Ctrl+click a second commit to compare it with the selected one.
@@ -335,7 +357,9 @@ export function HistoryView({ tab }: { tab: Tab }) {
                         {r.label}
                       </span>
                     ))}
-                    {isWip ? <em>Uncommitted changes ({wipCount})</em> : c.subject}
+                    <span className="subject-text" title={isWip ? undefined : c.subject}>
+                      {isWip ? <em>Uncommitted changes ({wipCount})</em> : c.subject}
+                    </span>
                   </span>
                   <span className="muted ellipsis">{c.author}</span>
                   <span className="muted ellipsis" title={isWip ? "" : fullDate(c.time)}>

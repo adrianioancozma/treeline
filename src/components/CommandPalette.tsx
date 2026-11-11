@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import { useUi } from "../uiStore";
 import { GUIDE, openGuide } from "../guide";
 import { pickAndOpenRepo } from "./Home";
+import { formatShortcut } from "../lib/shortcut";
 
 interface Cmd {
   id: string;
@@ -28,10 +29,10 @@ function Palette({ onClone }: { onClone: () => void }) {
 
   const cmds = useMemo<Cmd[]>(() => {
     const out: Cmd[] = [
-      { id: "open", label: "Open repository…", hint: "Ctrl+O", run: () => void pickAndOpenRepo(s.openRepo, (m) => s.notify("error", m)) },
+      { id: "open", label: "Open repository…", hint: formatShortcut("Mod+O"), run: () => void pickAndOpenRepo(s.openRepo, (m) => s.notify("error", m)) },
       { id: "clone", label: "Clone repository…", run: onClone },
       { id: "settings", label: "Settings… (Git program)", run: () => useUi.setState({ settings: true }) },
-      { id: "tab", label: "New tab", hint: "Ctrl+T", run: s.newTab },
+      { id: "tab", label: "New tab", hint: formatShortcut("Mod+T"), run: s.newTab },
       { id: "guide", label: "Open the user guide", hint: "F1", run: () => void openGuide() },
       { id: "guide-errors", label: "Guide: when something goes wrong", run: () => void openGuide(GUIDE.errors) },
       { id: "guide-workflow", label: "Guide: everyday workflow", run: () => void openGuide(GUIDE.workflow) },
@@ -59,7 +60,7 @@ function Palette({ onClone }: { onClone: () => void }) {
       const a = repoActions(tab.id);
       const d = s.data[tab.id];
       out.push(
-        { id: "close", label: "Close tab", hint: "Ctrl+W", run: () => s.closeTab(tab.id) },
+        { id: "close", label: "Close tab", hint: formatShortcut("Mod+W"), run: () => s.closeTab(tab.id) },
         { id: "view-files", label: "Show file status", run: () => s.setUi(tab.id, { view: "files" }) },
         { id: "view-history", label: "Show history", run: () => s.setUi(tab.id, { view: "history" }) },
         { id: "fetch", label: "Fetch", run: () => void a.fetch() },

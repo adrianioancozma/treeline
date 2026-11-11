@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import type { MergeApplied, MergePreview } from "../types";
 import { ErrorBox } from "./ErrorBox";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 type Step = "pick" | "review" | "done";
 
@@ -223,22 +224,25 @@ export function MultiMergeDialog({ tabId, initialSource, onClose }: { tabId: str
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal mm" role="dialog" aria-label="Merge into multiple branches" onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.key === "Escape" && onClose()}>
-        <div className="mm-head">
-          <h2>Merge into multiple branches</h2>
-          <div className="mm-steps" aria-label="Progress">
-            {["Choose", "Review", "Done"].map((label, i) => (
-              <span key={label} style={{ display: "contents" }}>
-                {i > 0 && <span className="bar" />}
-                <span className={`s${i === stepIdx ? " on" : ""}${i < stepIdx ? " done" : ""}`}>
-                  <span className="n">{i < stepIdx ? "✓" : i + 1}</span>
-                  {label}
-                </span>
+    <Modal
+      title="Merge into multiple branches"
+      className="mm"
+      onClose={onClose}
+      busy={busy}
+      headerExtra={
+        <div className="mm-steps" aria-label="Progress">
+          {["Choose", "Review", "Done"].map((label, i) => (
+            <span key={label} style={{ display: "contents" }}>
+              {i > 0 && <span className="bar" />}
+              <span className={`s${i === stepIdx ? " on" : ""}${i < stepIdx ? " done" : ""}`}>
+                <span className="n">{i < stepIdx ? "✓" : i + 1}</span>
+                {label}
               </span>
-            ))}
-          </div>
+            </span>
+          ))}
         </div>
+      }
+    >
         {error && <ErrorBox text={error} compact />}
 
         {step === "pick" && (
@@ -422,7 +426,6 @@ export function MultiMergeDialog({ tabId, initialSource, onClose }: { tabId: str
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

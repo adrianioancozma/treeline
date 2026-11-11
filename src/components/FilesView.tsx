@@ -3,6 +3,7 @@ import { api, errorMessage } from "../api";
 import { repoActions } from "../actions";
 import { useSplit } from "../hooks";
 import { splitPath } from "../lib/format";
+import { formatShortcut } from "../lib/shortcut";
 import { useApp } from "../store";
 import type { FileSel } from "../store";
 import { openMenu, useUi } from "../uiStore";
@@ -330,7 +331,7 @@ function CommitBox({ tab, stagedCount, conflicts }: { tab: Tab; stagedCount: num
     <div className="commit-box">
       <textarea
         value={msg}
-        placeholder={amend ? "Amend the last commit message…" : "Commit message (Ctrl+Enter to commit)"}
+        placeholder={amend ? "Amend the last commit message…" : `Commit message (${formatShortcut("Mod+Enter")} to commit)`}
         aria-label="Commit message"
         onChange={(e) => setUi(tab.id, { draft: e.target.value })}
         onKeyDown={(e) => {

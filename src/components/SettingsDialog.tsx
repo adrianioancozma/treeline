@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Modal } from "./Modal";
 import { useUi } from "../uiStore";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, errorMessage } from "../api";
@@ -72,15 +73,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label="Settings"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-      >
-        <h2>Settings</h2>
+    <Modal title="Settings" onClose={onClose}>
         <h3 className="small">Git program</h3>
         {info ? (
           <>
@@ -178,11 +171,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           </>
         )}
         <div className="modal-actions">
-          <button className="btn primary" onClick={onClose}>
+          <button className="btn" onClick={onClose}>
             Close
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

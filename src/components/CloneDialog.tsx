@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { api, errorMessage } from "../api";
 import { useApp } from "../store";
 import { ErrorBox } from "./ErrorBox";
+import { Modal } from "./Modal";
 import type { OpProgress as CloneProgress } from "../types";
 
 /** "https://host/group/my-repo.git" or "git@host:group/my-repo.git" → "my-repo" */
@@ -58,18 +59,18 @@ export function CloneDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="modal-backdrop" onMouseDown={() => !busy && onClose()}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-label="Clone repository"
-        onMouseDown={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && !busy) onClose();
-          if (e.key === "Enter" && canClone) void clone();
-        }}
-      >
-        <h2>Clone repository</h2>
+    <Modal
+      title="Clone repository"
+      onClose={onClose}
+      busy={busy}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !(e.target instanceof HTMLButtonElement) && canClone) {
+          // Focus returns to the button that opened the dialog; this Enter must not press it again.
+          e.preventDefault();
+          void clone();
+        }
+      }}
+    >
         <label>
           Repository URL
           <input
@@ -128,7 +129,6 @@ export function CloneDialog({ onClose }: { onClose: () => void }) {
             {busy ? "Cloning…" : "Clone"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
