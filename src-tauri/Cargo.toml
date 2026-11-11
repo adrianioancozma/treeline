@@ -1,6 +1,6 @@
 [package]
 name = "treeline"
-version = "0.3.2"
+version = "0.3.3"
 description = "Treeline - a fast Git client"
 authors = ["Treeline"]
 edition = "2024"
