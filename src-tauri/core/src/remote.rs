@@ -409,10 +409,13 @@ pub const HELPER_DIRS: [&str; 2] = ["/tmp", "$HOME/.cache/treeline"];
 /// computer it is on, reads the length of the helper built for it (digits only), reads exactly that many bytes once
 /// into a private file in the first folder where one can be created, and moves it on if it cannot run there
 /// (`--probe`). The helper deletes its file as soon as it starts. No value from the app is put into the script.
+/// A folder is used only if it has the sticky bit (like /tmp: no one can replace another user's file) or belongs to the
+/// user and no one else can write to it. Files of its own left there more than a day ago (an upload cut off) are
+/// removed first. Only POSIX `find` options, so it runs with busybox and dash too.
 pub fn launch_script(dirs: &[&str]) -> String {
     let dirs = dirs.iter().map(|d| format!("\"{d}\"")).collect::<Vec<_>>().join(" ");
     format!(
-        r#"echo "treeline-arch $(uname -s) $(uname -m)"; read n; case "$n" in ""|*[!0-9]*) exit 96;; esac; f=; for d in {dirs}; do [ -d "$d" ] || {{ mkdir -p "$d" 2>/dev/null && chmod 700 "$d"; }}; g=$(mktemp "$d/treeline-helper.XXXXXX" 2>/dev/null) || continue; chmod 700 "$g"; if [ -z "$f" ]; then head -c "$n" > "$g" || exit 97; else cat "$f" > "$g"; rm -f "$f"; fi; f=$g; if "$f" --probe >/dev/null 2>&1; then exec "$f" --stdio --self-delete; fi; done; [ -n "$f" ] && rm -f "$f"; echo "treeline: no folder on this computer allows running the helper (tried /tmp and ~/.cache/treeline)" >&2; exit 99"#
+        r#"echo "treeline-arch $(uname -s) $(uname -m)"; read n; case "$n" in ""|*[!0-9]*) exit 96;; esac; u=$(id -u); f=; for d in {dirs}; do [ -d "$d" ] || {{ mkdir -p "$d" 2>/dev/null && chmod 700 "$d"; }}; [ -n "$(find "$d" -prune \( -perm -1000 -o \( -user "$u" ! -perm -0020 ! -perm -0002 \) \) 2>/dev/null)" ] || continue; find "$d"/. ! -name . -prune -type f -name "treeline-helper.??????" -user "$u" -mtime +0 -exec rm -f {{}} \; >/dev/null 2>&1; g=$(mktemp "$d/treeline-helper.XXXXXX" 2>/dev/null) || continue; chmod 700 "$g"; if [ -z "$f" ]; then head -c "$n" > "$g" || exit 97; else cat "$f" > "$g"; rm -f "$f"; fi; f=$g; if "$f" --probe >/dev/null 2>&1; then exec "$f" --stdio --self-delete; fi; done; [ -n "$f" ] && rm -f "$f"; echo "treeline: no folder on this computer allows running the helper (tried /tmp and ~/.cache/treeline)" >&2; exit 99"#
     )
 }
 

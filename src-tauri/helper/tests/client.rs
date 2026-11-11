@@ -300,3 +300,61 @@ fn a_side_that_stops_reading_does_not_hang_the_start() {
     assert!(outcome.unwrap().is_err());
     assert!(!still_running, "the process was left running");
 }
+
+/// A tiny stand-in "helper" (an sh script): on start it writes its own path to `log`, says hello and waits.
+#[cfg(unix)]
+fn path_logging_helper(log: &std::path::Path) -> Vec<u8> {
+    format!(
+        "#!/bin/sh\n[ \"$1\" = --probe ] && exit 0\necho \"$0\" > '{}'\necho '{{\"treeline-helper\":{{\"proto\":1}}}}'\nwhile read l; do :; done\n",
+        log.display()
+    )
+    .into_bytes()
+}
+
+#[cfg(unix)]
+#[test]
+fn leftover_helper_files_older_than_a_day_are_removed() {
+    let dir = private_dir("leftovers");
+    let old = dir.join("treeline-helper.AbC123"); // an upload cut off two days ago
+    let fresh = dir.join("treeline-helper.DeF456"); // could be another upload under way right now
+    let other = dir.join("notes.txt");
+    for f in [&old, &fresh, &other] {
+        std::fs::write(f, "x").unwrap();
+    }
+    for f in [&old, &other] {
+        assert!(Command::new("touch").args(["-t", "202001010000"]).arg(f).status().unwrap().success());
+    }
+    let bytes = std::fs::read(HELPER).unwrap();
+    let pick = |_: &str| Ok(bytes.clone());
+    let conn = Connection::start(sh(&launch_script(&[&dir.to_string_lossy()])), Upload::ForComputer(&pick), SEC, |_| {}).unwrap();
+    drop(conn);
+    assert!(!old.exists(), "the old leftover is removed");
+    assert!(fresh.exists(), "a recent file is left alone");
+    assert!(other.exists(), "files that are not helpers are left alone");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_folder_others_can_write_to_is_not_used() {
+    use std::os::unix::fs::PermissionsExt;
+    let open = private_dir("open"); // anyone could swap the file before it runs
+    std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o777)).unwrap();
+    let sticky = private_dir("sticky"); // like /tmp: others cannot touch your files
+    std::fs::set_permissions(&sticky, std::fs::Permissions::from_mode(0o1777)).unwrap();
+    let log = private_dir("open-log").join("ran-from");
+    let bytes = path_logging_helper(&log);
+    let pick = |_: &str| Ok(bytes.clone());
+
+    let conn = Connection::start(sh(&launch_script(&[&open.to_string_lossy(), &sticky.to_string_lossy()])), Upload::ForComputer(&pick), SEC, |_| {});
+    assert!(conn.is_ok(), "{:?}", conn.err());
+    drop(conn);
+    let ran = std::fs::read_to_string(&log).unwrap_or_default();
+    assert!(ran.starts_with(&*sticky.to_string_lossy()), "ran from {ran:?}, not from the sticky folder");
+
+    for d in [&open, &sticky] {
+        std::fs::set_permissions(d, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(d);
+    }
+    let _ = std::fs::remove_dir_all(log.parent().unwrap());
+}
