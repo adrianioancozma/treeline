@@ -147,6 +147,8 @@ pub fn run() {
             remote::remote_open,
             remote::remote_call,
             remote::remote_disconnect,
+            remote::remote_reconnect,
+            remote::remote_host_states,
             remote::remote_list,
             remote::ssh_hosts,
             remote::remote_recent,

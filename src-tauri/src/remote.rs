@@ -5,15 +5,17 @@
 //! against the read-only methods before it goes to the helper, which checks again on its side.
 //!
 //! For now (first version): only keys from the ssh agent (no password prompt); the static Linux helpers are files in
-//! the app's settings folder (see `helper_for`), or the path in `TREELINE_HELPER`; no automatic reconnect.
+//! the app's settings folder (see `helper_for`), or the path in `TREELINE_HELPER`. Connections: `treeline_core::hosts`
+//! (one per computer, replaced once when the link drops, a failed start remembered for a while, `remote-host-state` events).
 
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
-use treeline_core::remote::{Connection, Upload, helper_build_for, parse_ssh_hosts, ssh_helper_command, valid_host};
+use tauri::{AppHandle, Emitter, Manager};
+use treeline_core::hosts::{Ask, Config, Hosts};
+use treeline_core::remote::{Abort, Connection, Upload, helper_build_for, parse_ssh_hosts, ssh_helper_command, valid_host};
 
 use crate::git::blocking;
 
@@ -41,7 +43,6 @@ pub fn is_opened(opened: &[String], path: &str) -> bool {
 }
 
 struct State {
-    conns: HashMap<String, Arc<Connection>>,
     /// host -> folders opened there (as the user gave them, plus the helper's resolved form).
     opened: HashMap<String, Vec<String>>,
     file: Option<PathBuf>,
@@ -49,7 +50,7 @@ struct State {
 
 fn state() -> &'static Mutex<State> {
     static S: OnceLock<Mutex<State>> = OnceLock::new();
-    S.get_or_init(|| Mutex::new(State { conns: HashMap::new(), opened: HashMap::new(), file: None }))
+    S.get_or_init(|| Mutex::new(State { opened: HashMap::new(), file: None }))
 }
 
 fn lock() -> std::sync::MutexGuard<'static, State> {
@@ -86,6 +87,22 @@ pub fn load(app: &AppHandle) {
     let mut s = lock();
     s.opened = opened.into_iter().filter(|(h, _)| valid_host(h)).collect();
     s.file = Some(file);
+    drop(s);
+    let (for_connect, for_events) = (app.clone(), app.clone());
+    let _ = HOSTS.set(Hosts::with(
+        move |host, abort| connect(&for_connect, host, abort),
+        Config::default(),
+        move |host, generation, state| {
+            let _ = for_events.emit("remote-host-state", json!({ "host": host, "gen": generation, "state": state }));
+        },
+    ));
+}
+
+/// The connections to other computers (set up by `load`).
+static HOSTS: OnceLock<Hosts> = OnceLock::new();
+
+fn hosts() -> Result<&'static Hosts, String> {
+    HOSTS.get().ok_or_else(|| "Treeline is still starting.".to_string())
 }
 
 /// The helper built for `computer` (`<system> <machine>`, as the launch script reports it): a static build per
@@ -100,15 +117,12 @@ fn helper_for(app: &AppHandle, computer: &str) -> Result<Vec<u8>, String> {
     std::fs::read(&path).map_err(|_| format!("The {build} helper is not in this build yet. Put it at {}.", path.display()))
 }
 
-/// The live connection to `host`, starting one (and handing it the opened folders) if there is none.
-fn connection(app: &AppHandle, host: &str) -> Result<Arc<Connection>, String> {
-    if let Some(c) = lock().conns.get(host).filter(|c| c.is_alive()).cloned() {
-        return Ok(c);
-    }
+/// A new, ready connection to `host`: ssh, the helper built for that computer, and the opened folders handed to it.
+fn connect(app: &AppHandle, host: &str, abort: &Abort) -> Result<Connection, String> {
     let cmd = ssh_helper_command(host)?;
     let note_host = host.to_string();
     let pick = |computer: &str| helper_for(app, computer);
-    let conn = Connection::start(cmd, Upload::ForComputer(&pick), Duration::from_secs(20), move |note| {
+    let conn = Connection::start_with(cmd, Upload::ForComputer(&pick), Duration::from_secs(20), abort, move |note| {
         if note["method"] == "trusted" {
             if let Some(key) = note["params"]["key"].as_str() {
                 remember(&note_host, key.to_string());
@@ -117,18 +131,16 @@ fn connection(app: &AppHandle, host: &str) -> Result<Arc<Connection>, String> {
     })?;
     let opened = lock().opened.get(host).cloned().unwrap_or_default();
     conn.call("init", json!({ "trusted": opened }), Duration::from_secs(20))?;
-    let conn = Arc::new(conn);
-    lock().conns.insert(host.to_string(), Arc::clone(&conn));
     Ok(conn)
 }
 
 #[tauri::command]
-pub async fn remote_connect(app: AppHandle, host: String) -> Result<Value, String> {
+pub async fn remote_connect(host: String) -> Result<Value, String> {
     blocking(move || {
         if !valid_host(&host) {
             return Err(format!("“{host}” is not a computer name ssh can use."));
         }
-        Ok(connection(&app, &host)?.hello.clone())
+        Ok(hosts()?.get(&host, Ask::EXPLICIT)?.1.hello.clone())
     })
     .await
 }
@@ -143,8 +155,8 @@ pub async fn remote_open(app: AppHandle, host: String, path: String) -> Result<V
             return Err(format!("“{host}” is not a computer name ssh can use."));
         }
         let path = clean_remote_path(&path)?;
-        let conn = connection(&app, &host)?;
-        let access = conn.call("access", json!({ "path": path }), CALL_TIMEOUT)?;
+        let hosts = hosts()?;
+        let access = hosts.call(&host, "access", json!({ "path": path }), CALL_TIMEOUT, Ask::EXPLICIT)?;
         if let Some(problem) = access["problem"].as_str() {
             return Err(problem.to_string());
         }
@@ -165,14 +177,14 @@ pub async fn remote_open(app: AppHandle, host: String, path: String) -> Result<V
             }
             remember(&host, path.clone());
         }
-        conn.call("allow", json!({ "path": path }), CALL_TIMEOUT)?;
+        hosts.call(&host, "allow", json!({ "path": path }), CALL_TIMEOUT, Ask::EXPLICIT)?;
         Ok(json!({ "path": path, "writable": writable, "toplevel": access["toplevel"] }))
     })
     .await
 }
 
 #[tauri::command]
-pub async fn remote_call(app: AppHandle, host: String, method: String, params: Value) -> Result<Value, String> {
+pub async fn remote_call(host: String, method: String, params: Value) -> Result<Value, String> {
     blocking(move || {
         if !READ_METHODS.contains(&method.as_str()) {
             return Err(format!("{method} is not available for repositories on another computer yet."));
@@ -182,19 +194,19 @@ pub async fn remote_call(app: AppHandle, host: String, method: String, params: V
         if !is_opened(&opened, &path) {
             return Err(format!("{path} has not been opened on {host} in Treeline."));
         }
-        Ok(connection(&app, &host)?.call(&method, params, CALL_TIMEOUT)?)
+        hosts()?.call(&host, &method, params, CALL_TIMEOUT, Ask::READ)
     })
     .await
 }
 
 /// Folders on `host`, to pick one without typing its path (folder names only; see `treeline_core::browse`).
 #[tauri::command]
-pub async fn remote_list(app: AppHandle, host: String, path: String, show_hidden: bool) -> Result<Value, String> {
+pub async fn remote_list(host: String, path: String, show_hidden: bool) -> Result<Value, String> {
     blocking(move || {
         if !valid_host(&host) {
             return Err(format!("“{host}” is not a computer name ssh can use."));
         }
-        Ok(connection(&app, &host)?.call("list_dir", json!({ "path": path, "show_hidden": show_hidden }), CALL_TIMEOUT)?)
+        hosts()?.call(&host, "list_dir", json!({ "path": path, "show_hidden": show_hidden }), CALL_TIMEOUT, Ask::EXPLICIT)
     })
     .await
 }
@@ -216,9 +228,29 @@ pub fn remote_recent(host: String) -> Vec<String> {
 
 #[tauri::command]
 pub fn remote_disconnect(host: String) {
-    if let Some(conn) = lock().conns.remove(&host) {
-        conn.close();
+    if let Ok(h) = hosts() {
+        h.disconnect(&host);
     }
+}
+
+/// Keeps a connection that answers, replaces one that does not, or starts one now (even right after a failure);
+/// returns when that is done, so the page can reload afterwards.
+#[tauri::command]
+pub async fn remote_reconnect(host: String) -> Result<(), String> {
+    blocking(move || {
+        if !valid_host(&host) {
+            return Err(format!("“{host}” is not a computer name ssh can use."));
+        }
+        hosts()?.reconnect(&host)
+    })
+    .await
+}
+
+/// Every computer's connection state, for a page that starts listening to `remote-host-state` after it changed.
+#[tauri::command]
+pub fn remote_host_states() -> Vec<Value> {
+    let states = hosts().map(|h| h.states()).unwrap_or_default();
+    states.into_iter().map(|(host, generation, state)| json!({ "host": host, "gen": generation, "state": state })).collect()
 }
 
 #[cfg(test)]
